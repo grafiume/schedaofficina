@@ -165,28 +165,3 @@
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();
 })();
-// --- opzionale: ascolta un reset globale senza cambiare la logica del guard ---
-(function(){
-  if (typeof applyFilters !== 'function') return; // rispetta la tua architettura
-  // usa la stessa shape che già usi nel guard (battCollettore, lungAsse, lungPacco, largPacco, punta, numPunte)
-  document.addEventListener('filters:reset', () => {
-    try {
-      // 1) azzera SOLO lo stato dei filtri (non tocca altro)
-      const empty = { battCollettore:'', lungAsse:'', lungPacco:'', largPacco:'', punta:'', numPunte:'' };
-
-      // 2) se il guard ha uno state interno, azzeralo senza alterare altre funzioni
-      if (window.exactGuard && typeof window.exactGuard.state === 'object') {
-        Object.assign(window.exactGuard.state, empty);
-      }
-
-      // 3) pulisci eventuale cache locale dei filtri
-      try {
-        localStorage.removeItem('exactFilters');
-        localStorage.removeItem('filters-exact');
-      } catch(_) {}
-
-      // 4) riapplica filtri vuoti tramite la tua funzione ufficiale
-      applyFilters(empty);
-    } catch (_) { /* no-op */ }
-  });
-})();
