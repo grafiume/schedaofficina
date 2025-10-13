@@ -883,45 +883,72 @@ document.addEventListener('DOMContentLoaded',()=>{
     lista();
   };
 
-  // Reset filtri robusto + notifica al guard
-  function resetTechFilters(){
-    // 1) Pulisci gli input
-    const ids = ['f_battCollettore','f_lunghezzaAsse','f_lunghezzaPacco','f_larghezzaPacco','f_numPunte'];
-    ids.forEach(id=>{
-      const el=document.getElementById(id);
-      if(el){
-        el.value='';
+ // Reset filtri tecnici – super robusto
+function resetTechFilters(){
+  // mappa campi → possibili ID (underscore + trattino)
+  const idVariants = {
+    battCollettore: ['f_battCollettore','f-battCollettore'],
+    lunghezzaAsse:  ['f_lunghezzaAsse','f-lunghezzaAsse','f_lungAsse','f-lungAsse'],
+    lunghezzaPacco: ['f_lunghezzaPacco','f-lunghezzaPacco','f_lungPacco','f-lungPacco'],
+    larghezzaPacco: ['f_larghezzaPacco','f-larghezzaPacco','f_largPacco','f-largPacco'],
+    numPunte:       ['f_numPunte','f-numPunte'],
+    punta:          ['f_punta','f-punta']
+  };
+
+  // 1) Svuota TUTTI gli input/select possibili (underscore + trattino)
+  for (const key of Object.keys(idVariants)){
+    for (const id of idVariants[key]){
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (el.tagName === 'SELECT'){
+        el.selectedIndex = 0;
+        el.value = '';
+        el.dispatchEvent(new Event('change',{bubbles:true}));
+      } else {
+        el.value = '';
         el.dispatchEvent(new Event('input',{bubbles:true}));
         el.dispatchEvent(new Event('change',{bubbles:true}));
       }
-    });
-    // 2) Pulisci la select "punta"
-    const sel=document.getElementById('f_punta');
-    if(sel){
-      sel.selectedIndex=0;
-      sel.value='';
-      sel.dispatchEvent(new Event('change',{bubbles:true}));
-    }
-    // 3) Azzera lo stato locale
-    if(typeof techFilters==='object' && techFilters){
-      Object.keys(techFilters).forEach(k=>techFilters[k]='');
-    }
-    // 4) Notifica il filters-exact-guard
-    if (window.exactGuard && typeof window.exactGuard.reset==='function'){
-      window.exactGuard.reset();
-    } else {
-      const applyBtn = document.getElementById('btnApplyFilters');
-      if (applyBtn) applyBtn.click();
-      else if (typeof lista==='function') lista();
     }
   }
-  const btnReset=document.getElementById('btnResetFilters');
-  if(btnReset){
-    btnReset.addEventListener('click',e=>{
-      e.preventDefault();
-      resetTechFilters();
-    },{capture:true});
+
+  // 2) Azzera lo stato locale
+  if (typeof techFilters === 'object' && techFilters){
+    Object.keys(techFilters).forEach(k => techFilters[k] = '');
   }
+
+  // 3) Azzera eventuale stato del guard
+  if (window.exactGuard){
+    // cache in memoria
+    if (typeof window.exactGuard.state === 'object'){
+      Object.keys(window.exactGuard.state).forEach(k => window.exactGuard.state[k] = '');
+    }
+    // metodo reset dedicato (se presente)
+    if (typeof window.exactGuard.reset === 'function'){
+      try { window.exactGuard.reset(); } catch(_) {}
+    }
+  }
+
+  // 4) Pulisci possibili chiavi su localStorage
+  try {
+    localStorage.removeItem('exactFilters');
+    localStorage.removeItem('filters-exact');
+  } catch(_) {}
+
+  // 5) Ricalcola i risultati / notifica il guard
+  const applyBtn = document.getElementById('btnApplyFilters');
+  if (applyBtn) applyBtn.click();
+  else if (typeof lista === 'function') lista();
+}
+
+// Collega il pulsante Reset
+const btnReset = document.getElementById('btnResetFilters');
+if (btnReset){
+  btnReset.addEventListener('click', (e)=>{
+    e.preventDefault();
+    resetTechFilters();
+  }, {capture:true});
+}
 
   // KPI → Ricerca con filtro
   ['kpiTotBtn','kpiAttesaBtn','kpiLavorBtn','kpiSoonBtn','kpiComplBtn'].forEach(id=>{
