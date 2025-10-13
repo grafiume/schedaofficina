@@ -859,19 +859,15 @@ let searchTimer=null; function debouncedSearch(){clearTimeout(searchTimer);searc
 /* Wire-up */
 document.addEventListener('DOMContentLoaded',()=>{
 
-  const _stSel=document.getElementById('statoPratica');
-  if(_stSel){ _stSel.addEventListener('change', updateCompletionUI); }
+  const _stSel = document.getElementById('statoPratica');
+  if (_stSel) { _stSel.addEventListener('change', updateCompletionUI); }
 
-  $('#btnHome').onclick=()=>{sh('home');refreshDashboard();};
-  $('#btnSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
-  $('#newRecord').onclick=nuovo;
-  $('#goSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
-  $('#cancelForm').onclick=()=>{sh('home');refreshDashboard();};
-  $('#saveRecord').onclick=salva;
-
-  <!-- Ricerca (filtri tecnici) -->
-  <script>
-  /* Assumo che sopra ci sia già: document.addEventListener('DOMContentLoaded', ()=> { ... ) */
+  $('#btnHome').onclick   = () => { sh('home'); refreshDashboard(); };
+  $('#btnSearch').onclick = () => { currentFilter = null; sh('search'); lista(); };
+  $('#newRecord').onclick = nuovo;
+  $('#goSearch').onclick  = () => { currentFilter = null; sh('search'); lista(); };
+  $('#cancelForm').onclick= () => { sh('home'); refreshDashboard(); };
+  $('#saveRecord').onclick= salva;
 
   // Ricerca (filtri tecnici)
   $('#btnDoSearch').onclick = lista;
@@ -887,10 +883,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     lista();
   };
 
-  /* --- qui continua il TUO JS (reset filtri, KPI, delete, preview, thumbs, ecc.) --- */
+  // ...qui continua il resto del tuo JS (reset filtri, KPI, delete, preview, thumbs, ecc.) ...
 
-  // chiudi SEMPRE il DOMContentLoaded PRIMA di chiudere lo script
-  }); // <-- chiusura di document.addEventListener('DOMContentLoaded', ...)
+}); // <-- chiusura di DOMContentLoaded
 
   </script>
 
