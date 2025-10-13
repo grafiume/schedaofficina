@@ -740,15 +740,10 @@ async function lista(){
 
 /* Dettaglio (date IT) */
 async function apri(id){
-  const r = await getRecord(id);
-  const p = await getPhotos(id);
-  const images = (p && p.images) ? p.images : [];
-  const thumbs = (p && p.thumbs) ? p.thumbs : [];
-  const img = images[0] || thumbs[0];
-
-  const d = $('#detailContent');
-  d.innerHTML = `
-    ${img ? `<img class="img-fluid mb-3" src="${img}" id="detailImg" style="cursor:pointer">` : ''}
+  const r=await getRecord(id),{images,thumbs}=await getPhotos(id);const img=images[0]||thumbs[0];
+  const d=$('#detailContent');
+  d.innerHTML=`
+    ${img?`<img class="img-fluid mb-3" src="${img}" id="detailImg" style="cursor:pointer">`:''}
     <table class="table table-sm">
       <tr><th>Descrizione</th><td>${esc(r.descrizione)}</td></tr>
       <tr><th>Modello</th><td>${esc(r.modello)}</td></tr>
@@ -756,93 +751,48 @@ async function apri(id){
       <tr><th>Telefono</th><td>${esc(r.telefono)}</td></tr>
       <tr><th>Email</th><td>${esc(r.email)}</td></tr>
       <tr><th>Documento Trasporto</th><td>${esc(r.docTrasporto)}</td></tr>
-      <tr><th>Data apertura</th><td>${fmtIT(r.dataApertura || r.dataArrivo || '')}</td></tr>
+      <tr><th>Data apertura</th><td>${fmtIT(r.dataApertura||r.dataArrivo||'')}</td></tr>
       <tr><th>Data accettazione</th><td>${fmtIT(r.dataAccettazione)}</td></tr>
       <tr><th>Data scadenza</th><td>${fmtIT(r.dataScadenza)}</td></tr>
-
-      <!-- Dati tecnici -->
-      <tr><th>Batt. collettore</th><td>${esc(r.battCollettore || '')}</td></tr>
-      <tr><th>Lunghezza asse</th><td>${esc(r.lunghezzaAsse || '')}</td></tr>
-      <tr><th>Lunghezza pacco</th><td>${esc(r.lunghezzaPacco || '')}</td></tr>
-      <tr><th>Larghezza pacco</th><td>${esc(r.larghezzaPacco || '')}</td></tr>
-      <tr><th>Punta</th><td>${esc(r.punta || '')}${r && r.numPunte ? ` (${esc(r.numPunte)} punte)` : ''}</td></tr>
-
-      <tr><th>Stato pratica</th><td>${esc(r.statoPratica || 'In attesa')}</td></tr>
-      <tr><th>Preventivo</th><td>${esc(r.preventivoStato || 'Non inviato')}</td></tr>
+      <tr><th>Batt. collettore</th><td>${esc(r.battCollettore||'')}</td></tr>
+      <tr><th>Lunghezza asse</th><td>${esc(r.lunghezzaAsse||'')}</td></tr>
+      <tr><th>Lunghezza pacco</th><td>${esc(r.lunghezzaPacco||'')}</td></tr>
+      <tr><th>Larghezza pacco</th><td>${esc(r.larghezzaPacco||'')}</td></tr>
+      <tr><th>Punta</th><td>${esc(r.punta||'')} ${r?.numPunte?`(${esc(r.numPunte)} punte)`:''}</td></tr>
+      <tr><th>Stato pratica</th><td>${esc(r.statoPratica||'In attesa')}</td></tr>
+      <tr><th>Preventivo</th><td>${esc(r.preventivoStato||'Non inviato')}</td></tr>
       <tr><th>Note</th><td>${esc(r.note)}</td></tr>
     </table>`;
-
-  const modal = new bootstrap.Modal('#detailModal');
-  modal.show();
-
-  const imgEl = $('#detailImg');
-  if (imgEl) imgEl.addEventListener('click', () => openImg(img));
-
-  $('#btnPDF').onclick  = () => pdfRec(r, img);
-  $('#btnEdit').onclick = () => { modal.hide(); modifica(id); };
-  $('#btnDelete').onclick = () => { deleteTargetId = id; new bootstrap.Modal('#confirmDeleteModal').show(); };
+  const modal=new bootstrap.Modal('#detailModal'); modal.show();
+  const imgEl=$('#detailImg'); if(imgEl) imgEl.addEventListener('click',()=>openImg(img));
+  $('#btnPDF').onclick=()=>pdfRec(r,img);
+  $('#btnEdit').onclick=()=>{modal.hide(); modifica(id);};
+  $('#btnDelete').onclick=()=>{ deleteTargetId=id; new bootstrap.Modal('#confirmDeleteModal').show(); };
 }
 
 /* Full image modal */
-function openImg(src){
-  if (!src) return;
-  $('#imgFull').src = src;
-  new bootstrap.Modal('#imgModal').show();
-}
+function openImg(src){ if(!src) return; $('#imgFull').src=src; new bootstrap.Modal('#imgModal').show(); }
 
-/* PDF (tutte le etichette anche se vuote) */
-function pdfRec(r, img){
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit:'pt', format:'a4' });
-  let y = 40;
-
-  doc.setFontSize(18);
-  doc.text('Scheda riparazioni — Riepilogo', 40, y);
-  y += 24;
-  doc.setFontSize(12);
-
-  const L = (label, value) => {
-    doc.setFont(undefined, 'bold');   doc.text(label, 40, y);
-    doc.setFont(undefined, 'normal'); doc.text(': ' + (value ?? ''), 180, y);
-    y += 16;
+/* PDF (date IT) */
+function pdfRec(r,img){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'pt',format:'a4'});
+  let y=40;
+  doc.setFontSize(18); doc.text('Scheda riparazioni — Riepilogo',40,y); y+=24; doc.setFontSize(12);
+  const L=(l,v)=>{doc.setFont(undefined,'bold');doc.text(l,40,y);doc.setFont(undefined,'normal');doc.text(': '+(v||''),180,y);y+=16;};
+  const map={
+    descrizione:'Descrizione',modello:'Modello',cliente:'Cliente',telefono:'Telefono',email:'Email',docTrasporto:'Documento Trasporto',dataApertura:'Data apertura',dataAccettazione:'Data accettazione',
+    dataScadenza:'Data scadenza',battCollettore:'Batt. collettore',lunghezzaAsse:'Lunghezza asse',lunghezzaPacco:'Lunghezza pacco',larghezzaPacco:'Larghezza pacco',numPunte:'N. punte',,punta:'Punta',statoPratica:'Stato pratica',preventivoStato:'Preventivo',note:'Note'
+    
   };
-
-  const map = {
-    descrizione:'Descrizione',
-    modello:'Modello',
-    cliente:'Cliente',
-    telefono:'Telefono',
-    email:'Email',
-    docTrasporto:'Documento Trasporto',
-    dataApertura:'Data apertura',
-    dataAccettazione:'Data accettazione',
-    dataScadenza:'Data scadenza',
-
-    // Dati tecnici
-    battCollettore:'Batt. collettore',
-    lunghezzaAsse:'Lunghezza asse',
-    lunghezzaPacco:'Lunghezza pacco',
-    larghezzaPacco:'Larghezza pacco',
-    punta:'Punta',
-    numPunte:'N. punte',
-
-    // Stato / note
-    statoPratica:'Stato pratica',
-    preventivoStato:'Preventivo',
-    note:'Note'
-  };
-
-  Object.keys(map).forEach(k => {
-    let v = r[k];
-    if (['dataApertura','dataAccettazione','dataScadenza'].includes(k)) v = fmtIT(v) ?? '';
-    L(map[k], v ?? '');
+  Object.keys(map).forEach(k=>{
+    let v=r[k];
+    if(['dataApertura','dataAccettazione','dataScadenza'].includes(k)) v = fmtIT(v);
+    if(k==='numPunte' && !v) return;
+    if(r[k] || v) L(map[k], v);
   });
-
-  if (img){
-    try { doc.addImage(img, 'JPEG', 40, y + 6, 500, 300); } catch(e){}
-  }
-
-  doc.save(`Scheda-${(r.descrizione || '').replace(/\s+/g,'_')}-${r.modello || ''}.pdf`);
+  if(img){try{doc.addImage(img,'JPEG',40,y+6,500,300);}catch(e){}}
+  doc.save(`Scheda-${(r.descrizione||'').replace(/\s+/g,'_')}-${r.modello||''}.pdf`);
 }
 
 /* Backup/Ripristina */
@@ -858,44 +808,130 @@ let searchTimer=null; function debouncedSearch(){clearTimeout(searchTimer);searc
 
 /* Wire-up */
 document.addEventListener('DOMContentLoaded',()=>{
-
-  const _stSel = document.getElementById('statoPratica');
-  if (_stSel) { _stSel.addEventListener('change', updateCompletionUI); }
-
-  $('#btnHome').onclick   = () => { sh('home'); refreshDashboard(); };
-  $('#btnSearch').onclick = () => { currentFilter = null; sh('search'); lista(); };
-  $('#newRecord').onclick = nuovo;
-  $('#goSearch').onclick  = () => { currentFilter = null; sh('search'); lista(); };
-  $('#cancelForm').onclick= () => { sh('home'); refreshDashboard(); };
-  $('#saveRecord').onclick= salva;
+  const _stSel=document.getElementById('statoPratica'); if(_stSel){ _stSel.addEventListener('change', updateCompletionUI); }
+  $('#btnHome').onclick=()=>{sh('home');refreshDashboard();};
+  $('#btnSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
+  $('#newRecord').onclick=nuovo; $('#goSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
+  $('#cancelForm').onclick=()=>{sh('home');refreshDashboard();};
+  $('#saveRecord').onclick=salva;
 
   // Ricerca (filtri tecnici)
-  $('#btnDoSearch').onclick = lista;
-  $('#q').addEventListener('input', debouncedSearch);
+  $('#btnDoSearch').onclick=lista; $('#q').addEventListener('input',debouncedSearch);
+  $('#btnApplyFilters').onclick=()=>{techFilters.battCollettore=$('#f_battCollettore').value||'';techFilters.lunghezzaAsse=$('#f_lunghezzaAsse').value||'';techFilters.lunghezzaPacco=$('#f_lunghezzaPacco').value||'';techFilters.larghezzaPacco=$('#f_larghezzaPacco').value||'';techFilters.punta=$('#f_punta').value||'';techFilters.numPunte=$('#f_numPunte').value||'';lista();};
+  $('#btnResetFilters').onclick=()=>{['f_battCollettore','f_lunghezzaAsse','f_lunghezzaPacco','f_larghezzaPacco','f_numPunte'].forEach(id=>{$('#'+id).value='';});$('#f_punta').value='';Object.keys(techFilters).forEach(k=>techFilters[k]='');lista();};
+  ['kpiTotBtn','kpiAttesaBtn','kpiLavorBtn','kpiSoonBtn','kpiComplBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('click',()=>goToSearchWithFilter(el.dataset.filter));});
+  $('#btnClearFilter').onclick=()=>{currentFilter=null;lista();};
 
-  $('#btnApplyFilters').onclick = () => {
-    techFilters.battCollettore = $('#f_battCollettore').value || '';
-    techFilters.lunghezzaAsse  = $('#f_lunghezzaAsse').value  || '';
-    techFilters.lunghezzaPacco = $('#f_lunghezzaPacco').value || '';
-    techFilters.larghezzaPacco = $('#f_larghezzaPacco').value || '';
-    techFilters.punta          = $('#f_punta').value          || '';
-    techFilters.numPunte       = $('#f_numPunte').value       || '';
-    lista();
+  // backup
+  $('#exportZip').onclick=backup; $('#importZip').addEventListener('change',ripristina);
+
+  // delete
+  $('#confirmDeleteBtn').addEventListener('click', async ()=>{if(!deleteTargetId)return;await deleteRecord(deleteTargetId);deleteTargetId=null;bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal')).hide();lista();refreshDashboard();});
+
+  // foto preview
+  $('#photoInput').addEventListener('change',async e=>{const f=e.target.files?.[0];if(f)$('#photoPreview').src=await f2url(f);});
+  $('#photoPreview').addEventListener('click',()=>{ const src=$('#photoPreview').src; if(!src) return; $('#imgCenter').src=src; new bootstrap.Modal('#imgModalCenter').show(); });
+
+  
+  // Gestione hint vuoto dell'anteprima (destra)
+  const emptyHint = document.getElementById('emptyHint');
+  const previewImg = document.getElementById('photoPreview');
+  function updateEmptyHint(){
+    if(previewImg && emptyHint){
+      const hasSrc = !!previewImg.getAttribute('src');
+      emptyHint.style.display = hasSrc ? 'none' : 'block';
+    }
+  }
+  updateEmptyHint();
+  document.getElementById('photoInput').addEventListener('change', async e=>{
+    const f = e.target.files && e.target.files[0];
+    if(f){
+      const reader = new FileReader();
+      reader.onload = ev => { previewImg.src = ev.target.result; updateEmptyHint(); };
+      reader.readAsDataURL(f);
+    }else{
+      previewImg.removeAttribute('src'); updateEmptyHint();
+    }
+  });
+
+  
+  // === Gestione miniature e anteprima ===
+  const thumbStrip = document.getElementById('thumbStrip');
+  function clearThumbs(){ if(thumbStrip) thumbStrip.innerHTML=''; }
+  function addThumb(src, active=false){
+    if(!thumbStrip) return;
+    const item = document.createElement('div');
+    item.className = 'thumb-item' + (active?' active':'');
+    const im = document.createElement('img');
+    im.src = src;
+    item.appendChild(im);
+    item.addEventListener('click', ()=>{
+      const preview = document.getElementById('photoPreview');
+      if(preview){ preview.src = src; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
+      thumbStrip.querySelectorAll('.thumb-item').forEach(t=>t.classList.remove('active'));
+      item.classList.add('active');
+    });
+    thumbStrip.appendChild(item);
+  }
+  async function fileToDataURL(file){
+    return await new Promise(res=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
+  }
+  const photoInputEl = document.getElementById('photoInput');
+  if(photoInputEl){
+    photoInputEl.addEventListener('change', async (e)=>{
+      const files = Array.from(e.target.files||[]);
+      clearThumbs();
+      if(files.length){
+        const first = await fileToDataURL(files[0]);
+        const preview = document.getElementById('photoPreview');
+        if(preview){ preview.src = first; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
+        addThumb(first, true);
+        for(const f of files.slice(1)){
+          const data = await fileToDataURL(f);
+          addThumb(data, false);
+        }
+      }else{
+        const preview = document.getElementById('photoPreview');
+        if(preview){ preview.removeAttribute('src'); if(typeof updateEmptyHint==='function') updateEmptyHint(); }
+        clearThumbs();
+      }
+    }, { capture: true });
+  }
+  // Estendo modifica() per popolare miniature da archivio
+  const __orig_modifica = modifica;
+  modifica = async function(id){
+    await __orig_modifica(id);
+    if(!thumbStrip) return;
+    clearThumbs();
+    try{
+      const p = await getPhotos(id);
+      const imgs = (p && p.images) ? p.images : [];
+      if(imgs.length){
+        const preview = document.getElementById('photoPreview');
+        if(preview && !preview.src) preview.src = imgs[0];
+        addThumb(imgs[0], true);
+        for(const s of imgs.slice(1)){ addThumb(s, false); }
+        if(typeof updateEmptyHint==='function') updateEmptyHint();
+      }
+    }catch(err){ /* ignore */ }
   };
 
-  // ...qui continua il resto del tuo JS (reset filtri, KPI, delete, preview, thumbs, ecc.) ...
+  refreshDashboard();
+});
+</script>
+<!-- 1) Config con le chiavi -->
+<script src="config.js"></script>
 
-}); // <-- chiusura di DOMContentLoaded
+<!-- 2) Libreria Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  </script>
+<!-- 3) (Opzionale) patch singleton per evitare warning client multipli -->
+<script src="supabase-singleton.js"></script>
 
-  <!-- 1) Config con le chiavi -->
-  <script src="config.js"></script>
-  <!-- 2) Libreria Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- 3) (Opzionale) patch singleton per evitare warning client multipli -->
-  <script src="supabase-singleton.js"></script>
-  <!-- 4) Bridge della tua app -->
-  <script src="app-supabase.v6.3.3.js"></script>
-  <!-- 5) Script opzionali, tutti qui dentro il body -->
-  <script src="filters-exact-guard.js?v=1"></script>
+<!-- 4) Bridge della tua app -->
+<script src="app-supabase.v6.3.3.js"></script>
+
+<!-- 5) Script opzionali, tutti qui dentro il body -->
+
+<script src="filters-exact-guard.js?v=1"></script>
+
