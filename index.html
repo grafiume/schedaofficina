@@ -909,7 +909,9 @@ $('#btnResetFilters').onclick = () => {
   }
 
   // Azzera lo stato in memoria
-  Object.keys(techFilters).forEach(k => techFilters[k] = '');
+  if (typeof techFilters === 'object' && techFilters) {
+    Object.keys(techFilters).forEach(k => techFilters[k] = '');
+  }
 
   // Ricalcola risultati
   lista();
@@ -923,12 +925,15 @@ $('#btnResetFilters').onclick = () => {
 
 // Rimuovi filtro “vista” attivo
 $('#btnClearFilter').onclick = () => {
+  currentFilter = null;
+  lista();
+};
 
+// Backup
+$('#exportZip').onclick = backup;
+$('#importZip').addEventListener('change', ripristina);
 
-  // backup
-  $('#exportZip').onclick=backup; $('#importZip').addEventListener('change',ripristina);
-
-  /// delete
+// Delete (chiudi modali e torna alla Home)
 document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
   if (!deleteTargetId) return;
 
@@ -943,7 +948,7 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
   const confInst = bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal'));
   if (confInst) confInst.hide();
 
-  // Chiudi anche la modale "Dettaglio scheda" se ancora aperta dietro
+  // Chiudi anche la modale "Dettaglio scheda" se aperta
   const detInst = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
   if (detInst) detInst.hide();
 
@@ -951,93 +956,104 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
   sh('home');
   await refreshDashboard();
 });
-       
-  // foto preview
-  $('#photoInput').addEventListener('change',async e=>{const f=e.target.files?.[0];if(f)$('#photoPreview').src=await f2url(f);});
-  $('#photoPreview').addEventListener('click',()=>{ const src=$('#photoPreview').src; if(!src) return; $('#imgCenter').src=src; new bootstrap.Modal('#imgModalCenter').show(); });
 
-  
-  // Gestione hint vuoto dell'anteprima (destra)
-  const emptyHint = document.getElementById('emptyHint');
-  const previewImg = document.getElementById('photoPreview');
-  function updateEmptyHint(){
-    if(previewImg && emptyHint){
-      const hasSrc = !!previewImg.getAttribute('src');
-      emptyHint.style.display = hasSrc ? 'none' : 'block';
-    }
+// Foto preview (click per aprire popup centrato)
+$('#photoPreview').addEventListener('click', () => {
+  const src = $('#photoPreview').src;
+  if (!src) return;
+  $('#imgCenter').src = src;
+  new bootstrap.Modal('#imgModalCenter').show();
+});
+
+// Foto input → anteprima immediata
+$('#photoInput').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0];
+  const preview = document.getElementById('photoPreview');
+  if (f && preview) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      preview.src = ev.target.result;
+      if (typeof updateEmptyHint === 'function') updateEmptyHint();
+    };
+    reader.readAsDataURL(f);
+  } else if (preview) {
+    preview.removeAttribute('src');
+    if (typeof updateEmptyHint === 'function') updateEmptyHint();
   }
-  updateEmptyHint();
-  document.getElementById('photoInput').addEventListener('change', async e=>{
-    const f = e.target.files && e.target.files[0];
-    if(f){
-      const reader = new FileReader();
-      reader.onload = ev => { previewImg.src = ev.target.result; updateEmptyHint(); };
-      reader.readAsDataURL(f);
-    }else{
-      previewImg.removeAttribute('src'); updateEmptyHint();
+});
+
+// === Gestione miniature e anteprima ===
+const thumbStrip = document.getElementById('thumbStrip');
+function clearThumbs(){ if (thumbStrip) thumbStrip.innerHTML = ''; }
+function addThumb(src, active=false){
+  if (!thumbStrip) return;
+  const item = document.createElement('div');
+  item.className = 'thumb-item' + (active ? ' active' : '');
+  const im = document.createElement('img');
+  im.src = src;
+  item.appendChild(im);
+  item.addEventListener('click', () => {
+    const preview = document.getElementById('photoPreview');
+    if (preview){
+      preview.src = src;
+      if (typeof updateEmptyHint === 'function') updateEmptyHint();
     }
+    thumbStrip.querySelectorAll('.thumb-item').forEach(t => t.classList.remove('active'));
+    item.classList.add('active');
   });
+  thumbStrip.appendChild(item);
+}
 
-  
-  // === Gestione miniature e anteprima ===
-  const thumbStrip = document.getElementById('thumbStrip');
-  function clearThumbs(){ if(thumbStrip) thumbStrip.innerHTML=''; }
-  function addThumb(src, active=false){
-    if(!thumbStrip) return;
-    const item = document.createElement('div');
-    item.className = 'thumb-item' + (active?' active':'');
-    const im = document.createElement('img');
-    im.src = src;
-    item.appendChild(im);
-    item.addEventListener('click', ()=>{
+async function fileToDataURL(file){
+  return await new Promise(res => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.readAsDataURL(file);
+  });
+}
+
+// Input immagini → genera miniature
+const photoInputEl = document.getElementById('photoInput');
+if (photoInputEl){
+  photoInputEl.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    clearThumbs();
+    if (files.length){
+      const first = await fileToDataURL(files[0]);
       const preview = document.getElementById('photoPreview');
-      if(preview){ preview.src = src; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
-      thumbStrip.querySelectorAll('.thumb-item').forEach(t=>t.classList.remove('active'));
-      item.classList.add('active');
-    });
-    thumbStrip.appendChild(item);
-  }
-  async function fileToDataURL(file){
-    return await new Promise(res=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
-  }
-  const photoInputEl = document.getElementById('photoInput');
-  if(photoInputEl){
-    photoInputEl.addEventListener('change', async (e)=>{
-      const files = Array.from(e.target.files||[]);
-      clearThumbs();
-      if(files.length){
-        const first = await fileToDataURL(files[0]);
-        const preview = document.getElementById('photoPreview');
-        if(preview){ preview.src = first; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
-        addThumb(first, true);
-        for(const f of files.slice(1)){
-          const data = await fileToDataURL(f);
-          addThumb(data, false);
-        }
-      }else{
-        const preview = document.getElementById('photoPreview');
-        if(preview){ preview.removeAttribute('src'); if(typeof updateEmptyHint==='function') updateEmptyHint(); }
-        clearThumbs();
+      if (preview){
+        preview.src = first;
+        if (typeof updateEmptyHint === 'function') updateEmptyHint();
       }
-    }, { capture: true });
-  }
-<!-- Estendo modifica() per popolare miniature da archivio (robusto) -->
-<script>
+      addThumb(first, true);
+      for (const f of files.slice(1)){
+        const data = await fileToDataURL(f);
+        addThumb(data, false);
+      }
+    } else {
+      const preview = document.getElementById('photoPreview');
+      if (preview){
+        preview.removeAttribute('src');
+        if (typeof updateEmptyHint === 'function') updateEmptyHint();
+      }
+      clearThumbs();
+    }
+  }, { capture: true });
+}
+
+// Estendo modifica() per popolare miniature da archivio (robusto)
 (function(){
   if (typeof modifica !== 'function') return; // safety
 
   const _orig_modifica = modifica;
 
   modifica = async function(id){
-    // Esegue la tua modifica originale
     await _orig_modifica(id);
 
-    // DOM refs
     const strip   = document.getElementById('thumbStrip');
     const preview = document.getElementById('photoPreview');
     if (!strip) return;
 
-    // Helpers locali
     function clear(){ strip.innerHTML = ''; }
     function add(src, active=false){
       const item = document.createElement('div');
@@ -1056,45 +1072,19 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
       strip.appendChild(item);
     }
 
-    // Reset e ripopolamento
     clear();
     try{
       const p = await getPhotos(id);
       const imgs = (p && Array.isArray(p.images)) ? p.images : [];
 
       if (imgs.length){
-        if (preview && !preview.getAttribute('src')) {
-          preview.src = imgs[0];
-        }
+        if (preview && !preview.getAttribute('src')) preview.src = imgs[0];
         add(imgs[0], true);
-        for (const s of imgs.slice(1)){
-          add(s, false);
-        }
+        for (const s of imgs.slice(1)) add(s, false);
         if (typeof updateEmptyHint === 'function') updateEmptyHint();
       }
-    }catch(_){ /* ignora errori di caricamento miniature */ }
+    }catch(_){ /* ignore */ }
   };
 })();
-
-// avvia la dashboard iniziale
-refreshDashboard();
-});
-</script>
-
-<!-- 1) Config con le chiavi -->
-<script src="config.js"></script>
-
-<!-- 2) Libreria Supabase -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<!-- 3) (Opzionale) patch singleton per evitare warning client multipli -->
-<script src="supabase-singleton.js"></script>
-
-<!-- 4) Bridge della tua app -->
-<script src="app-supabase.v6.3.3.js"></script>
-
-<!-- 5) Script opzionali, tutti qui dentro il body -->
-<script src="filters-exact-guard.js?v=1"></script>
-
 
 
