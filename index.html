@@ -790,7 +790,7 @@ function openImg(src){
   new bootstrap.Modal('#imgModal').show();
 }
 
-/* PDF (date IT) */
+/* PDF (tutte le etichette anche se vuote) */
 function pdfRec(r, img){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'pt', format:'a4' });
@@ -802,8 +802,8 @@ function pdfRec(r, img){
   doc.setFontSize(12);
 
   const L = (label, value) => {
-    doc.setFont(undefined, 'bold');  doc.text(label, 40, y);
-    doc.setFont(undefined, 'normal'); doc.text(': ' + (value || ''), 180, y);
+    doc.setFont(undefined, 'bold');   doc.text(label, 40, y);
+    doc.setFont(undefined, 'normal'); doc.text(': ' + (value ?? ''), 180, y);
     y += 16;
   };
 
@@ -826,7 +826,7 @@ function pdfRec(r, img){
     punta:'Punta',
     numPunte:'N. punte',
 
-    // Stato/varie
+    // Stato / note
     statoPratica:'Stato pratica',
     preventivoStato:'Preventivo',
     note:'Note'
@@ -834,9 +834,8 @@ function pdfRec(r, img){
 
   Object.keys(map).forEach(k => {
     let v = r[k];
-    if (['dataApertura','dataAccettazione','dataScadenza'].includes(k)) v = fmtIT(v);
-    if (k === 'numPunte' && !v) return; // salta se vuoto
-    if (r[k] || v) L(map[k], v);
+    if (['dataApertura','dataAccettazione','dataScadenza'].includes(k)) v = fmtIT(v) ?? '';
+    L(map[k], v ?? '');
   });
 
   if (img){
