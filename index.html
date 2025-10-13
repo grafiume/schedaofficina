@@ -869,11 +869,15 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('#cancelForm').onclick=()=>{sh('home');refreshDashboard();};
   $('#saveRecord').onclick=salva;
 
-  // Ricerca (filtri tecnici)
-  $('#btnDoSearch').onclick=lista;
-  $('#q').addEventListener('input',debouncedSearch);
+  <!-- Ricerca (filtri tecnici) -->
+  <script>
+  /* Assumo che sopra ci sia già: document.addEventListener('DOMContentLoaded', ()=> { ... ) */
 
-  $('#btnApplyFilters').onclick=()=>{
+  // Ricerca (filtri tecnici)
+  $('#btnDoSearch').onclick = lista;
+  $('#q').addEventListener('input', debouncedSearch);
+
+  $('#btnApplyFilters').onclick = () => {
     techFilters.battCollettore = $('#f_battCollettore').value || '';
     techFilters.lunghezzaAsse  = $('#f_lunghezzaAsse').value  || '';
     techFilters.lunghezzaPacco = $('#f_lunghezzaPacco').value || '';
@@ -883,14 +887,20 @@ document.addEventListener('DOMContentLoaded',()=>{
     lista();
   };
 
- </script>
-<!-- 1) Config con le chiavi -->
-<script src="config.js"></script>
-<!-- 2) Libreria Supabase -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- 3) (Opzionale) patch singleton per evitare warning client multipli -->
-<script src="supabase-singleton.js"></script>
-<!-- 4) Bridge della tua app -->
-<script src="app-supabase.v6.3.3.js"></script>
-<!-- 5) Script opzionali, tutti qui dentro il body -->
-<script src="filters-exact-guard.js?v=1"></script>
+  /* --- qui continua il TUO JS (reset filtri, KPI, delete, preview, thumbs, ecc.) --- */
+
+  // chiudi SEMPRE il DOMContentLoaded PRIMA di chiudere lo script
+  }); // <-- chiusura di document.addEventListener('DOMContentLoaded', ...)
+
+  </script>
+
+  <!-- 1) Config con le chiavi -->
+  <script src="config.js"></script>
+  <!-- 2) Libreria Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- 3) (Opzionale) patch singleton per evitare warning client multipli -->
+  <script src="supabase-singleton.js"></script>
+  <!-- 4) Bridge della tua app -->
+  <script src="app-supabase.v6.3.3.js"></script>
+  <!-- 5) Script opzionali, tutti qui dentro il body -->
+  <script src="filters-exact-guard.js?v=1"></script>
