@@ -1,8 +1,5 @@
-<!doctype html>
-<html lang="it">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html><html lang="it"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Scheda riparazioni</title>
 <meta name="theme-color" content="#e07b39">
 <link rel="manifest" href="manifest.json">
@@ -34,6 +31,7 @@ body{padding-bottom:84px;background:var(--brand-bg)}
 fieldset{border:1px solid var(--brand-border)!important;border-radius:.6rem;padding:12px;margin-bottom:14px;background:#fff}
 legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 .small-muted{font-size:.875rem;color:#6c757d}
+.badge-filter{vertical-align:middle}
 .pagination .page-link{cursor:pointer}
 .kpi.border-top-green{border-top:4px solid var(--brand-green)}
 .kpi.border-top-red{border-top:4px solid var(--brand-red)}
@@ -51,13 +49,13 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 /* === Layout Modifica/Nuova scheda: due colonne senza scroll pagina === */
 @media (min-width: 992px){
   #page-form .form-flex{
-    height: calc(100vh - 220px);
+    height: calc(100vh - 220px); /* header + titolo + sticky */
     display: flex;
     gap: 1rem;
   }
   #page-form .left-pane, #page-form .right-pane{ height: 100%; }
   #page-form .left-pane{
-    overflow: auto;
+    overflow: auto;             /* scorre solo la colonna di sinistra se serve */
     padding-right: .5rem;
   }
   #page-form .right-pane{ overflow: hidden; }
@@ -77,7 +75,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 .image-box{
   position:relative;
   width:100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 4 / 3;          /* Cambia in 1/1 o 16/9 se preferisci */
   border:1px dashed #c8c8c8;
   border-radius:.5rem;
   background:#f8f9fa;
@@ -91,7 +89,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   inset:0;
   width:100%;
   height:100%;
-  object-fit:contain;
+  object-fit:contain;             /* riempie senza deformare */
 }
 .image-box .empty-hint{
   color:#8a8a8a;
@@ -139,32 +137,36 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
     display: grid !important;
     grid-template-columns: 1fr 1fr 0.6fr 1fr;
     gap: .75rem 1rem;
-    align-items: start;
+    align-items: start;              /* evita sfasamenti verticali */
   }
 }
+/* Etichette consistenti */
 .tech-grid .form-label{
   margin-bottom: .35rem;
   line-height: 1.15;
-  white-space: nowrap;
+  white-space: nowrap;               /* evita label su due righe */
 }
+/* Altezza uniforme per input/select/textarea (Note a 1 riga) */
 .tech-grid .form-control,
 .tech-grid .form-select,
 .tech-grid textarea{
-  height: 42px;
+  height: 42px;                      /* controlli uniformi */
   padding-top: .45rem;
   padding-bottom: .45rem;
 }
+/* Textarea Note come campo mono-riga */
 .tech-grid textarea{
-  resize: vertical;
+  resize: vertical;                  /* consentito all'occorrenza */
 }
+/* Evita che i campi "N. punte" stringano troppo */
 .tech-grid [name="numPunte"]{
   min-width: 80px;
   text-align: center;
 }
+
+/* Evidenzia scadenze urgenti (<=3 giorni) o scadute */
 .date-urgent{ color: var(--brand-red); font-weight:600; }
-</style>
-</head>
-<body>
+</style></head><body>
 <!-- HEADER -->
 <header class="header-bar position-relative">
   <div class="brand-wrap">
@@ -231,6 +233,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 <div class="container my-3 d-none" id="page-form">
   <h4 class="mb-2" id="formTitle">Nuova scheda</h4>
 
+  <!-- Layout due colonne: SINISTRA campi, DESTRA anteprima -->
   <div class="form-flex">
     <!-- SINISTRA -->
     <div class="left-pane flex-grow-1">
@@ -321,7 +324,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
       </div>
     </div>
 
-    <!-- DESTRA: ANTEPRIMA -->
+    <!-- DESTRA: ANTEPRIMA PRINCIPALE + UPLOAD multiplo sotto -->
     <div class="right-pane col-lg-5 col-12">
       <div class="preview-card">
         <div class="d-flex align-items-center justify-content-between">
@@ -338,7 +341,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
           <label for="photoInput" class="form-label mb-1">Carica immagini (multiplo)</label>
           <input id="photoInput" type="file" accept="image/*" class="form-control" multiple>
           <div class="small-muted mt-1">Suggerimento: la prima immagine caricata verrà mostrata qui sopra.</div>
-          <div id="thumbStrip" class="thumb-strip mt-2" aria-label="Anteprime immagini"></div>
+<div id="thumbStrip" class="thumb-strip mt-2" aria-label="Anteprime immagini"></div>
         </div>
       </div>
     </div>
@@ -355,7 +358,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   </div>
 
   <div class="row g-2 mb-2">
-    <div class="col-md-10"><input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT…"></div>
+    <div class="col-md-10"><input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT e dati tecnici (ammessi)…"></div>
     <div class="col-md-2 d-grid"><button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button></div>
   </div>
 
@@ -371,7 +374,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
           <select id="f_punta" class="form-select">
             <option value="">Punta (tutte)</option><option>Destra</option><option>Sinistra</option><option>Dritta</option>
           </select>
-          <input id="f_numPunte" class="form-control input-xxs" inputmode="numeric" pattern="\d{1,2}" maxlength="2" placeholder="N.">
+          <input id="f_numPunte" class="form-control input-xxs" inputmode="numeric" pattern="\\d{1,2}" maxlength="2" placeholder="N.">
         </div>
       </div>
       <div class="mt-2 d-flex gap-2">
@@ -417,7 +420,8 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   <div class="position-absolute top-0 end-0 p-3"><button class="btn btn-light" data-bs-dismiss="modal">Chiudi</button></div>
 </div></div></div>
 
-<!-- IMG CENTERED -->
+
+<!-- IMG CENTERED (popup bianco) -->
 <div class="modal fade" id="imgModalCenter" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -430,6 +434,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
     </div>
   </div>
 </div>
+
 
 <!-- CONFIRM DELETE -->
 <div class="modal fade" id="confirmDeleteModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
@@ -451,12 +456,46 @@ const $=s=>document.querySelector(s);
 const esc = s => String(s??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 function parseDate(v){ if(!v) return null; const d=new Date(v); return isNaN(d)?null:d; }
 function fmtIT(v){ const d=parseDate(v); return d? d.toLocaleDateString('it-IT') : ''; }
-function todayISO(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
-function newId(){ return (window.crypto && typeof crypto.randomUUID==='function') ? crypto.randomUUID() : Date.now().toString(); }
-function isSoon(d){ if(!d) return false; const t=new Date(); t.setHours(0,0,0,0); const lim=new Date(t); lim.setDate(lim.getDate()+7); return d>=t && d<=lim; }
-function isUrgent(d){ if(!d) return false; const t=new Date(); t.setHours(0,0,0,0); const due=new Date(d.getFullYear(),d.getMonth(),d.getDate()); const days=Math.floor((due-t)/(1000*60*60*24)); return days<=3; }
 
-/* ===== IndexedDB (locale) ===== */
+// <= 3 giorni alla scadenza oppure passato => urgente
+function isUrgent(d){
+  if(!d) return false;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const ms = due - today;
+  const days = Math.floor(ms / (1000*60*60*24));
+  return days <= 3; // include anche scadute (days < 0)
+}
+
+function isSoon(d){ if(!d) return false; const t=new Date(); t.setHours(0,0,0,0); const lim=new Date(t); lim.setDate(lim.getDate()+7); return d>=t && d<=lim; }
+function newId(){ return (window.crypto && typeof crypto.randomUUID==='function') ? crypto.randomUUID() : Date.now().toString(); }
+
+
+// === Helpers per data completamento & UI stato ===
+function todayISO(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+function updateCompletionUI(){
+  const statoSel = document.getElementById('statoPratica');
+  const info     = document.getElementById('completataInline');
+  const infoDate = document.getElementById('completataDate');
+  const f        = document.getElementById('recordForm');
+  const fldScad  = f && f.elements['dataScadenza'];
+  const fldCompl = f && f.elements['dataCompletamento'];
+  const isCompl  = statoSel && statoSel.value === 'Completata';
+  if(isCompl){
+    if(fldCompl && !fldCompl.value) fldCompl.value = todayISO(); // memorizza se manca
+    if(fldScad) fldScad.value = ''; // svuota ma resta visibile/attivo
+    if(info && infoDate){
+      const d = fldCompl && fldCompl.value ? new Date(fldCompl.value) : new Date();
+      infoDate.textContent = d.toLocaleDateString('it-IT');
+      info.classList.remove('d-none');
+    }
+  }else{
+    if(info) info.classList.add('d-none');
+    if(fldCompl) fldCompl.value='';
+  }
+}
+
+/* ===== IndexedDB ===== */
 const DB='officinaDB', VER=2;
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB,VER);r.onupgradeneeded=e=>{const db=e.target.result;let rec;if(!db.objectStoreNames.contains('records')){rec=db.createObjectStore('records',{keyPath:'id'});}else{rec=r.transaction.objectStore('records');}
 if(!rec.indexNames.contains('byStato'))rec.createIndex('byStato','statoPratica',{unique:false});
@@ -473,125 +512,59 @@ async function getPhotos(id){const db=await openDB();return new Promise((res,rej
 
 /* ===== App ===== */
 let cur=null, deleteTargetId=null;
+const FORCE_ATTESA = false;
+
 let currentFilter=null;
 const FILTER_LABELS={totali:'Tutte le schede (tutte)',attesa:'Solo: In attesa',lavorazione:'Solo: In lavorazione',soon:'Solo: Scadenze 7gg',completed:'Solo: Completate/Chiuse'};
-const PAGE_SIZE_CONST=50; let searchRows=[]; let page=1;
-
-// Filtri tecnici (solo match esatto)
+const PAGE_SIZE=50; let searchRows=[]; let page=1;
 const techFilters={battCollettore:'',lunghezzaAsse:'',lunghezzaPacco:'',larghezzaPacco:'',punta:'',numPunte:''};
 
 function sh(n){$('#page-home').classList.toggle('d-none',n!=='home');$('#page-form').classList.toggle('d-none',n!=='form');$('#page-search').classList.toggle('d-none',n!=='search');}
 function f2url(file){return new Promise((res,rej)=>{const R=new FileReader();R.onload=()=>res(R.result);R.onerror=()=>rej(R.error);R.readAsDataURL(file);});}
 
 /* Nuova scheda */
-function nuovo(){
-  cur = { id: newId(), createdAt: new Date().toISOString() };
-  const f = document.getElementById('recordForm');
-  if (f) f.reset();
-
-  const titleEl = document.getElementById('formTitle');
-  if (titleEl) titleEl.textContent = 'Nuova scheda';
-
-  const prev = document.getElementById('photoPreview');
-  if (prev) prev.src = '';
-
-  const s = document.getElementById('statoPratica'); if (s) s.value = 'In attesa';
-  const p = document.getElementById('preventivoStato'); if (p) p.value = 'Non inviato';
-
-  const lbl = document.getElementById('statoLabelText'); if (lbl) lbl.textContent = 'Stato';
-  const sm  = document.getElementById('completataInline');
-  if (sm) sm.innerHTML = '(Chiusa il <span id="completataDate"></span>)';
-
-  if (f && f.elements['dataCompletamento']) f.elements['dataCompletamento'].value = '';
-
-  sh('form'); updateCompletionUI();
-}
+function nuovo(){cur={id:newId(),createdAt:new Date().toISOString()};const f=$('#recordForm');f.reset();$('#formTitle').textContent='Nuova scheda';$('#photoPreview').src='';const s=$('#statoPratica');if(s)s.value='In attesa';const p=$('#preventivoStato');if(p)p.value='Non inviato'; const lbl=document.getElementById('statoLabelText'); if(lbl) lbl.textContent='Stato'; const sm=document.getElementById('completataInline'); if(sm) sm.innerHTML='(Chiusa il <span id="completataDate"></span>)'; if(f && f.elements['dataCompletamento']) f.elements['dataCompletamento'].value=''; sh('form'); updateCompletionUI();}
 
 /* Modifica */
-async function modifica(id){
-  const r = await getRecord(id);
-  if (!r) { alert('Scheda non trovata'); return; }
-  cur = r;
-  const f = document.getElementById('recordForm');
-  const titleEl = document.getElementById('formTitle'); if (titleEl) titleEl.textContent = 'Modifica scheda';
-
-  if (f){
-    [...f.elements].forEach(el=>{
-      if (el && el.name && Object.prototype.hasOwnProperty.call(r, el.name) && r[el.name] != null){
-        el.value = r[el.name];
-      }
-    });
-  }
-  const s = document.getElementById('statoPratica'); if (s) s.value = r.statoPratica || 'In attesa';
-  const p = document.getElementById('preventivoStato'); if (p) p.value = r.preventivoStato || 'Non inviato';
-
-  try{
-    const photos = await getPhotos(id);
-    const imgs = (photos && photos.images) ? photos.images : [];
-    const prev = document.getElementById('photoPreview'); if (prev) prev.src = imgs[0] || '';
-  }catch(_){}
-
-  const lbl = document.getElementById('statoLabelText'); if (lbl) lbl.textContent = 'Stato';
-  const sm  = document.getElementById('completataInline'); if (sm) sm.innerHTML = '(Chiusa il <span id="completataDate"></span>)';
-
-  sh('form'); updateCompletionUI();
-}
-
-/* Stato completata → UI */
-function updateCompletionUI(){
-  const statoSel = document.getElementById('statoPratica');
-  const info     = document.getElementById('completataInline');
-  const infoDate = document.getElementById('completataDate');
-  const f        = document.getElementById('recordForm');
-  const fldScad  = f && f.elements['dataScadenza'];
-  const fldCompl = f && f.elements['dataCompletamento'];
-  const isCompl  = statoSel && statoSel.value === 'Completata';
-  if(isCompl){
-    if(fldCompl && !fldCompl.value) fldCompl.value = todayISO();
-    if(fldScad) fldScad.value = '';
-    if(info && infoDate){ infoDate.textContent = new Date().toLocaleDateString('it-IT'); info.classList.remove('d-none'); }
-  }else{
-    if(info) info.classList.add('d-none');
-    if(fldCompl) fldCompl.value='';
-  }
-}
+async function modifica(id){const r=await getRecord(id);if(!r){alert('Scheda non trovata');return;}cur=r;const f=$('#recordForm');$('#formTitle').textContent='Modifica scheda';[...f.elements].forEach(el=>{if(el.name&&r[el.name]!=null) el.value=r[el.name];});const s=$('#statoPratica');if(s)s.value=r.statoPratica||'In attesa';const p=$('#preventivoStato');if(p)p.value=r.preventivoStato||'Non inviato';const {images}=await getPhotos(id);$('#photoPreview').src=images[0]||'';const lbl=document.getElementById('statoLabelText'); if(lbl) lbl.textContent='Stato'; const sm=document.getElementById('completataInline'); if(sm) sm.innerHTML='(Chiusa il <span id="completataDate"></span>)'; sh('form'); updateCompletionUI();}
 
 /* Salva */
 async function salva(){
-  const f=document.getElementById('recordForm');
+  const f=$('#recordForm');
   const d=Object.fromEntries(new FormData(f).entries());
   d.id = cur?.id || newId();
   d.updatedAt = new Date().toISOString();
+  if(FORCE_ATTESA) d.statoPratica='In attesa';
   if(!d.preventivoStato) d.preventivoStato='Non inviato';
-
-  if(d.statoPratica==='Completata'){
+  // Stato completata => azzera scadenza e memorizza data completamento
+  if(d.statoPratica==='Completata'){ 
     if(!d.dataCompletamento){ d.dataCompletamento = todayISO(); }
     d.dataScadenza='';
-  }else{
+  } else {
     d.dataCompletamento='';
   }
+  // data arrivo = data apertura
   d.dataArrivo = d.dataApertura || '';
 
+  // Foto
   let full=[],thumbs=[];
-  const fl=document.getElementById('photoInput').files;
-  if(fl&&fl.length){for(const file of fl){const data=await f2url(file);full.push(data);thumbs.push(data);}} else {
-    const prev=document.getElementById('photoPreview').getAttribute('src');
-    if(prev){ full=[prev]; thumbs=[prev]; }
-  }
+  const fl=$('#photoInput').files;
+  if(fl&&fl.length){for(const file of fl){const data=await f2url(file);full.push(data);thumbs.push(data);}}
+  else{const prev=$('#photoPreview').getAttribute('src');if(prev){full=[prev];thumbs=[prev];}}
 
   await putRecord(d);
   if(full.length||thumbs.length) await savePhotosWithThumbs(d.id,full,thumbs);
   alert('Scheda salvata'); sh('home'); refreshDashboard();
 }
 
-/* Rendering thumb */
+/* Rendering thumb + apertura full */
 function renderThumb(src,id){return src?`<img class="thumb" loading="lazy" src="${src}" data-id="${id}">`:'<div class="thumb d-flex align-items-center justify-content-center text-secondary">—</div>';}
 
-/* HOME: lista aperte */
+/* HOME: lista aperte (Data arrivo in IT) */
 async function populateHomeOpenList(){
   const all=await getAllRecords(); all.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
   const open=all.filter(r=>(r.statoPratica||'')!=='Completata');
-  const tb=document.getElementById('listAllOpenBody');
+  const tb=$('#listAllOpenBody');
   if(!open.length){tb.innerHTML='<tr><td colspan="6" class="text-muted">Nessuna scheda</td></tr>';return;}
   const rows=[];
   for(const r of open){
@@ -612,9 +585,42 @@ async function populateHomeOpenList(){
   tb.querySelectorAll('img.thumb').forEach(img=>{img.addEventListener('click',async()=>{const id=img.getAttribute('data-id');const {images,thumbs}=await getPhotos(id);openImg(images[0]||thumbs[0]);});});
   tb.querySelectorAll('button[data-open]').forEach(b=>b.onclick=()=>apri(b.dataset.open));
   tb.querySelectorAll('button[data-edit]').forEach(b=>b.onclick=()=>modifica(b.dataset.edit));
+  
+  // Imposta il valore corrente e abilita salvataggio con conferma
+  document.querySelectorAll('select.state-edit').forEach(sel=>{
+    const id = sel.getAttribute('data-id');
+    const row = searchRows.find(r=>r.id===id);
+    if(row){ sel.value = row.statoPratica || 'In attesa'; }
+    sel.addEventListener('change', async (e)=>{
+      const val = e.target.value;
+      if(!confirm('Confermi il cambio di stato a "'+val+'"?')){ 
+        // ripristina valore precedente
+        const rPrev = searchRows.find(r=>r.id===id);
+        e.target.value = (rPrev && rPrev.statoPratica) ? rPrev.statoPratica : 'In attesa';
+        return;
+      }
+      try{
+        const rec = await getRecord(id);
+        if(rec){
+          rec.statoPratica = val;
+          if(val==='Completata'){ rec.dataCompletamento = todayISO(); rec.dataScadenza=''; } else { rec.dataCompletamento = ''; }
+          rec.updatedAt = new Date().toISOString();
+          await putRecord(rec);
+          // aggiorna cache per la riga e refresh liste/kpi
+          const idx = searchRows.findIndex(r=>r.id===id);
+          if(idx>=0){ searchRows[idx].statoPratica = val; }
+          await refreshDashboard();
+          await lista();
+        }
+      }catch(err){
+        alert('Errore nel salvataggio dello stato.');
+      }
+    });
+  });
+
 }
 
-/* Ricerca — indice testo */
+/* Ricerca — indice testo (include numPunte) */
 function addToSearch(parts,v){if(v)parts.push(String(v).toLowerCase());}
 function buildSearchIndex(r){
   const p=[]; addToSearch(p,r.descrizione); addToSearch(p,r.modello); addToSearch(p,r.cliente);
@@ -624,23 +630,23 @@ function buildSearchIndex(r){
   return p.join(' ');
 }
 
-/* Filtri tecnici (match esatto) */
+/* Filtri tecnici singoli */
 function matchTechFilters(r){
-  const want=techFilters;
-  function eq(a,b){ return String(a??'').trim().toLowerCase() === String(b??'').trim().toLowerCase(); }
-  if(want.battCollettore && !eq(r.battCollettore, want.battCollettore)) return false;
-  if(want.lunghezzaAsse && !eq(r.lunghezzaAsse, want.lunghezzaAsse)) return false;
-  if(want.lunghezzaPacco && !eq(r.lunghezzaPacco, want.lunghezzaPacco)) return false;
-  if(want.larghezzaPacco && !eq(r.larghezzaPacco, want.larghezzaPacco)) return false;
-  if(want.punta && !eq(r.punta, want.punta)) return false;
-  if(want.numPunte && !eq(r.numPunte, want.numPunte)) return false;
+  const want=techFilters; const like=(a,b)=>String(a||'').toLowerCase().includes(String(b||'').toLowerCase());
+  if(want.battCollettore && !like(r.battCollettore, want.battCollettore)) return false;
+  if(want.lunghezzaAsse && !like(r.lunghezzaAsse, want.lunghezzaAsse)) return false;
+  if(want.lunghezzaPacco && !like(r.lunghezzaPacco, want.lunghezzaPacco)) return false;
+  if(want.larghezzaPacco && !like(r.larghezzaPacco, want.larghezzaPacco)) return false;
+  if(want.punta && String(r.punta||'')!==String(want.punta)) return false;
+  if(want.numPunte && String(r.numPunte||'')!==String(want.numPunte)) return false;
   return true;
 }
 
-/* Pager */
+/* Paginazione */
+const PAGE_SIZE_CONST = 50;
 function renderPager(total){
   const pages=Math.max(1,Math.ceil(total/PAGE_SIZE_CONST));
-  const ul=document.getElementById('pager'); ul.innerHTML='';
+  const ul=$('#pager'); ul.innerHTML='';
   const item=(lbl,target,dis=false,act=false)=>{const li=document.createElement('li');li.className=`page-item ${dis?'disabled':''} ${act?'active':''}`;li.innerHTML=`<span class="page-link">${lbl}</span>`;if(!dis&&!act)li.onclick=()=>{page=target;drawListPage();};ul.appendChild(li);};
   item('«',1,page===1); item('‹',Math.max(1,page-1),page===1);
   for(let i=1;i<=Math.min(pages,7);i++) item(String(i),i,false,page===i);
@@ -663,16 +669,17 @@ async function drawListPage(){
       <td class="nowrap">${fmtIT(r.dataAccettazione)}</td>
       <td class="nowrap">${(()=>{ const d=parseDate(r.dataScadenza); return isUrgent(d) ? `<span class="date-urgent">${fmtIT(r.dataScadenza)}</span>` : fmtIT(r.dataScadenza); })()}</td>
       <td class="nowrap">
-        <select class="form-select form-select-sm state-edit" data-id="\${r.id}">
-          <option value="In attesa">In attesa</option>
-          <option value="In lavorazione">In lavorazione</option>
-          <option value="Completata">Completata</option>
-        </select>
-      </td>
+      <select class="form-select form-select-sm state-edit" data-id="${r.id}">
+        <option value="In attesa">In attesa</option>
+        <option value="In lavorazione">In lavorazione</option>
+        <option value="Completata">Completata</option>
+        
+      </select>
+    </td>
       <td class="text-end nowrap">
         <div class="btn-group">
-          <button class="btn btn-sm btn-outline-primary" data-open="\${r.id}">Apri</button>
-          <button class="btn btn-sm btn-outline-success" data-edit="\${r.id}">Modifica</button>
+          <button class="btn btn-sm btn-outline-primary" data-open="${r.id}">Apri</button>
+          <button class="btn btn-sm btn-outline-success" data-edit="${r.id}">Modifica</button>
         </div>
       </td>`;
     tb.appendChild(tr);
@@ -680,15 +687,16 @@ async function drawListPage(){
   tb.querySelectorAll('img.thumb').forEach(img=>{img.addEventListener('click',async()=>{const id=img.getAttribute('data-id');const {images,thumbs}=await getPhotos(id);openImg(images[0]||thumbs[0]);});});
   tb.querySelectorAll('button[data-open]').forEach(b=>b.onclick=()=>apri(b.dataset.open));
   tb.querySelectorAll('button[data-edit]').forEach(b=>b.onclick=()=>modifica(b.dataset.edit));
-
-  // Stato inline
-  document.querySelectorAll('select.state-edit').forEach(async sel=>{
+  
+  // Imposta il valore corrente e abilita salvataggio con conferma
+  document.querySelectorAll('select.state-edit').forEach(sel=>{
     const id = sel.getAttribute('data-id');
     const row = searchRows.find(r=>r.id===id);
     if(row){ sel.value = row.statoPratica || 'In attesa'; }
     sel.addEventListener('change', async (e)=>{
       const val = e.target.value;
-      if(!confirm('Confermi il cambio di stato a "'+val+'"?')){
+      if(!confirm('Confermi il cambio di stato a "'+val+'"?')){ 
+        // ripristina valore precedente
         const rPrev = searchRows.find(r=>r.id===id);
         e.target.value = (rPrev && rPrev.statoPratica) ? rPrev.statoPratica : 'In attesa';
         return;
@@ -700,6 +708,7 @@ async function drawListPage(){
           if(val==='Completata'){ rec.dataCompletamento = todayISO(); rec.dataScadenza=''; } else { rec.dataCompletamento = ''; }
           rec.updatedAt = new Date().toISOString();
           await putRecord(rec);
+          // aggiorna cache per la riga e refresh liste/kpi
           const idx = searchRows.findIndex(r=>r.id===id);
           if(idx>=0){ searchRows[idx].statoPratica = val; }
           await refreshDashboard();
@@ -710,11 +719,12 @@ async function drawListPage(){
       }
     });
   });
+
 }
 
 /* Ricerca pipeline */
 async function lista(){
-  const q=(document.getElementById('q').value||'').toLowerCase();
+  const q=($('#q').value||'').toLowerCase();
   let rows;
   if(currentFilter==='attesa'||currentFilter==='lavorazione'||currentFilter==='completed'){
     if(currentFilter==='completed'){const comp=await getByStato('Completata');const cons=await getByStato('Consegnata');rows=[...comp,...cons];}
@@ -724,279 +734,255 @@ async function lista(){
   if(q) rows=rows.filter(r=>buildSearchIndex(r).includes(q));
   rows=rows.filter(matchTechFilters);
   rows.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
-  const box=document.getElementById('activeFilterBox'),lab=document.getElementById('activeFilterLabel'); if(currentFilter){box.classList.remove('d-none');lab.textContent=FILTER_LABELS[currentFilter]||'Filtro attivo';}else{box.classList.add('d-none');lab.textContent='';}
+  const box=$('#activeFilterBox'),lab=$('#activeFilterLabel'); if(currentFilter){box.classList.remove('d-none');lab.textContent=FILTER_LABELS[currentFilter]||'Filtro attivo';}else{box.classList.add('d-none');lab.textContent='';}
   searchRows=rows; page=1; renderPager(searchRows.length); drawListPage();
 }
 
-/* Dettaglio (table completa, anche vuoti) */
+/* Dettaglio (date IT) */
 async function apri(id){
-  const r=await getRecord(id),{images,thumbs}=await getPhotos(id);const img=images[0]||thumbs[0];
-  const d=document.getElementById('detailContent');
-  const rows=[
-    ['Descrizione', r.descrizione],
-    ['Modello', r.modello],
-    ['Cliente', r.cliente],
-    ['Telefono', r.telefono],
-    ['Email', r.email],
-    ['Documento Trasporto', r.docTrasporto],
-    ['Data apertura', fmtIT(r.dataApertura||r.dataArrivo||'')],
-    ['Data accettazione', fmtIT(r.dataAccettazione)],
-    ['Data scadenza', fmtIT(r.dataScadenza)],
-    ['Batt. collettore', r.battCollettore||''],
-    ['Lunghezza asse', r.lunghezzaAsse||''],
-    ['Lunghezza pacco', r.lunghezzaPacco||''],
-    ['Larghezza pacco', r.larghezzaPacco||''],
-    ['Punta', (r.punta||'') + (r?.numPunte?` (${r.numPunte} punte)`: '')],
-    ['Stato pratica', r.statoPratica||'In attesa'],
-    ['Preventivo', r.preventivoStato||'Non inviato'],
-    ['Note', r.note||'']
-  ];
-  d.innerHTML=`
-    ${img?`<img class="img-fluid mb-3" src="${img}" id="detailImg" style="cursor:pointer">`:''}
+  const r = await getRecord(id);
+  const p = await getPhotos(id);
+  const images = (p && p.images) ? p.images : [];
+  const thumbs = (p && p.thumbs) ? p.thumbs : [];
+  const img = images[0] || thumbs[0];
+
+  const d = $('#detailContent');
+  d.innerHTML = `
+    ${img ? `<img class="img-fluid mb-3" src="${img}" id="detailImg" style="cursor:pointer">` : ''}
     <table class="table table-sm">
-      ${rows.map(([k,v])=>`<tr><th>${esc(k)}</th><td>${esc(v??'')}</td></tr>`).join('')}
+      <tr><th>Descrizione</th><td>${esc(r.descrizione)}</td></tr>
+      <tr><th>Modello</th><td>${esc(r.modello)}</td></tr>
+      <tr><th>Cliente</th><td>${esc(r.cliente)}</td></tr>
+      <tr><th>Telefono</th><td>${esc(r.telefono)}</td></tr>
+      <tr><th>Email</th><td>${esc(r.email)}</td></tr>
+      <tr><th>Documento Trasporto</th><td>${esc(r.docTrasporto)}</td></tr>
+      <tr><th>Data apertura</th><td>${fmtIT(r.dataApertura || r.dataArrivo || '')}</td></tr>
+      <tr><th>Data accettazione</th><td>${fmtIT(r.dataAccettazione)}</td></tr>
+      <tr><th>Data scadenza</th><td>${fmtIT(r.dataScadenza)}</td></tr>
+
+      <!-- Dati tecnici -->
+      <tr><th>Batt. collettore</th><td>${esc(r.battCollettore || '')}</td></tr>
+      <tr><th>Lunghezza asse</th><td>${esc(r.lunghezzaAsse || '')}</td></tr>
+      <tr><th>Lunghezza pacco</th><td>${esc(r.lunghezzaPacco || '')}</td></tr>
+      <tr><th>Larghezza pacco</th><td>${esc(r.larghezzaPacco || '')}</td></tr>
+      <tr><th>Punta</th><td>${esc(r.punta || '')}${r && r.numPunte ? ` (${esc(r.numPunte)} punte)` : ''}</td></tr>
+
+      <tr><th>Stato pratica</th><td>${esc(r.statoPratica || 'In attesa')}</td></tr>
+      <tr><th>Preventivo</th><td>${esc(r.preventivoStato || 'Non inviato')}</td></tr>
+      <tr><th>Note</th><td>${esc(r.note)}</td></tr>
     </table>`;
-  const modal=new bootstrap.Modal('#detailModal'); modal.show();
-  const imgEl=document.getElementById('detailImg'); if(imgEl) imgEl.addEventListener('click',()=>openImg(img));
-  document.getElementById('btnPDF').onclick=()=>pdfRec(r,img);
-  document.getElementById('btnEdit').onclick=()=>{modal.hide(); modifica(id);};
-  document.getElementById('btnDelete').onclick=()=>{ deleteTargetId=id; new bootstrap.Modal('#confirmDeleteModal').show(); };
+
+  const modal = new bootstrap.Modal('#detailModal');
+  modal.show();
+
+  const imgEl = $('#detailImg');
+  if (imgEl) imgEl.addEventListener('click', () => openImg(img));
+
+  $('#btnPDF').onclick  = () => pdfRec(r, img);
+  $('#btnEdit').onclick = () => { modal.hide(); modifica(id); };
+  $('#btnDelete').onclick = () => { deleteTargetId = id; new bootstrap.Modal('#confirmDeleteModal').show(); };
 }
 
 /* Full image modal */
-function openImg(src){ if(!src) return; document.getElementById('imgFull').src=src; new bootstrap.Modal('#imgModal').show(); }
+function openImg(src){
+  if (!src) return;
+  $('#imgFull').src = src;
+  new bootstrap.Modal('#imgModal').show();
+}
 
-/* PDF completo (anche vuoti) */
-function pdfRec(r,img){
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({unit:'pt',format:'a4'});
-  let y=40;
-  doc.setFontSize(18); doc.text('Scheda riparazioni — Riepilogo',40,y); y+=24; doc.setFontSize(12);
-  const L=(l,v)=>{doc.setFont(undefined,'bold');doc.text(l,40,y);doc.setFont(undefined,'normal');doc.text(': '+(v||''),180,y);y+=16;};
-  const map={
-    descrizione:'Descrizione',modello:'Modello',cliente:'Cliente',telefono:'Telefono',email:'Email',
-    docTrasporto:'Documento Trasporto',dataApertura:'Data apertura',dataAccettazione:'Data accettazione',
-    dataScadenza:'Data scadenza',battCollettore:'Batt. collettore',lunghezzaAsse:'Lunghezza asse',
-    lunghezzaPacco:'Lunghezza pacco',larghezzaPacco:'Larghezza pacco',punta:'Punta',numPunte:'N. punte',
-    statoPratica:'Stato pratica',preventivoStato:'Preventivo',note:'Note'
+/* PDF (tutte le etichette anche se vuote) */
+function pdfRec(r, img){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'a4' });
+  let y = 40;
+
+  doc.setFontSize(18);
+  doc.text('Scheda riparazioni — Riepilogo', 40, y);
+  y += 24;
+  doc.setFontSize(12);
+
+  const L = (label, value) => {
+    doc.setFont(undefined, 'bold');   doc.text(label, 40, y);
+    doc.setFont(undefined, 'normal'); doc.text(': ' + (value ?? ''), 180, y);
+    y += 16;
   };
-  Object.keys(map).forEach(k=>{
-    let v=r[k];
-    if(['dataApertura','dataAccettazione','dataScadenza'].includes(k)) v = fmtIT(v);
-    L(map[k], v||'');
+
+  const map = {
+    descrizione:'Descrizione',
+    modello:'Modello',
+    cliente:'Cliente',
+    telefono:'Telefono',
+    email:'Email',
+    docTrasporto:'Documento Trasporto',
+    dataApertura:'Data apertura',
+    dataAccettazione:'Data accettazione',
+    dataScadenza:'Data scadenza',
+
+    // Dati tecnici
+    battCollettore:'Batt. collettore',
+    lunghezzaAsse:'Lunghezza asse',
+    lunghezzaPacco:'Lunghezza pacco',
+    larghezzaPacco:'Larghezza pacco',
+    punta:'Punta',
+    numPunte:'N. punte',
+
+    // Stato / note
+    statoPratica:'Stato pratica',
+    preventivoStato:'Preventivo',
+    note:'Note'
+  };
+
+  Object.keys(map).forEach(k => {
+    let v = r[k];
+    if (['dataApertura','dataAccettazione','dataScadenza'].includes(k)) v = fmtIT(v) ?? '';
+    L(map[k], v ?? '');
   });
-  if(img){try{doc.addImage(img,'JPEG',40,y+6,500,300);}catch(e){}}
-  doc.save(`Scheda-${(r.descrizione||'').replace(/\s+/g,'_')}-${r.modello||''}.pdf`);
+
+  if (img){
+    try { doc.addImage(img, 'JPEG', 40, y + 6, 500, 300); } catch(e){}
+  }
+
+  doc.save(`Scheda-${(r.descrizione || '').replace(/\s+/g,'_')}-${r.modello || ''}.pdf`);
 }
 
 /* Backup/Ripristina */
 async function backup(){const zip=new JSZip(),all=await getAllRecords();for(const r of all){zip.file(`records/${r.id}.json`,JSON.stringify(r,null,2));const {images,thumbs}=await getPhotos(r.id);images.forEach((d,i)=>zip.file(`photos/${r.id}-${i+1}.jpg`,d.split(',')[1],{base64:true}));thumbs.forEach((d,i)=>zip.file(`photos/${r.id}-${i+1}-thumb.jpg`,d.split(',')[1],{base64:true}));}const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='backup_scheda_riparazioni.zip';a.click();}
 async function ripristina(e){const f=e.target.files?.[0];if(!f)return;const zip=await JSZip.loadAsync(f);const recs=Object.keys(zip.files).filter(k=>k.startsWith('records/')&&k.endsWith('.json'));for(const k of recs){const txt=await zip.files[k].async('string');const r=JSON.parse(txt);await putRecord(r);const photos=Object.keys(zip.files).filter(p=>p.startsWith('photos/')&&p.includes(r.id+'-')&&!p.includes('-thumb'));const thumbs=Object.keys(zip.files).filter(p=>p.startsWith('photos/')&&p.includes(r.id+'-')&&p.includes('-thumb'));const imgs=[],ths=[];for(const p of photos){const b=await zip.files[p].async('base64');imgs.push('data:image/jpeg;base64,'+b);}for(const p of thumbs){const b=await zip.files[p].async('base64');ths.push('data:image/jpeg;base64,'+b);}if(imgs.length||ths.length)await savePhotosWithThumbs(r.id,imgs,ths);}alert('Ripristino completato');sh('home');refreshDashboard();}
 
+/* KPI → Ricerca + dashboard */
+function goToSearchWithFilter(filterKey){currentFilter=filterKey||null;sh('search');lista();}
+async function refreshDashboard(){const all=await getAllRecords();const kpiTot=$('#kpiTot'),kpiAttesa=$('#kpiAttesa'),kpiLavor=$('#kpiLavor'),kpiSoon=$('#kpiSoon'),kpiCompl=$('#kpiCompl');const cAtt=all.filter(r=>(r.statoPratica||'')==='In attesa').length;const cLav=all.filter(r=>(r.statoPratica||'')==='In lavorazione').length;const cSoon=all.filter(r=>isSoon(parseDate(r.dataScadenza))).length;const cCompl=all.filter(r=>(r.statoPratica||'')==='Completata').length;kpiTot.textContent=all.length;kpiAttesa.textContent=cAtt;kpiLavor.textContent=cLav;kpiSoon.textContent=cSoon;kpiCompl.textContent=cCompl;await populateHomeOpenList();}
+
 /* Debounce ricerca */
 let searchTimer=null; function debouncedSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{lista();},250);}
 
 /* Wire-up */
 document.addEventListener('DOMContentLoaded',()=>{
-
-  const _stSel=document.getElementById('statoPratica');
-  if(_stSel){ _stSel.addEventListener('change', updateCompletionUI); }
-
-  document.getElementById('btnHome').onclick=()=>{sh('home');refreshDashboard();};
-  document.getElementById('btnSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
-  document.getElementById('newRecord').onclick=nuovo;
-  document.getElementById('goSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
-  document.getElementById('cancelForm').onclick=()=>{sh('home');refreshDashboard();};
-  document.getElementById('saveRecord').onclick=salva;
+  const _stSel=document.getElementById('statoPratica'); if(_stSel){ _stSel.addEventListener('change', updateCompletionUI); }
+  $('#btnHome').onclick=()=>{sh('home');refreshDashboard();};
+  $('#btnSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
+  $('#newRecord').onclick=nuovo; $('#goSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
+  $('#cancelForm').onclick=()=>{sh('home');refreshDashboard();};
+  $('#saveRecord').onclick=salva;
 
   // Ricerca (filtri tecnici)
-  document.getElementById('btnDoSearch').onclick=lista;
-  document.getElementById('q').addEventListener('input',debouncedSearch);
+  $('#btnDoSearch').onclick=lista; $('#q').addEventListener('input',debouncedSearch);
+  $('#btnApplyFilters').onclick=()=>{techFilters.battCollettore=$('#f_battCollettore').value||'';techFilters.lunghezzaAsse=$('#f_lunghezzaAsse').value||'';techFilters.lunghezzaPacco=$('#f_lunghezzaPacco').value||'';techFilters.larghezzaPacco=$('#f_larghezzaPacco').value||'';techFilters.punta=$('#f_punta').value||'';techFilters.numPunte=$('#f_numPunte').value||'';lista();};
+  $('#btnResetFilters').onclick=()=>{['f_battCollettore','f_lunghezzaAsse','f_lunghezzaPacco','f_larghezzaPacco','f_numPunte'].forEach(id=>{$('#'+id).value='';});$('#f_punta').value='';Object.keys(techFilters).forEach(k=>techFilters[k]='');lista();};
+  ['kpiTotBtn','kpiAttesaBtn','kpiLavorBtn','kpiSoonBtn','kpiComplBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('click',()=>goToSearchWithFilter(el.dataset.filter));});
+  $('#btnClearFilter').onclick=()=>{currentFilter=null;lista();};
 
-  document.getElementById('btnApplyFilters').onclick=()=>{
-    techFilters.battCollettore = document.getElementById('f_battCollettore').value || '';
-    techFilters.lunghezzaAsse  = document.getElementById('f_lunghezzaAsse').value  || '';
-    techFilters.lunghezzaPacco = document.getElementById('f_lunghezzaPacco').value || '';
-    techFilters.larghezzaPacco = document.getElementById('f_larghezzaPacco').value || '';
-    techFilters.punta          = document.getElementById('f_punta').value          || '';
-    techFilters.numPunte       = document.getElementById('f_numPunte').value       || '';
-    lista();
-  };
+  // backup
+  $('#exportZip').onclick=backup; $('#importZip').addEventListener('change',ripristina);
 
-  // Reset filtri tecnici – super robusto
-  function resetTechFilters(){
-    const ids = {
-      battCollettore: ['f_battCollettore','f-battCollettore'],
-      lunghezzaAsse:  ['f_lunghezzaAsse','f-lunghezzaAsse','f_lungAsse','f-lungAsse'],
-      lunghezzaPacco: ['f_lunghezzaPacco','f-lunghezzaPacco','f_lungPacco','f-lungPacco'],
-      larghezzaPacco: ['f_larghezzaPacco','f-larghezzaPacco','f_largPacco','f-largPacco'],
-      numPunte:       ['f_numPunte','f-numPunte'],
-      punta:          ['f_punta','f-punta']
-    };
-    for(const key of Object.keys(ids)){
-      for(const id of ids[key]){
-        const el=document.getElementById(id);
-        if(!el) continue;
-        if(el.tagName==='SELECT'){
-          el.selectedIndex=0; el.value=''; el.dispatchEvent(new Event('change',{bubbles:true}));
-        }else{
-          el.value=''; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true}));
-        }
-      }
-    }
-    Object.keys(techFilters).forEach(k=>techFilters[k]='');
-    try{ localStorage.removeItem('exactFilters'); localStorage.removeItem('filters-exact'); }catch(_){}
-    if(typeof lista==='function') lista();
-  }
-  const btnReset=document.getElementById('btnResetFilters');
-  if(btnReset){ btnReset.addEventListener('click',e=>{ e.preventDefault(); resetTechFilters(); },{capture:true}); }
+  // delete
+  $('#confirmDeleteBtn').addEventListener('click', async ()=>{if(!deleteTargetId)return;await deleteRecord(deleteTargetId);deleteTargetId=null;bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal')).hide();lista();refreshDashboard();});
 
-  // KPI → Ricerca con filtro
-  ['kpiTotBtn','kpiAttesaBtn','kpiLavorBtn','kpiSoonBtn','kpiComplBtn'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el) el.addEventListener('click',()=>goToSearchWithFilter(el.dataset.filter));
-  });
-  document.getElementById('btnClearFilter').onclick=()=>{ currentFilter=null; lista(); };
+  // foto preview
+  $('#photoInput').addEventListener('change',async e=>{const f=e.target.files?.[0];if(f)$('#photoPreview').src=await f2url(f);});
+  $('#photoPreview').addEventListener('click',()=>{ const src=$('#photoPreview').src; if(!src) return; $('#imgCenter').src=src; new bootstrap.Modal('#imgModalCenter').show(); });
 
-  // Backup
-  document.getElementById('exportZip').onclick=backup;
-  document.getElementById('importZip').addEventListener('change',ripristina);
-
-  // Delete → chiudi modali e torna Home
-  document.getElementById('confirmDeleteBtn').addEventListener('click', async ()=>{
-    if(!deleteTargetId) return;
-    try{ await deleteRecord(deleteTargetId); }catch(e){ console.error(e); }
-    deleteTargetId=null;
-    const confInst=bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal')); if(confInst) confInst.hide();
-    const detInst =bootstrap.Modal.getInstance(document.getElementById('detailModal'));       if(detInst) detInst.hide();
-    sh('home'); await window.refreshDashboard();
-  });
-
-  // Foto preview e hint
-  document.getElementById('photoPreview').addEventListener('click',()=>{
-    const src=document.getElementById('photoPreview').src; if(!src) return;
-    document.getElementById('imgCenter').src=src; new bootstrap.Modal('#imgModalCenter').show();
-  });
-  const emptyHint=document.getElementById('emptyHint');
-  const previewImg=document.getElementById('photoPreview');
+  
+  // Gestione hint vuoto dell'anteprima (destra)
+  const emptyHint = document.getElementById('emptyHint');
+  const previewImg = document.getElementById('photoPreview');
   function updateEmptyHint(){
     if(previewImg && emptyHint){
-      emptyHint.style.display = previewImg.getAttribute('src') ? 'none':'block';
+      const hasSrc = !!previewImg.getAttribute('src');
+      emptyHint.style.display = hasSrc ? 'none' : 'block';
     }
   }
   updateEmptyHint();
-  document.getElementById('photoInput').addEventListener('change',async e=>{
-    const f=e.target.files && e.target.files[0];
+  document.getElementById('photoInput').addEventListener('change', async e=>{
+    const f = e.target.files && e.target.files[0];
     if(f){
-      const r=new FileReader();
-      r.onload=ev=>{ previewImg.src=ev.target.result; updateEmptyHint(); };
-      r.readAsDataURL(f);
-    }else{ previewImg.removeAttribute('src'); updateEmptyHint(); }
+      const reader = new FileReader();
+      reader.onload = ev => { previewImg.src = ev.target.result; updateEmptyHint(); };
+      reader.readAsDataURL(f);
+    }else{
+      previewImg.removeAttribute('src'); updateEmptyHint();
+    }
   });
 
-  // Miniature
-  const thumbStrip=document.getElementById('thumbStrip');
+  
+  // === Gestione miniature e anteprima ===
+  const thumbStrip = document.getElementById('thumbStrip');
   function clearThumbs(){ if(thumbStrip) thumbStrip.innerHTML=''; }
-  function addThumb(src,active=false){
+  function addThumb(src, active=false){
     if(!thumbStrip) return;
-    const item=document.createElement('div');
-    item.className='thumb-item'+(active?' active':''); const im=document.createElement('img'); im.src=src; item.appendChild(im);
-    item.addEventListener('click',()=>{
-      const p=document.getElementById('photoPreview');
-      if(p){ p.src=src; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
+    const item = document.createElement('div');
+    item.className = 'thumb-item' + (active?' active':'');
+    const im = document.createElement('img');
+    im.src = src;
+    item.appendChild(im);
+    item.addEventListener('click', ()=>{
+      const preview = document.getElementById('photoPreview');
+      if(preview){ preview.src = src; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
       thumbStrip.querySelectorAll('.thumb-item').forEach(t=>t.classList.remove('active'));
       item.classList.add('active');
     });
     thumbStrip.appendChild(item);
   }
-  async function fileToDataURL(file){return await new Promise(res=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });}
-  const photoInputEl=document.getElementById('photoInput');
+  async function fileToDataURL(file){
+    return await new Promise(res=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
+  }
+  const photoInputEl = document.getElementById('photoInput');
   if(photoInputEl){
-    photoInputEl.addEventListener('change',async e=>{
-      const files=Array.from(e.target.files||[]);
+    photoInputEl.addEventListener('change', async (e)=>{
+      const files = Array.from(e.target.files||[]);
       clearThumbs();
       if(files.length){
-        const first=await fileToDataURL(files[0]);
-        const p=document.getElementById('photoPreview');
-        if(p){ p.src=first; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
-        addThumb(first,true);
-        for(const f of files.slice(1)){ const d=await fileToDataURL(f); addThumb(d,false); }
+        const first = await fileToDataURL(files[0]);
+        const preview = document.getElementById('photoPreview');
+        if(preview){ preview.src = first; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
+        addThumb(first, true);
+        for(const f of files.slice(1)){
+          const data = await fileToDataURL(f);
+          addThumb(data, false);
+        }
       }else{
-        const p=document.getElementById('photoPreview');
-        if(p){ p.removeAttribute('src'); if(typeof updateEmptyHint==='function') updateEmptyHint(); }
+        const preview = document.getElementById('photoPreview');
+        if(preview){ preview.removeAttribute('src'); if(typeof updateEmptyHint==='function') updateEmptyHint(); }
         clearThumbs();
       }
-    },{capture:true});
+    }, { capture: true });
   }
-
-  // Estende modifica() per popolare miniature archivio
-  const __orig_modifica=modifica;
-  modifica=async function(id){
+  // Estendo modifica() per popolare miniature da archivio
+  const __orig_modifica = modifica;
+  modifica = async function(id){
     await __orig_modifica(id);
     if(!thumbStrip) return;
     clearThumbs();
     try{
-      const p=await getPhotos(id);
-      const imgs=(p && p.images)?p.images:[];
+      const p = await getPhotos(id);
+      const imgs = (p && p.images) ? p.images : [];
       if(imgs.length){
-        const pv=document.getElementById('photoPreview');
-        if(pv && !pv.src) pv.src=imgs[0];
-        addThumb(imgs[0],true);
-        for(const s of imgs.slice(1)) addThumb(s,false);
+        const preview = document.getElementById('photoPreview');
+        if(preview && !preview.src) preview.src = imgs[0];
+        addThumb(imgs[0], true);
+        for(const s of imgs.slice(1)){ addThumb(s, false); }
         if(typeof updateEmptyHint==='function') updateEmptyHint();
       }
-    }catch(_){}
+    }catch(err){ /* ignore */ }
   };
 
-  /* === Dashboard + KPI + lista Home — versione GLOBALE === */
-  window.refreshDashboard = async function(){
-    try{
-      const all = await getAllRecords();
-
-      // KPI
-      const kpiTot   = document.getElementById('kpiTot');
-      const kpiAtt   = document.getElementById('kpiAttesa');
-      const kpiLav   = document.getElementById('kpiLavor');
-      const kpiSoon  = document.getElementById('kpiSoon');
-      const kpiCompl = document.getElementById('kpiCompl');
-
-      const cAtt  = all.filter(r => (r.statoPratica||'')==='In attesa').length;
-      const cLav  = all.filter(r => (r.statoPratica||'')==='In lavorazione').length;
-      const cSoon = all.filter(r => isSoon(parseDate(r.dataScadenza))).length;
-      const cCom  = all.filter(r => (r.statoPratica||'')==='Completata').length;
-
-      if(kpiTot)   kpiTot.textContent   = all.length;
-      if(kpiAtt)   kpiAtt.textContent   = cAtt;
-      if(kpiLav)   kpiLav.textContent   = cLav;
-      if(kpiSoon)  kpiSoon.textContent  = cSoon;
-      if(kpiCompl) kpiCompl.textContent = cCom;
-
-      // Lista Home (aperte)
-      if (typeof populateHomeOpenList === 'function'){
-        await populateHomeOpenList();
-      }
-    }catch(err){
-      console.error('[refreshDashboard] errore:', err);
-    }
-  };
-
-  // Avvio dashboard iniziale (protetto)
-  if (typeof window.refreshDashboard === 'function') {
-    window.refreshDashboard();
-  }
+  refreshDashboard();
 });
 </script>
-
 <!-- 1) Config con le chiavi -->
 <script src="config.js"></script>
+
 <!-- 2) Libreria Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <!-- 3) (Opzionale) patch singleton per evitare warning client multipli -->
 <script src="supabase-singleton.js"></script>
+
 <!-- 4) Bridge della tua app -->
 <script src="app-supabase.v6.3.3.js"></script>
+
 <!-- 5) Script opzionali, tutti qui dentro il body -->
+
 <script src="filters-exact-guard.js?v=1"></script>
 
-</body>
-</html>
+
