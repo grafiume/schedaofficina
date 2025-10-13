@@ -740,10 +740,15 @@ async function lista(){
 
 /* Dettaglio (date IT) */
 async function apri(id){
-  const r=await getRecord(id),{images,thumbs}=await getPhotos(id);const img=images[0]||thumbs[0];
-  const d=$('#detailContent');
-  d.innerHTML=`
-    ${img?`<img class="img-fluid mb-3" src="${img}" id="detailImg" style="cursor:pointer">`:''}
+  const r = await getRecord(id);
+  const p = await getPhotos(id);
+  const images = (p && p.images) ? p.images : [];
+  const thumbs = (p && p.thumbs) ? p.thumbs : [];
+  const img = images[0] || thumbs[0];
+
+  const d = $('#detailContent');
+  d.innerHTML = `
+    ${img ? `<img class="img-fluid mb-3" src="${img}" id="detailImg" style="cursor:pointer">` : ''}
     <table class="table table-sm">
       <tr><th>Descrizione</th><td>${esc(r.descrizione)}</td></tr>
       <tr><th>Modello</th><td>${esc(r.modello)}</td></tr>
@@ -751,48 +756,94 @@ async function apri(id){
       <tr><th>Telefono</th><td>${esc(r.telefono)}</td></tr>
       <tr><th>Email</th><td>${esc(r.email)}</td></tr>
       <tr><th>Documento Trasporto</th><td>${esc(r.docTrasporto)}</td></tr>
-      <tr><th>Data apertura</th><td>${fmtIT(r.dataApertura||r.dataArrivo||'')}</td></tr>
+      <tr><th>Data apertura</th><td>${fmtIT(r.dataApertura || r.dataArrivo || '')}</td></tr>
       <tr><th>Data accettazione</th><td>${fmtIT(r.dataAccettazione)}</td></tr>
       <tr><th>Data scadenza</th><td>${fmtIT(r.dataScadenza)}</td></tr>
-      <tr><th>Batt. collettore</th><td>${esc(r.battCollettore||'')}</td></tr>
-      <tr><th>Lunghezza asse</th><td>${esc(r.lunghezzaAsse||'')}</td></tr>
-      <tr><th>Lunghezza pacco</th><td>${esc(r.lunghezzaPacco||'')}</td></tr>
-      <tr><th>Larghezza pacco</th><td>${esc(r.larghezzaPacco||'')}</td></tr>
-      <tr><th>Punta</th><td>${esc(r.punta||'')} ${r?.numPunte?`(${esc(r.numPunte)} punte)`:''}</td></tr>
-      <tr><th>Stato pratica</th><td>${esc(r.statoPratica||'In attesa')}</td></tr>
-      <tr><th>Preventivo</th><td>${esc(r.preventivoStato||'Non inviato')}</td></tr>
+
+      <!-- Dati tecnici -->
+      <tr><th>Batt. collettore</th><td>${esc(r.battCollettore || '')}</td></tr>
+      <tr><th>Lunghezza asse</th><td>${esc(r.lunghezzaAsse || '')}</td></tr>
+      <tr><th>Lunghezza pacco</th><td>${esc(r.lunghezzaPacco || '')}</td></tr>
+      <tr><th>Larghezza pacco</th><td>${esc(r.larghezzaPacco || '')}</td></tr>
+      <tr><th>Punta</th><td>${esc(r.punta || '')}${r && r.numPunte ? ` (${esc(r.numPunte)} punte)` : ''}</td></tr>
+
+      <tr><th>Stato pratica</th><td>${esc(r.statoPratica || 'In attesa')}</td></tr>
+      <tr><th>Preventivo</th><td>${esc(r.preventivoStato || 'Non inviato')}</td></tr>
       <tr><th>Note</th><td>${esc(r.note)}</td></tr>
     </table>`;
-  const modal=new bootstrap.Modal('#detailModal'); modal.show();
-  const imgEl=$('#detailImg'); if(imgEl) imgEl.addEventListener('click',()=>openImg(img));
-  $('#btnPDF').onclick=()=>pdfRec(r,img);
-  $('#btnEdit').onclick=()=>{modal.hide(); modifica(id);};
-  $('#btnDelete').onclick=()=>{ deleteTargetId=id; new bootstrap.Modal('#confirmDeleteModal').show(); };
+
+  const modal = new bootstrap.Modal('#detailModal');
+  modal.show();
+
+  const imgEl = $('#detailImg');
+  if (imgEl) imgEl.addEventListener('click', () => openImg(img));
+
+  $('#btnPDF').onclick  = () => pdfRec(r, img);
+  $('#btnEdit').onclick = () => { modal.hide(); modifica(id); };
+  $('#btnDelete').onclick = () => { deleteTargetId = id; new bootstrap.Modal('#confirmDeleteModal').show(); };
 }
 
 /* Full image modal */
-function openImg(src){ if(!src) return; $('#imgFull').src=src; new bootstrap.Modal('#imgModal').show(); }
+function openImg(src){
+  if (!src) return;
+  $('#imgFull').src = src;
+  new bootstrap.Modal('#imgModal').show();
+}
 
 /* PDF (date IT) */
-function pdfRec(r,img){
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({unit:'pt',format:'a4'});
-  let y=40;
-  doc.setFontSize(18); doc.text('Scheda riparazioni — Riepilogo',40,y); y+=24; doc.setFontSize(12);
-  const L=(l,v)=>{doc.setFont(undefined,'bold');doc.text(l,40,y);doc.setFont(undefined,'normal');doc.text(': '+(v||''),180,y);y+=16;};
-  const map={
-    descrizione:'Descrizione',modello:'Modello',cliente:'Cliente',telefono:'Telefono',email:'Email',docTrasporto:'Documento Trasporto',dataApertura:'Data apertura',dataAccettazione:'Data accettazione',
-    dataScadenza:'Data scadenza',battCollettore:'Batt. collettore',lunghezzaAsse:'Lunghezza asse',lunghezzaPacco:'Lunghezza pacco',larghezzaPacco:'Larghezza pacco',numPunte:'N. punte',,punta:'Punta',statoPratica:'Stato pratica',preventivoStato:'Preventivo',note:'Note'
-    
+function pdfRec(r, img){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'a4' });
+  let y = 40;
+
+  doc.setFontSize(18);
+  doc.text('Scheda riparazioni — Riepilogo', 40, y);
+  y += 24;
+  doc.setFontSize(12);
+
+  const L = (label, value) => {
+    doc.setFont(undefined, 'bold');  doc.text(label, 40, y);
+    doc.setFont(undefined, 'normal'); doc.text(': ' + (value || ''), 180, y);
+    y += 16;
   };
-  Object.keys(map).forEach(k=>{
-    let v=r[k];
-    if(['dataApertura','dataAccettazione','dataScadenza'].includes(k)) v = fmtIT(v);
-    if(k==='numPunte' && !v) return;
-    if(r[k] || v) L(map[k], v);
+
+  const map = {
+    descrizione:'Descrizione',
+    modello:'Modello',
+    cliente:'Cliente',
+    telefono:'Telefono',
+    email:'Email',
+    docTrasporto:'Documento Trasporto',
+    dataApertura:'Data apertura',
+    dataAccettazione:'Data accettazione',
+    dataScadenza:'Data scadenza',
+
+    // Dati tecnici
+    battCollettore:'Batt. collettore',
+    lunghezzaAsse:'Lunghezza asse',
+    lunghezzaPacco:'Lunghezza pacco',
+    larghezzaPacco:'Larghezza pacco',
+    punta:'Punta',
+    numPunte:'N. punte',
+
+    // Stato/varie
+    statoPratica:'Stato pratica',
+    preventivoStato:'Preventivo',
+    note:'Note'
+  };
+
+  Object.keys(map).forEach(k => {
+    let v = r[k];
+    if (['dataApertura','dataAccettazione','dataScadenza'].includes(k)) v = fmtIT(v);
+    if (k === 'numPunte' && !v) return; // salta se vuoto
+    if (r[k] || v) L(map[k], v);
   });
-  if(img){try{doc.addImage(img,'JPEG',40,y+6,500,300);}catch(e){}}
-  doc.save(`Scheda-${(r.descrizione||'').replace(/\s+/g,'_')}-${r.modello||''}.pdf`);
+
+  if (img){
+    try { doc.addImage(img, 'JPEG', 40, y + 6, 500, 300); } catch(e){}
+  }
+
+  doc.save(`Scheda-${(r.descrizione || '').replace(/\s+/g,'_')}-${r.modello || ''}.pdf`);
 }
 
 /* Backup/Ripristina */
