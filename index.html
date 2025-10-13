@@ -865,65 +865,12 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('#cancelForm').onclick=()=>{sh('home');refreshDashboard();};
   $('#saveRecord').onclick=salva;
 
- // Ricerca (filtri tecnici)
-$('#btnDoSearch').onclick = lista;
-$('#q').addEventListener('input', debouncedSearch);
-
-// Applica filtri tecnici (lettura esplicita degli ID)
-$('#btnApplyFilters').onclick = () => {
-  techFilters.battCollettore = $('#f_battCollettore').value || '';
-  techFilters.lunghezzaAsse  = $('#f_lunghezzaAsse').value  || '';
-  techFilters.lunghezzaPacco = $('#f_lunghezzaPacco').value || '';
-  techFilters.larghezzaPacco = $('#f_larghezzaPacco').value || '';
-  techFilters.punta          = $('#f_punta').value          || '';
-  techFilters.numPunte       = $('#f_numPunte').value       || '';
-  lista();
-};
-
-// Reset filtri tecnici (robusto: svuota UI, azzera stato e notifica listener)
-$('#btnResetFilters').onclick = () => {
-  const ids = [
-    'f_battCollettore',
-    'f_lunghezzaAsse',
-    'f_lunghezzaPacco',
-    'f_larghezzaPacco',
-    'f_numPunte'
-  ];
-
-  // Svuota input e propaga eventi per eventuali handler collegati
-  ids.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.value = '';
-      el.dispatchEvent(new Event('input',  { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-  });
-
-  // Reset select "punta"
-  const sel = document.getElementById('f_punta');
-  if (sel) {
-    sel.selectedIndex = 0; // "Punta (tutte)"
-    sel.value = '';
-    sel.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-
-  // Azzera lo stato in memoria
-  Object.keys(techFilters).forEach(k => techFilters[k] = '');
-
-  // Ricalcola risultati
-  lista();
-};
-
-// KPI → passa a Ricerca con filtro
-['kpiTotBtn','kpiAttesaBtn','kpiLavorBtn','kpiSoonBtn','kpiComplBtn'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('click', () => goToSearchWithFilter(el.dataset.filter));
-});
-
-// Rimuovi filtro “vista” attivo
-$('#btnClearFilter').onclick = () => {
-
+  // Ricerca (filtri tecnici)
+  $('#btnDoSearch').onclick=lista; $('#q').addEventListener('input',debouncedSearch);
+  $('#btnApplyFilters').onclick=()=>{techFilters.battCollettore=$('#f_battCollettore').value||'';techFilters.lunghezzaAsse=$('#f_lunghezzaAsse').value||'';techFilters.lunghezzaPacco=$('#f_lunghezzaPacco').value||'';techFilters.larghezzaPacco=$('#f_larghezzaPacco').value||'';techFilters.punta=$('#f_punta').value||'';techFilters.numPunte=$('#f_numPunte').value||'';lista();};
+  $('#btnResetFilters').onclick=()=>{['f_battCollettore','f_lunghezzaAsse','f_lunghezzaPacco','f_larghezzaPacco','f_numPunte'].forEach(id=>{$('#'+id).value='';});$('#f_punta').value='';Object.keys(techFilters).forEach(k=>techFilters[k]='');lista();};
+  ['kpiTotBtn','kpiAttesaBtn','kpiLavorBtn','kpiSoonBtn','kpiComplBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('click',()=>goToSearchWithFilter(el.dataset.filter));});
+  $('#btnClearFilter').onclick=()=>{currentFilter=null;lista();};
 
   // backup
   $('#exportZip').onclick=backup; $('#importZip').addEventListener('change',ripristina);
