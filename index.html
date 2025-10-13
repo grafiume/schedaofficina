@@ -875,9 +875,30 @@ document.addEventListener('DOMContentLoaded',()=>{
   // backup
   $('#exportZip').onclick=backup; $('#importZip').addEventListener('change',ripristina);
 
-  // delete
-  $('#confirmDeleteBtn').addEventListener('click', async ()=>{if(!deleteTargetId)return;await deleteRecord(deleteTargetId);deleteTargetId=null;bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal')).hide();lista();refreshDashboard();});
+  /// delete
+document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+  if (!deleteTargetId) return;
 
+  try {
+    await deleteRecord(deleteTargetId);
+  } catch (e) {
+    console.error('Errore eliminazione:', e);
+  }
+  deleteTargetId = null;
+
+  // Chiudi la modale di conferma
+  const confInst = bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal'));
+  if (confInst) confInst.hide();
+
+  // Chiudi anche la modale "Dettaglio scheda" se ancora aperta dietro
+  const detInst = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
+  if (detInst) detInst.hide();
+
+  // Torna alla Home e aggiorna dashboard
+  sh('home');
+  await refreshDashboard();
+});
+       
   // foto preview
   $('#photoInput').addEventListener('change',async e=>{const f=e.target.files?.[0];if(f)$('#photoPreview').src=await f2url(f);});
   $('#photoPreview').addEventListener('click',()=>{ const src=$('#photoPreview').src; if(!src) return; $('#imgCenter').src=src; new bootstrap.Modal('#imgModalCenter').show(); });
