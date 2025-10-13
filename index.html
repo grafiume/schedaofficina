@@ -918,10 +918,150 @@ document.addEventListener('DOMContentLoaded',()=>{
 </script>
 
 
-  <!-- Supabase config + client + bridge (overrides local DB with cloud sync) -->
-  <script src="config.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app-supabase.v6.3.3.js"></script>
+<script>
+(function(){
+  function byPlaceholder(txt){
+    const els = document.querySelectorAll('input,select,textarea');
+    for(const el of els){
+      const ph = (el.getAttribute('placeholder')||'').trim().toLowerCase();
+      if(ph === txt.toLowerCase()) return el;
+    }
+    return null;
+  }
+  function ensureId(el, id){
+    if(!el) return;
+    if(!el.id) el.id = id;
+  }
+  function findButtonByText(text){
+    const els = document.querySelectorAll('button,input[type="button"],input[type="submit"]');
+    text = text.trim().toLowerCase();
+    for(const el of els){
+      const t = (el.textContent||el.value||'').trim().toLowerCase();
+      if(t === text) return el;
+    }
+    return null;
+  }
+  function run(){
+    ensureId(byPlaceholder('Batt. collettore'), 'f-battCollettore');
+    ensureId(byPlaceholder('Lunghezza asse'), 'f-lungAsse');
+    ensureId(byPlaceholder('Lunghezza pacco'), 'f-lungPacco');
+    ensureId(byPlaceholder('Larghezza pacco'), 'f-largPacco');
+    let punta = document.querySelector('select') || byPlaceholder('Punta (tutte)') || byPlaceholder('Punta');
+    ensureId(punta, 'f-punta');
+    ensureId(byPlaceholder('N.'), 'f-numPunte');
+    ensureId(findButtonByText('applica filtri'), 'btnApplyFilters');
+    ensureId(findButtonByText('reset'), 'btnResetFilters');
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
+  else run();
+})();
+</script>
+
+<script>
+(function(){
+  const Q = (sel) => document.querySelector(sel);
+  function norm(x){ return (x==null)?'':String(x).trim(); }
+
+  async function searchExact(){
+    const battCollettore = norm(Q('#f-battCollettore')?.value);
+    const lungAsse       = norm(Q('#f-lungAsse')?.value);
+    const lungPacco      = norm(Q('#f-lungPacco')?.value);
+    const largPacco      = norm(Q('#f-largPacco')?.value);
+    const punta          = norm(Q('#f-punta')?.value);
+    const numPunte       = norm(Q('#f-numPunte')?.value);
+
+    if(window.supabase && window.SUPABASE_URL && window.SUPABASE_ANON_KEY){
+      const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+      let q = sb.from('records').select('*');
+      if(battCollettore) q = q.eq('battCollettore', battCollettore);
+      if(lungAsse)       q = q.eq('lungAsse',       lungAsse);
+      if(lungPacco)      q = q.eq('lungPacco',      lungPacco);
+      if(largPacco)      q = q.eq('largPacco',      largPacco);
+      if(punta && punta !== 'tutte') q = q.eq('punta', punta);
+      if(numPunte)       q = q.eq('numPunte',       numPunte);
+      const { data, error } = await q.order('updatedAt', { ascending:false });
+      if(error){ console.warn('[filters] supabase error:', error.message); return []; }
+      window.__lastExactFiltered = data||[];
+      if(typeof window.renderList === 'function') window.renderList(window.__lastExactFiltered);
+      else if(typeof window.lista === 'function') window.lista(window.__lastExactFiltered);
+      else if(typeof window.refreshDashboard === 'function') window.refreshDashboard();
+      return data||[];
+    }
+
+    let all = [];
+    if(typeof window.getAllRecords === 'function') all = await window.getAllRecords();
+    const filtered = (all||[]).filter(r => {
+      if(battCollettore && norm(r.battCollettore)!==battCollettore) return false;
+      if(lungAsse       && norm(r.lungAsse)!==lungAsse) return false;
+      if(lungPacco      && norm(r.lungPacco)!==lungPacco) return false;
+      if(largPacco      && norm(r.largPacco)!==largPacco) return false;
+      if(punta && punta!=='tutte' && norm(r.punta)!==punta) return false;
+      if(numPunte       && norm(r.numPunte)!==numPunte) return false;
+      return true;
+    });
+    window.__lastExactFiltered = filtered;
+    if(typeof window.renderList === 'function') window.renderList(filtered);
+    else if(typeof window.lista === 'function') window.lista(filtered);
+    else if(typeof window.refreshDashboard === 'function') window.refreshDashboard();
+    return filtered;
+  }
+
+  window.populateDettaglioTecnico = function(record){
+    if(!record) return;
+    const map = {
+      '#d-battCollettore': 'battCollettore',
+      '#d-lungAsse': 'lungAsse',
+      '#d-lungPacco': 'lungPacco',
+      '#d-largPacco': 'largPacco',
+      '#d-punta': 'punta',
+      '#d-numPunte': 'numPunte'
+    };
+    Object.entries(map).forEach(([sel,key])=>{
+      const el = document.querySelector(sel);
+      if(el) el.textContent = (record?.[key] ?? '').toString();
+    });
+  };
+
+  function bind(){
+    const btnApply = document.querySelector('#btnApplyFilters');
+    if(btnApply) btnApply.addEventListener('click', (e)=>{ e.preventDefault(); searchExact(); });
+
+    const btnReset = document.querySelector('#btnResetFilters');
+    if(btnReset) btnReset.addEventListener('click', (e)=>{
+      e.preventDefault();
+      ['#f-battCollettore','#f-lungAsse','#f-lungPacco','#f-largPacco','#f-punta','#f-numPunte']
+        .forEach(sel => { const el = document.querySelector(sel); if(el) el.value = ''; });
+      if(typeof window.refreshDashboard === 'function') window.refreshDashboard();
+    });
+
+    const _showDettaglio = window.showDettaglio;
+    window.showDettaglio = async function(id){
+      let rec = null;
+      if(typeof window.getRecord === 'function') rec = await window.getRecord(id);
+      if(typeof _showDettaglio === 'function') _showDettaglio(id);
+      window.populateDettaglioTecnico(rec);
+    };
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
+</script>
+
+
+<!-- ===== Dati tecnici (inserito) ===== -->
+<div class="card mt-3">
+  <div class="card-header fw-bold">Dati tecnici</div>
+  <div class="card-body row g-2">
+    <div class="col-6"><small class="text-muted">Batt. collettore</small><div id="d-battCollettore" class="fw-semibold"></div></div>
+    <div class="col-6"><small class="text-muted">Lunghezza asse</small><div id="d-lungAsse" class="fw-semibold"></div></div>
+    <div class="col-6"><small class="text-muted">Lunghezza pacco</small><div id="d-lungPacco" class="fw-semibold"></div></div>
+    <div class="col-6"><small class="text-muted">Larghezza pacco</small><div id="d-largPacco" class="fw-semibold"></div></div>
+    <div class="col-6"><small class="text-muted">Punta</small><div id="d-punta" class="fw-semibold"></div></div>
+    <div class="col-6"><small class="text-muted">N.</small><div id="d-numPunte" class="fw-semibold"></div></div>
+  </div>
+</div>
+<!-- ===== /Dati tecnici ===== -->
 
 </body></html>
-<script src="technical-filters.js"></script>
+
