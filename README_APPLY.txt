@@ -1,17 +1,18 @@
 
-APPLICA SOLO DETTAGLIO — Dati tecnici
+DETTAGLIO + PDF con campi tecnici
 
-1) Carica il file `tech-detail-only.js` nella ROOT del tuo repo (accanto a index.html).
+1) Carica `detail-and-pdf-tech.js` nella root del repo (accanto a index.html).
 
-2) In `index.html`, PRIMA di `</body>` aggiungi questa riga (dopo config.js e app-supabase.*.js):
-   <script src="tech-detail-only.js"></script>
+2) In `index.html`, subito prima di `</body>`, aggiungi:
+   <script src="detail-and-pdf-tech.js"></script>
+   (lascialo dopo config.js e app-supabase.*.js)
 
-3) Non serve toccare altro: il blocco "Dati tecnici" verrà creato SOLO quando apri "Dettaglio scheda"
-   e verrà rimosso da qualsiasi altra schermata (home, ricerca, foto, ecc.).
+Cosa fa:
+- Quando apri "Dettaglio scheda", inserisce una tabella "Dati tecnici" con:
+  Batt. collettore, Lunghezza asse, Lunghezza pacco, Larghezza pacco, Punta, N. punte.
+- Sostituisce l'azione del bottone "PDF" nella modale con un PDF completo che include i campi tecnici
+  e la prima immagine della scheda (se presente).
 
-4) I campi popolati sono:
-   - battCollettore, lungAsse, lungPacco, largPacco, punta, numPunte
-
-5) Requisiti:
-   - Deve esistere una funzione globale `showDettaglio(id)` che apre la scheda.
-   - Deve esistere `getRecord(id)` per recuperare i dati.
+Note:
+- Richiede che esistano showDettaglio(id) e getRecord(id).
+- Per l'immagine prova prima getPhotos(id), altrimenti prende la prima immagine visibile nella modale.
