@@ -115,7 +115,12 @@
     y += 10;
     doc.setFontSize(14); doc.text('Dati tecnici', x, y); y += lh;
     doc.setFontSize(12);
-
+    row('Descrizione', record?.descrizione);
+    row('Modello',     record?.modello);
+    row('Cliente',     record?.cliente);
+    row('Stato pratica', record?.statoPratica);
+    row('Preventivo',  record?.preventivoStato);
+    row('Data apertura', record?.dataApertura);
     row('Batt. collettore', record?.battCollettore);
     row('Lunghezza asse',   record?.lungAsse);
     row('Lunghezza pacco',  record?.lungPacco);
