@@ -857,53 +857,135 @@ async function refreshDashboard(){const all=await getAllRecords();const kpiTot=$
 let searchTimer=null; function debouncedSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{lista();},250);}
 
 /* Wire-up */
+<script>
 document.addEventListener('DOMContentLoaded',()=>{
-  const _stSel=document.getElementById('statoPratica'); if(_stSel){ _stSel.addEventListener('change', updateCompletionUI); }
+
+  const _stSel=document.getElementById('statoPratica');
+  if(_stSel){ _stSel.addEventListener('change', updateCompletionUI); }
+
   $('#btnHome').onclick=()=>{sh('home');refreshDashboard();};
   $('#btnSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
-  $('#newRecord').onclick=nuovo; $('#goSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
+  $('#newRecord').onclick=nuovo;
+  $('#goSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
   $('#cancelForm').onclick=()=>{sh('home');refreshDashboard();};
   $('#saveRecord').onclick=salva;
 
   // Ricerca (filtri tecnici)
-  $('#btnDoSearch').onclick=lista; $('#q').addEventListener('input',debouncedSearch);
-  $('#btnApplyFilters').onclick=()=>{techFilters.battCollettore=$('#f_battCollettore').value||'';techFilters.lunghezzaAsse=$('#f_lunghezzaAsse').value||'';techFilters.lunghezzaPacco=$('#f_lunghezzaPacco').value||'';techFilters.larghezzaPacco=$('#f_larghezzaPacco').value||'';techFilters.punta=$('#f_punta').value||'';techFilters.numPunte=$('#f_numPunte').value||'';lista();};
-  $('#btnResetFilters').onclick=()=>{['f_battCollettore','f_lunghezzaAsse','f_lunghezzaPacco','f_larghezzaPacco','f_numPunte'].forEach(id=>{$('#'+id).value='';});$('#f_punta').value='';Object.keys(techFilters).forEach(k=>techFilters[k]='');lista();};
-  ['kpiTotBtn','kpiAttesaBtn','kpiLavorBtn','kpiSoonBtn','kpiComplBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('click',()=>goToSearchWithFilter(el.dataset.filter));});
-  $('#btnClearFilter').onclick=()=>{currentFilter=null;lista();};
+  $('#btnDoSearch').onclick=lista;
+  $('#q').addEventListener('input',debouncedSearch);
+
+  $('#btnApplyFilters').onclick=()=>{
+    techFilters.battCollettore = $('#f_battCollettore').value || '';
+    techFilters.lunghezzaAsse  = $('#f_lunghezzaAsse').value  || '';
+    techFilters.lunghezzaPacco = $('#f_lunghezzaPacco').value || '';
+    techFilters.larghezzaPacco = $('#f_larghezzaPacco').value || '';
+    techFilters.punta          = $('#f_punta').value          || '';
+    techFilters.numPunte       = $('#f_numPunte').value       || '';
+    lista();
+  };
+
+  // === Reset filtri tecnici (funzione robusta) ===
+  function resetTechFilters(){
+    // 1) Elenco ID espliciti
+    const ids = [
+      'f_battCollettore','f_lunghezzaAsse','f_lunghezzaPacco',
+      'f_larghezzaPacco','f_numPunte'
+    ];
+    // 2) Pulisci gli input + notifica listener
+    ids.forEach(id=>{
+      const el = document.getElementById(id);
+      if (el) {
+        el.value = '';
+        el.dispatchEvent(new Event('input',  {bubbles:true}));
+        el.dispatchEvent(new Event('change', {bubbles:true}));
+      }
+    });
+    // 3) Pulisci la select "punta"
+    const sel = document.getElementById('f_punta');
+    if (sel) {
+      sel.selectedIndex = 0; // "Punta (tutte)"
+      sel.value = '';
+      sel.dispatchEvent(new Event('change', {bubbles:true}));
+    }
+    // 4) Azzera oggetto stato filtri
+    if (typeof techFilters === 'object' && techFilters) {
+      Object.keys(techFilters).forEach(k => techFilters[k] = '');
+    }
+    // 5) Ricalcola risultati
+    if (typeof lista === 'function') lista();
+  }
+
+  // Collega il bottone Reset ai filtri (usa la funzione robusta)
+  const btnReset = document.getElementById('btnResetFilters');
+  if (btnReset) {
+    btnReset.addEventListener('click', (e)=>{
+      e.preventDefault();
+      resetTechFilters();
+    }, {capture: true});
+  }
+
+  // KPI → passa a Ricerca con filtro
+  ['kpiTotBtn','kpiAttesaBtn','kpiLavorBtn','kpiSoonBtn','kpiComplBtn'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('click',()=>goToSearchWithFilter(el.dataset.filter));
+  });
+
+  // Rimuovi filtro “vista” attivo
+  $('#btnClearFilter').onclick=()=>{ currentFilter=null; lista(); };
 
   // backup
-  $('#exportZip').onclick=backup; $('#importZip').addEventListener('change',ripristina);
+  $('#exportZip').onclick=backup;
+  $('#importZip').addEventListener('change',ripristina);
 
-  /// delete
-document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
-  if (!deleteTargetId) return;
+  // delete → chiudi modali e torna alla Home
+  document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+    if (!deleteTargetId) return;
 
-  try {
-    await deleteRecord(deleteTargetId);
-  } catch (e) {
-    console.error('Errore eliminazione:', e);
-  }
-  deleteTargetId = null;
+    try {
+      await deleteRecord(deleteTargetId);
+    } catch (e) {
+      console.error('Errore eliminazione:', e);
+    }
+    deleteTargetId = null;
 
-  // Chiudi la modale di conferma
-  const confInst = bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal'));
-  if (confInst) confInst.hide();
+    // Chiudi modale di conferma
+    const confInst = bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal'));
+    if (confInst) confInst.hide();
 
-  // Chiudi anche la modale "Dettaglio scheda" se ancora aperta dietro
-  const detInst = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
-  if (detInst) detInst.hide();
+    // Chiudi anche "Dettaglio scheda" se aperta
+    const detInst = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
+    if (detInst) detInst.hide();
 
-  // Torna alla Home e aggiorna dashboard
-  sh('home');
-  await refreshDashboard();
-});
-       
-  // foto preview
-  $('#photoInput').addEventListener('change',async e=>{const f=e.target.files?.[0];if(f)$('#photoPreview').src=await f2url(f);});
-  $('#photoPreview').addEventListener('click',()=>{ const src=$('#photoPreview').src; if(!src) return; $('#imgCenter').src=src; new bootstrap.Modal('#imgModalCenter').show(); });
+    // Torna alla Home e aggiorna dashboard
+    sh('home');
+    await refreshDashboard();
+  });
 
-  
+  // foto preview (click → popup centrato)
+  $('#photoPreview').addEventListener('click',()=>{
+    const src=$('#photoPreview').src;
+    if(!src) return;
+    $('#imgCenter').src=src;
+    new bootstrap.Modal('#imgModalCenter').show();
+  });
+
+  // foto input → anteprima immediata
+  $('#photoInput').addEventListener('change',async e=>{
+    const f = e.target.files && e.target.files[0];
+    const preview = document.getElementById('photoPreview');
+    if(f && preview){
+      const reader = new FileReader();
+      reader.onload = ev => {
+        preview.src = ev.target.result;
+        if(typeof updateEmptyHint==='function') updateEmptyHint();
+      };
+      reader.readAsDataURL(f);
+    }else if(preview){
+      preview.removeAttribute('src');
+      if(typeof updateEmptyHint==='function') updateEmptyHint();
+    }
+  });
+
   // Gestione hint vuoto dell'anteprima (destra)
   const emptyHint = document.getElementById('emptyHint');
   const previewImg = document.getElementById('photoPreview');
@@ -925,7 +1007,6 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
     }
   });
 
-  
   // === Gestione miniature e anteprima ===
   const thumbStrip = document.getElementById('thumbStrip');
   function clearThumbs(){ if(thumbStrip) thumbStrip.innerHTML=''; }
@@ -938,14 +1019,21 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
     item.appendChild(im);
     item.addEventListener('click', ()=>{
       const preview = document.getElementById('photoPreview');
-      if(preview){ preview.src = src; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
+      if(preview){
+        preview.src = src;
+        if(typeof updateEmptyHint==='function') updateEmptyHint();
+      }
       thumbStrip.querySelectorAll('.thumb-item').forEach(t=>t.classList.remove('active'));
       item.classList.add('active');
     });
     thumbStrip.appendChild(item);
   }
   async function fileToDataURL(file){
-    return await new Promise(res=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
+    return await new Promise(res=>{
+      const r=new FileReader();
+      r.onload=e=>res(e.target.result);
+      r.readAsDataURL(file);
+    });
   }
   const photoInputEl = document.getElementById('photoInput');
   if(photoInputEl){
@@ -955,7 +1043,10 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
       if(files.length){
         const first = await fileToDataURL(files[0]);
         const preview = document.getElementById('photoPreview');
-        if(preview){ preview.src = first; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
+        if(preview){
+          preview.src = first;
+          if(typeof updateEmptyHint==='function') updateEmptyHint();
+        }
         addThumb(first, true);
         for(const f of files.slice(1)){
           const data = await fileToDataURL(f);
@@ -963,11 +1054,15 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
         }
       }else{
         const preview = document.getElementById('photoPreview');
-        if(preview){ preview.removeAttribute('src'); if(typeof updateEmptyHint==='function') updateEmptyHint(); }
+        if(preview){
+          preview.removeAttribute('src');
+          if(typeof updateEmptyHint==='function') updateEmptyHint();
+        }
         clearThumbs();
       }
     }, { capture: true });
   }
+
   // Estendo modifica() per popolare miniature da archivio
   const __orig_modifica = modifica;
   modifica = async function(id){
@@ -990,6 +1085,7 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
   refreshDashboard();
 });
 </script>
+
 <!-- 1) Config con le chiavi -->
 <script src="config.js"></script>
 
@@ -1003,5 +1099,5 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
 <script src="app-supabase.v6.3.3.js"></script>
 
 <!-- 5) Script opzionali, tutti qui dentro il body -->
-
 <script src="filters-exact-guard.js?v=1"></script>
+
