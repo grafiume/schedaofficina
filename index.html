@@ -883,8 +883,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     lista();
   };
 
-  // Reset filtri robusto
+  // Reset filtri robusto + notifica al guard
   function resetTechFilters(){
+    // 1) Pulisci gli input
     const ids = ['f_battCollettore','f_lunghezzaAsse','f_lunghezzaPacco','f_larghezzaPacco','f_numPunte'];
     ids.forEach(id=>{
       const el=document.getElementById(id);
@@ -894,16 +895,25 @@ document.addEventListener('DOMContentLoaded',()=>{
         el.dispatchEvent(new Event('change',{bubbles:true}));
       }
     });
+    // 2) Pulisci la select "punta"
     const sel=document.getElementById('f_punta');
     if(sel){
       sel.selectedIndex=0;
       sel.value='';
       sel.dispatchEvent(new Event('change',{bubbles:true}));
     }
+    // 3) Azzera lo stato locale
     if(typeof techFilters==='object' && techFilters){
       Object.keys(techFilters).forEach(k=>techFilters[k]='');
     }
-    if(typeof lista==='function') lista();
+    // 4) Notifica il filters-exact-guard
+    if (window.exactGuard && typeof window.exactGuard.reset==='function'){
+      window.exactGuard.reset();
+    } else {
+      const applyBtn = document.getElementById('btnApplyFilters');
+      if (applyBtn) applyBtn.click();
+      else if (typeof lista==='function') lista();
+    }
   }
   const btnReset=document.getElementById('btnResetFilters');
   if(btnReset){
@@ -1017,7 +1027,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   refreshDashboard();
 });
-</script>
 
 
 <!-- 1) Config con le chiavi -->
