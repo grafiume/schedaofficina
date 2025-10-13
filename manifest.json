@@ -1,0 +1,20 @@
+{
+  "name": "Scheda riparazioni",
+  "short_name": "Officina",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#faf9f7",
+  "theme_color": "#e07b39",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
