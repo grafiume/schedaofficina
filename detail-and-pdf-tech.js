@@ -105,7 +105,12 @@
     row('Stato pratica', record?.statoPratica);
     row('Preventivo',  record?.preventivoStato);
     row('Data apertura', record?.dataApertura);
-
+    row('Batt. collettore', record?.battCollettore);
+    row('Lunghezza asse',   record?.lungAsse);
+    row('Lunghezza pacco',  record?.lungPacco);
+    row('Larghezza pacco',  record?.largPacco);
+    row('Punta',            record?.punta);
+    row('N. punte',         record?.numPunte);
     // separatore
     y += 10;
     doc.setFontSize(14); doc.text('Dati tecnici', x, y); y += lh;
