@@ -8,7 +8,6 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
 <style>
 :root{ --brand-gray:#505050; --brand-orange:#e07b39; --brand-green:#1e8b3d; --brand-red:#c63c3c;
        --brand-bg:#faf9f7; --brand-border:#e8e4df; }
@@ -52,13 +51,13 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 /* === Layout Modifica/Nuova scheda: due colonne senza scroll pagina === */
 @media (min-width: 992px){
   #page-form .form-flex{
-    height: calc(100vh - 220px); /* header + titolo + sticky */
+    height: calc(100vh - 220px);
     display: flex;
     gap: 1rem;
   }
   #page-form .left-pane, #page-form .right-pane{ height: 100%; }
   #page-form .left-pane{
-    overflow: auto;             /* scorre solo la colonna di sinistra se serve */
+    overflow: auto;
     padding-right: .5rem;
   }
   #page-form .right-pane{ overflow: hidden; }
@@ -162,8 +161,6 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   min-width: 80px;
   text-align: center;
 }
-
-/* Evidenzia scadenze urgenti (<=3 giorni) o scadute */
 .date-urgent{ color: var(--brand-red); font-weight:600; }
 </style>
 </head>
@@ -238,7 +235,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
     <!-- SINISTRA -->
     <div class="left-pane flex-grow-1">
       <form id="recordForm" class="g-2" onsubmit="return false">
-        <input type="hidden" name="id">
+        <input type="hidden" name="numero">
         <input type="hidden" name="dataCompletamento">
 
         <fieldset>
@@ -256,9 +253,9 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
           </div>
 
           <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-2">
-            <div class="col"><label class="form-label">Data apertura</label><input name="dataApertura" type="date" class="form-control" lang="it-IT" placeholder="gg/mm/aaaa"></div>
-            <div class="col"><label class="form-label">Data accettazione</label><input name="dataAccettazione" type="date" class="form-control" lang="it-IT" placeholder="gg/mm/aaaa"></div>
-            <div class="col"><label class="form-label">Data scadenza</label><input name="dataScadenza" type="date" class="form-control" lang="it-IT" placeholder="gg/mm/aaaa"></div>
+            <div class="col"><label class="form-label">Data apertura</label><input lang="it-IT" placeholder="gg/mm/aaaa" name="dataApertura" type="date" class="form-control"></div>
+            <div class="col"><label class="form-label">Data accettazione</label><input lang="it-IT" placeholder="gg/mm/aaaa" name="dataAccettazione" type="date" class="form-control"></div>
+            <div class="col"><label class="form-label">Data scadenza</label><input lang="it-IT" placeholder="gg/mm/aaaa" name="dataScadenza" type="date" class="form-control"></div>
 
             <div class="col">
               <label class="form-label"><span id="statoLabelText">Stato</span> <small id="completataInline" class="text-muted ms-2 d-none">(Chiusa il <span id="completataDate"></span>)</small></label>
@@ -309,7 +306,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
               </div>
               <div>
                 <label class="form-label">N. punte</label>
-                <input name="numPunte" class="form-control input-xxs" inputmode="numeric" pattern="\\d{1,2}" maxlength="2" placeholder="0" title="Inserisci 1–2 cifre">
+                <input name="numPunte" class="form-control input-xxs" inputmode="numeric" pattern="\d{1,2}" maxlength="2" placeholder="0" title="Inserisci 1–2 cifre">
               </div>
             </div>
 
@@ -324,7 +321,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
       </div>
     </div>
 
-    <!-- DESTRA: ANTEPRIMA + THUMBS -->
+    <!-- DESTRA: ANTEPRIMA -->
     <div class="right-pane col-lg-5 col-12">
       <div class="preview-card">
         <div class="d-flex align-items-center justify-content-between">
@@ -358,7 +355,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   </div>
 
   <div class="row g-2 mb-2">
-    <div class="col-md-10"><input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT e dati tecnici (ammessi)…"></div>
+    <div class="col-md-10"><input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT…"></div>
     <div class="col-md-2 d-grid"><button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button></div>
   </div>
 
@@ -374,7 +371,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
           <select id="f_punta" class="form-select">
             <option value="">Punta (tutte)</option><option>Destra</option><option>Sinistra</option><option>Dritta</option>
           </select>
-          <input id="f_numPunte" class="form-control input-xxs" inputmode="numeric" pattern="\\d{1,2}" maxlength="2" placeholder="N.">
+          <input id="f_numPunte" class="form-control input-xxs" inputmode="numeric" pattern="\d{1,2}" maxlength="2" placeholder="N.">
         </div>
       </div>
       <div class="mt-2 d-flex gap-2">
@@ -385,24 +382,24 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   </div>
 
   <div class="table-responsive">
-    <table class="table table-hover align-middle table-fixed" id="tableResults">
-      <colgroup>
-        <col style="width:72px"><col style="width:32%"><col style="width:16%"><col style="width:12%">
-        <col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col class="actions-col">
-      </colgroup>
-      <thead><tr>
-        <th>Foto</th><th>Descrizione/Modello</th><th>Cliente</th><th>Telefono</th>
-        <th>Data arrivo</th><th>Data accettazione</th><th>Data scadenza</th><th>Stato</th><th class="text-end">Azioni</th>
-      </tr></thead>
-      <tbody></tbody>
-    </table>
+  <table class="table table-hover align-middle table-fixed" id="tableResults">
+    <colgroup>
+      <col style="width:72px"><col style="width:32%"><col style="width:16%"><col style="width:12%">
+      <col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col class="actions-col">
+    </colgroup>
+    <thead><tr>
+      <th>Foto</th><th>Descrizione/Modello</th><th>Cliente</th><th>Telefono</th>
+      <th>Data arrivo</th><th>Data accettazione</th><th>Data scadenza</th><th>Stato</th><th class="text-end">Azioni</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
   </div>
   <nav><ul class="pagination justify-content-center my-2" id="pager"></ul></nav>
 </div>
 
 <!-- DETTAGLIO -->
 <div class="modal fade" id="detailModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
-  <div class="modal-header"><h5 class="modal-title">Dettaglio scheda</h5><button class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
+  <div class="modal-header"><h5 class="modal-title">Dettaglio scheda</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
   <div class="modal-body"><div id="detailContent"></div></div>
   <div class="modal-footer">
     <button class="btn btn-outline-dark" id="btnPDF" type="button">PDF</button>
@@ -436,7 +433,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 
 <!-- CONFIRM DELETE -->
 <div class="modal fade" id="confirmDeleteModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
-  <div class="modal-header"><h5 class="modal-title">Conferma eliminazione</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
+  <div class="modal-header"><h5 class="modal-title">Conferma eliminazione</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
   <div class="modal-body">Sei sicuro di voler eliminare questa scheda? L'operazione non può essere annullata.</div>
   <div class="modal-footer">
     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
@@ -456,33 +453,8 @@ function parseDate(v){ if(!v) return null; const d=new Date(v); return isNaN(d)?
 function fmtIT(v){ const d=parseDate(v); return d? d.toLocaleDateString('it-IT') : ''; }
 function todayISO(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 function newId(){ return (window.crypto && typeof crypto.randomUUID==='function') ? crypto.randomUUID() : Date.now().toString(); }
-
-// scadenze
-function isUrgent(d){ if(!d) return false; const today=new Date(); today.setHours(0,0,0,0); const due=new Date(d.getFullYear(),d.getMonth(),d.getDate()); const days=Math.floor((due-today)/(1000*60*60*24)); return days<=3; }
 function isSoon(d){ if(!d) return false; const t=new Date(); t.setHours(0,0,0,0); const lim=new Date(t); lim.setDate(lim.getDate()+7); return d>=t && d<=lim; }
-
-// UI stato completamento
-function updateCompletionUI(){
-  const statoSel = document.getElementById('statoPratica');
-  const info     = document.getElementById('completataInline');
-  const infoDate = document.getElementById('completataDate');
-  const f        = document.getElementById('recordForm');
-  const fldScad  = f && f.elements['dataScadenza'];
-  const fldCompl = f && f.elements['dataCompletamento'];
-  const isCompl  = statoSel && statoSel.value === 'Completata';
-  if(isCompl){
-    if(fldCompl && !fldCompl.value) fldCompl.value = todayISO();
-    if(fldScad) fldScad.value = '';
-    if(info && infoDate){
-      const d = fldCompl && fldCompl.value ? new Date(fldCompl.value) : new Date();
-      infoDate.textContent = d.toLocaleDateString('it-IT');
-      info.classList.remove('d-none');
-    }
-  }else{
-    if(info) info.classList.add('d-none');
-    if(fldCompl) fldCompl.value='';
-  }
-}
+function isUrgent(d){ if(!d) return false; const t=new Date(); t.setHours(0,0,0,0); const due=new Date(d.getFullYear(),d.getMonth(),d.getDate()); const days=Math.floor((due-t)/(1000*60*60*24)); return days<=3; }
 
 /* ===== IndexedDB (locale) ===== */
 const DB='officinaDB', VER=2;
@@ -505,7 +477,7 @@ let currentFilter=null;
 const FILTER_LABELS={totali:'Tutte le schede (tutte)',attesa:'Solo: In attesa',lavorazione:'Solo: In lavorazione',soon:'Solo: Scadenze 7gg',completed:'Solo: Completate/Chiuse'};
 const PAGE_SIZE_CONST=50; let searchRows=[]; let page=1;
 
-// stato filtri tecnici
+// Filtri tecnici (solo match esatto)
 const techFilters={battCollettore:'',lunghezzaAsse:'',lunghezzaPacco:'',larghezzaPacco:'',punta:'',numPunte:''};
 
 function sh(n){$('#page-home').classList.toggle('d-none',n!=='home');$('#page-form').classList.toggle('d-none',n!=='form');$('#page-search').classList.toggle('d-none',n!=='search');}
@@ -513,41 +485,85 @@ function f2url(file){return new Promise((res,rej)=>{const R=new FileReader();R.o
 
 /* Nuova scheda */
 function nuovo(){
-  cur={id:newId(),createdAt:new Date().toISOString()};
-  const f=$('#recordForm');f.reset();
-  $('#formTitle').textContent='Nuova scheda';
-  $('#photoPreview').src='';
-  const s=$('#statoPratica');if(s)s.value='In attesa';
-  const p=$('#preventivoStato');if(p)p.value='Non inviato';
-  const lbl=document.getElementById('statoLabelText'); if(lbl) lbl.textContent='Stato';
-  const sm=document.getElementById('completataInline'); if(sm) sm.innerHTML='(Chiusa il <span id="completataDate"></span>)';
-  if(f && f.elements['dataCompletamento']) f.elements['dataCompletamento'].value='';
+  cur = { id: newId(), createdAt: new Date().toISOString() };
+  const f = document.getElementById('recordForm');
+  if (f) f.reset();
+
+  const titleEl = document.getElementById('formTitle');
+  if (titleEl) titleEl.textContent = 'Nuova scheda';
+
+  const prev = document.getElementById('photoPreview');
+  if (prev) prev.src = '';
+
+  const s = document.getElementById('statoPratica'); if (s) s.value = 'In attesa';
+  const p = document.getElementById('preventivoStato'); if (p) p.value = 'Non inviato';
+
+  const lbl = document.getElementById('statoLabelText'); if (lbl) lbl.textContent = 'Stato';
+  const sm  = document.getElementById('completataInline');
+  if (sm) sm.innerHTML = '(Chiusa il <span id="completataDate"></span>)';
+
+  if (f && f.elements['dataCompletamento']) f.elements['dataCompletamento'].value = '';
+
   sh('form'); updateCompletionUI();
 }
 
 /* Modifica */
 async function modifica(id){
-  const r=await getRecord(id);
-  if(!r){ alert('Scheda non trovata'); return; }
-  cur=r;
-  const f=$('#recordForm');
-  $('#formTitle').textContent='Modifica scheda';
-  [...f.elements].forEach(el=>{if(el.name && r[el.name]!=null) el.value=r[el.name];});
-  const s=$('#statoPratica');if(s)s.value=r.statoPratica||'In attesa';
-  const p=$('#preventivoStato');if(p)p.value=r.preventivoStato||'Non inviato';
-  const {images}=await getPhotos(id); $('#photoPreview').src=images[0]||'';
-  const lbl=document.getElementById('statoLabelText'); if	lbl) lbl.textContent='Stato';
-  const sm=document.getElementById('completataInline'); if(sm) sm.innerHTML='(Chiusa il <span id="completataDate"></span>)';
+  const r = await getRecord(id);
+  if (!r) { alert('Scheda non trovata'); return; }
+  cur = r;
+  const f = document.getElementById('recordForm');
+  const titleEl = document.getElementById('formTitle'); if (titleEl) titleEl.textContent = 'Modifica scheda';
+
+  if (f){
+    [...f.elements].forEach(el=>{
+      if (el && el.name && Object.prototype.hasOwnProperty.call(r, el.name) && r[el.name] != null){
+        el.value = r[el.name];
+      }
+    });
+  }
+  const s = document.getElementById('statoPratica'); if (s) s.value = r.statoPratica || 'In attesa';
+  const p = document.getElementById('preventivoStato'); if (p) p.value = r.preventivoStato || 'Non inviato';
+
+  try{
+    const photos = await getPhotos(id);
+    const imgs = (photos && photos.images) ? photos.images : [];
+    const prev = document.getElementById('photoPreview'); if (prev) prev.src = imgs[0] || '';
+  }catch(_){}
+
+  const lbl = document.getElementById('statoLabelText'); if (lbl) lbl.textContent = 'Stato';
+  const sm  = document.getElementById('completataInline'); if (sm) sm.innerHTML = '(Chiusa il <span id="completataDate"></span>)';
+
   sh('form'); updateCompletionUI();
+}
+
+/* Stato completata → UI */
+function updateCompletionUI(){
+  const statoSel = document.getElementById('statoPratica');
+  const info     = document.getElementById('completataInline');
+  const infoDate = document.getElementById('completataDate');
+  const f        = document.getElementById('recordForm');
+  const fldScad  = f && f.elements['dataScadenza'];
+  const fldCompl = f && f.elements['dataCompletamento'];
+  const isCompl  = statoSel && statoSel.value === 'Completata';
+  if(isCompl){
+    if(fldCompl && !fldCompl.value) fldCompl.value = todayISO();
+    if(fldScad) fldScad.value = '';
+    if(info && infoDate){ infoDate.textContent = new Date().toLocaleDateString('it-IT'); info.classList.remove('d-none'); }
+  }else{
+    if(info) info.classList.add('d-none');
+    if(fldCompl) fldCompl.value='';
+  }
 }
 
 /* Salva */
 async function salva(){
-  const f=$('#recordForm');
+  const f=document.getElementById('recordForm');
   const d=Object.fromEntries(new FormData(f).entries());
   d.id = cur?.id || newId();
   d.updatedAt = new Date().toISOString();
   if(!d.preventivoStato) d.preventivoStato='Non inviato';
+
   if(d.statoPratica==='Completata'){
     if(!d.dataCompletamento){ d.dataCompletamento = todayISO(); }
     d.dataScadenza='';
@@ -556,25 +572,26 @@ async function salva(){
   }
   d.dataArrivo = d.dataApertura || '';
 
-  // Foto
   let full=[],thumbs=[];
-  const fl=$('#photoInput').files;
-  if(fl&&fl.length){for(const file of fl){const data=await f2url(file);full.push(data);thumbs.push(data);}}
-  else{const prev=$('#photoPreview').getAttribute('src');if(prev){full=[prev];thumbs=[prev];}}
+  const fl=document.getElementById('photoInput').files;
+  if(fl&&fl.length){for(const file of fl){const data=await f2url(file);full.push(data);thumbs.push(data);}} else {
+    const prev=document.getElementById('photoPreview').getAttribute('src');
+    if(prev){ full=[prev]; thumbs=[prev]; }
+  }
 
   await putRecord(d);
   if(full.length||thumbs.length) await savePhotosWithThumbs(d.id,full,thumbs);
   alert('Scheda salvata'); sh('home'); refreshDashboard();
 }
 
-/* Rendering thumb + apertura full */
+/* Rendering thumb */
 function renderThumb(src,id){return src?`<img class="thumb" loading="lazy" src="${src}" data-id="${id}">`:'<div class="thumb d-flex align-items-center justify-content-center text-secondary">—</div>';}
 
 /* HOME: lista aperte */
 async function populateHomeOpenList(){
   const all=await getAllRecords(); all.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
   const open=all.filter(r=>(r.statoPratica||'')!=='Completata');
-  const tb=$('#listAllOpenBody');
+  const tb=document.getElementById('listAllOpenBody');
   if(!open.length){tb.innerHTML='<tr><td colspan="6" class="text-muted">Nessuna scheda</td></tr>';return;}
   const rows=[];
   for(const r of open){
@@ -592,7 +609,7 @@ async function populateHomeOpenList(){
     </tr>`);
   }
   tb.innerHTML=rows.join('');
-  tb.querySelectorAll('img.thumb').forEach	img=>{img.addEventListener('click',async()=>{const id=img.getAttribute('data-id');const {images,thumbs}=await getPhotos(id);openImg(images[0]||thumbs[0]);});});
+  tb.querySelectorAll('img.thumb').forEach(img=>{img.addEventListener('click',async()=>{const id=img.getAttribute('data-id');const {images,thumbs}=await getPhotos(id);openImg(images[0]||thumbs[0]);});});
   tb.querySelectorAll('button[data-open]').forEach(b=>b.onclick=()=>apri(b.dataset.open));
   tb.querySelectorAll('button[data-edit]').forEach(b=>b.onclick=()=>modifica(b.dataset.edit));
 }
@@ -607,30 +624,23 @@ function buildSearchIndex(r){
   return p.join(' ');
 }
 
-/* === Filtro tecnico: corrispondenza ESATTA su ogni campo compilato === */
-function matchTechFilters(rec){
-  const N = v => (v==null ? '' : String(v).trim());
-  const want = {
-    battCollettore: N(techFilters.battCollettore),
-    lunghezzaAsse:  N(techFilters.lunghezzaAsse),
-    lunghezzaPacco: N(techFilters.lunghezzaPacco),
-    larghezzaPacco: N(techFilters.larghezzaPacco),
-    punta:          N(techFilters.punta),
-    numPunte:       N(techFilters.numPunte)
-  };
-  if (want.battCollettore && N(rec.battCollettore) !== want.battCollettore) return false;
-  if (want.lunghezzaAsse  && N(rec.lunghezzaAsse)  !== want.lunghezzaAsse)  return false;
-  if (want.lunghezzaPacco && N(rec.lunghezzaPacco) !== want.lunghezzaPacco) return false;
-  if (want.larghezzaPacco && N(rec.larghezzaPacco) !== want.larghezzaPacco) return false;
-  if (want.punta && N(rec.punta) !== want.punta) return false;
-  if (want.numPunte && N(rec.numPunte) !== want.numPunte) return false;
+/* Filtri tecnici (match esatto) */
+function matchTechFilters(r){
+  const want=techFilters;
+  function eq(a,b){ return String(a??'').trim().toLowerCase() === String(b??'').trim().toLowerCase(); }
+  if(want.battCollettore && !eq(r.battCollettore, want.battCollettore)) return false;
+  if(want.lunghezzaAsse && !eq(r.lunghezzaAsse, want.lunghezzaAsse)) return false;
+  if(want.lunghezzaPacco && !eq(r.lunghezzaPacco, want.lunghezzaPacco)) return false;
+  if(want.larghezzaPacco && !eq(r.larghezzaPacco, want.larghezzaPacco)) return false;
+  if(want.punta && !eq(r.punta, want.punta)) return false;
+  if(want.numPunte && !eq(r.numPunte, want.numPunte)) return false;
   return true;
 }
 
-/* Paginazione */
+/* Pager */
 function renderPager(total){
   const pages=Math.max(1,Math.ceil(total/PAGE_SIZE_CONST));
-  const ul=$('#pager'); ul.innerHTML='';
+  const ul=document.getElementById('pager'); ul.innerHTML='';
   const item=(lbl,target,dis=false,act=false)=>{const li=document.createElement('li');li.className=`page-item ${dis?'disabled':''} ${act?'active':''}`;li.innerHTML=`<span class="page-link">${lbl}</span>`;if(!dis&&!act)li.onclick=()=>{page=target;drawListPage();};ul.appendChild(li);};
   item('«',1,page===1); item('‹',Math.max(1,page-1),page===1);
   for(let i=1;i<=Math.min(pages,7);i++) item(String(i),i,false,page===i);
@@ -653,7 +663,7 @@ async function drawListPage(){
       <td class="nowrap">${fmtIT(r.dataAccettazione)}</td>
       <td class="nowrap">${(()=>{ const d=parseDate(r.dataScadenza); return isUrgent(d) ? `<span class="date-urgent">${fmtIT(r.dataScadenza)}</span>` : fmtIT(r.dataScadenza); })()}</td>
       <td class="nowrap">
-        <select class="form-select form-select-sm state-edit" data-id="${r.id}">
+        <select class="form-select form-select-sm state-edit" data-id="\${r.id}">
           <option value="In attesa">In attesa</option>
           <option value="In lavorazione">In lavorazione</option>
           <option value="Completata">Completata</option>
@@ -661,8 +671,8 @@ async function drawListPage(){
       </td>
       <td class="text-end nowrap">
         <div class="btn-group">
-          <button class="btn btn-sm btn-outline-primary" data-open="${r.id}">Apri</button>
-          <button class="btn btn-sm btn-outline-success" data-edit="${r.id}">Modifica</button>
+          <button class="btn btn-sm btn-outline-primary" data-open="\${r.id}">Apri</button>
+          <button class="btn btn-sm btn-outline-success" data-edit="\${r.id}">Modifica</button>
         </div>
       </td>`;
     tb.appendChild(tr);
@@ -672,7 +682,7 @@ async function drawListPage(){
   tb.querySelectorAll('button[data-edit]').forEach(b=>b.onclick=()=>modifica(b.dataset.edit));
 
   // Stato inline
-  document.querySelectorAll('select.state-edit').forEach(sel=>{
+  document.querySelectorAll('select.state-edit').forEach(async sel=>{
     const id = sel.getAttribute('data-id');
     const row = searchRows.find(r=>r.id===id);
     if(row){ sel.value = row.statoPratica || 'In attesa'; }
@@ -685,7 +695,7 @@ async function drawListPage(){
       }
       try{
         const rec = await getRecord(id);
-        if	rec){
+        if(rec){
           rec.statoPratica = val;
           if(val==='Completata'){ rec.dataCompletamento = todayISO(); rec.dataScadenza=''; } else { rec.dataCompletamento = ''; }
           rec.updatedAt = new Date().toISOString();
@@ -704,76 +714,76 @@ async function drawListPage(){
 
 /* Ricerca pipeline */
 async function lista(){
-  const q=($('#q')?.value||'').toLowerCase();
-  let rows=await getAllRecords();
-  if(currentFilter==='attesa'){ rows = rows.filter	r=>(r.statoPratica||'')==='In attesa'); }
-  if(currentFilter==='lavorazione'){ rows = rows.filter(r=>(r.statoPratica||'')==='In lavorazione'); }
-  if(currentFilter==='completed'){ rows = rows.filter(r=>(r.statoPratica||'')==='Completata' || (r.statoPratica||'')==='Consegnata'); }
-  if(currentFilter==='soon'){ rows = rows.filter(r=>isSoon(parseDate(r.dataScadenza))); }
-
+  const q=(document.getElementById('q').value||'').toLowerCase();
+  let rows;
+  if(currentFilter==='attesa'||currentFilter==='lavorazione'||currentFilter==='completed'){
+    if(currentFilter==='completed'){const comp=await getByStato('Completata');const cons=await getByStato('Consegnata');rows=[...comp,...cons];}
+    else{const stato=currentFilter==='attesa'?'In attesa':'In lavorazione';rows=await getByStato(stato);}
+  }else{rows=await getAllRecords();}
+  if(currentFilter==='soon') rows=rows.filter(r=>isSoon(parseDate(r.dataScadenza)));
   if(q) rows=rows.filter(r=>buildSearchIndex(r).includes(q));
   rows=rows.filter(matchTechFilters);
-
   rows.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
-  const box=$('#activeFilterBox'),lab=$('#activeFilterLabel');
-  if(currentFilter){box.classList.remove('d-none');lab.textContent=FILTER_LABELS[currentFilter]||'Filtro attivo';}
-  else{box.classList.add('d-none');lab.textContent='';}
-
+  const box=document.getElementById('activeFilterBox'),lab=document.getElementById('activeFilterLabel'); if(currentFilter){box.classList.remove('d-none');lab.textContent=FILTER_LABELS[currentFilter]||'Filtro attivo';}else{box.classList.add('d-none');lab.textContent='';}
   searchRows=rows; page=1; renderPager(searchRows.length); drawListPage();
 }
 
-/* Dettaglio (date IT) */
+/* Dettaglio (table completa, anche vuoti) */
 async function apri(id){
   const r=await getRecord(id),{images,thumbs}=await getPhotos(id);const img=images[0]||thumbs[0];
-  const d=$('#detailContent');
+  const d=document.getElementById('detailContent');
+  const rows=[
+    ['Descrizione', r.descrizione],
+    ['Modello', r.modello],
+    ['Cliente', r.cliente],
+    ['Telefono', r.telefono],
+    ['Email', r.email],
+    ['Documento Trasporto', r.docTrasporto],
+    ['Data apertura', fmtIT(r.dataApertura||r.dataArrivo||'')],
+    ['Data accettazione', fmtIT(r.dataAccettazione)],
+    ['Data scadenza', fmtIT(r.dataScadenza)],
+    ['Batt. collettore', r.battCollettore||''],
+    ['Lunghezza asse', r.lunghezzaAsse||''],
+    ['Lunghezza pacco', r.lunghezzaPacco||''],
+    ['Larghezza pacco', r.larghezzaPacco||''],
+    ['Punta', (r.punta||'') + (r?.numPunte?` (${r.numPunte} punte)`: '')],
+    ['Stato pratica', r.statoPratica||'In attesa'],
+    ['Preventivo', r.preventivoStato||'Non inviato'],
+    ['Note', r.note||'']
+  ];
   d.innerHTML=`
     ${img?`<img class="img-fluid mb-3" src="${img}" id="detailImg" style="cursor:pointer">`:''}
     <table class="table table-sm">
-      <tr><th>Descrizione</th><td>${esc(r.descrizione)}</td></tr>
-      <tr><th>Modello</th><td>${esc(r.modello)}</td></tr>
-      <tr><th>Cliente</th><td>${esc(r.cliente)}</td></tr>
-      <tr><th>Telefono</th><td>${esc	r.telefono)}</td></tr>
-      <tr><th>Email</th><td>${esc(r.email)}</td></tr>
-      <tr><th>Documento Trasporto</th><td>${esc(r.docTrasporto)}</td></tr>
-      <tr><th>Data apertura</th><td>${fmtIT(r.dataApertura||r.dataArrivo||'')}</td></tr>
-      <tr><th>Data accettazione</th><td>${fmtIT(r.dataAccettazione)}</td></tr>
-      <tr><th>Data scadenza</th><td>${fmtIT(r.dataScadenza)}</td></tr>
-      <tr><th>Batt. collettore</th><td>${esc(r.battCollettore||'')}</td></tr>
-      <tr><th>Lunghezza asse</th><td>${esc(r.lunghezzaAsse||'')}</td></tr>
-      <tr><th>Lunghezza pacco</th><td>${esc(r.lunghezzaPacco||'')}</td></tr>
-      <tr><th>Larghezza pacco</th><td>${esc(r.larghezzaPacco||'')}</td></tr>
-      <tr><th	Punta</th><td>${esc(r.punta||'')} ${r?.numPunte?`(${esc(r.numPunte)} punte)`:''}</td></tr>
-      <tr><th>Stato pratica</th><td>${esc(r.statoPratica||'In attesa')}</td></tr>
-      <tr><th>Preventivo</th><td>${esc(r.preventivoStato||'Non inviato')}</td></tr>
-      <tr><th>Note</th><td>${esc(r.note||'')}</td></tr>
+      ${rows.map(([k,v])=>`<tr><th>${esc(k)}</th><td>${esc(v??'')}</td></tr>`).join('')}
     </table>`;
   const modal=new bootstrap.Modal('#detailModal'); modal.show();
-  const imgEl=$('#detailImg'); if(imgEl) imgEl.addEventListener('click',()=>openImg(img));
-  $('#btnPDF').onclick=()=>pdfRec(r,img);
-  $('#btnEdit').onclick=()=>{modal.hide(); modifica(id);};
-  $('#btnDelete').onclick=()=>{ deleteTargetId=id; new bootstrap.Modal('#confirmDeleteModal').show(); };
+  const imgEl=document.getElementById('detailImg'); if(imgEl) imgEl.addEventListener('click',()=>openImg(img));
+  document.getElementById('btnPDF').onclick=()=>pdfRec(r,img);
+  document.getElementById('btnEdit').onclick=()=>{modal.hide(); modifica(id);};
+  document.getElementById('btnDelete').onclick=()=>{ deleteTargetId=id; new bootstrap.Modal('#confirmDeleteModal').show(); };
 }
 
 /* Full image modal */
-function openImg(src){ if(!src) return; $('#imgFull').src=src; new bootstrap.Modal('#imgModal').show(); }
+function openImg(src){ if(!src) return; document.getElementById('imgFull').src=src; new bootstrap.Modal('#imgModal').show(); }
 
-/* PDF (mostra tutti i campi anche vuoti) */
+/* PDF completo (anche vuoti) */
 function pdfRec(r,img){
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'pt',format:'a4'});
   let y=40;
   doc.setFontSize(18); doc.text('Scheda riparazioni — Riepilogo',40,y); y+=24; doc.setFontSize(12);
-  const L=(l,v)=>{doc.setFont(undefined,'bold');doc.text(l,40,y);doc.setFont(undefined,'normal');doc.text(': '+(v??''),180,y);y+=16;};
+  const L=(l,v)=>{doc.setFont(undefined,'bold');doc.text(l,40,y);doc.setFont(undefined,'normal');doc.text(': '+(v||''),180,y);y+=16;};
   const map={
     descrizione:'Descrizione',modello:'Modello',cliente:'Cliente',telefono:'Telefono',email:'Email',
-    docTrasporto:'Documento Trasporto',dataApertura:'Data apertura',dataAccettazione:'Data accettazione',dataScadenza:'Data scadenza',
-    battCollettore:'Batt. collettore',lunghezzaAsse:'Lunghezza asse',lunghezzaPacco:'Lunghezza pacco',larghezzaPacco:'Larghezza pacco',
-    punta:'Punta',numPunte:'N. punte',statoPratica:'Stato pratica',preventivoStato:'Preventivo',note:'Note'
+    docTrasporto:'Documento Trasporto',dataApertura:'Data apertura',dataAccettazione:'Data accettazione',
+    dataScadenza:'Data scadenza',battCollettore:'Batt. collettore',lunghezzaAsse:'Lunghezza asse',
+    lunghezzaPacco:'Lunghezza pacco',larghezzaPacco:'Larghezza pacco',punta:'Punta',numPunte:'N. punte',
+    statoPratica:'Stato pratica',preventivoStato:'Preventivo',note:'Note'
   };
   Object.keys(map).forEach(k=>{
     let v=r[k];
     if(['dataApertura','dataAccettazione','dataScadenza'].includes(k)) v = fmtIT(v);
-    L(map[k], v);
+    L(map[k], v||'');
   });
   if(img){try{doc.addImage(img,'JPEG',40,y+6,500,300);}catch(e){}}
   doc.save(`Scheda-${(r.descrizione||'').replace(/\s+/g,'_')}-${r.modello||''}.pdf`);
@@ -781,78 +791,76 @@ function pdfRec(r,img){
 
 /* Backup/Ripristina */
 async function backup(){const zip=new JSZip(),all=await getAllRecords();for(const r of all){zip.file(`records/${r.id}.json`,JSON.stringify(r,null,2));const {images,thumbs}=await getPhotos(r.id);images.forEach((d,i)=>zip.file(`photos/${r.id}-${i+1}.jpg`,d.split(',')[1],{base64:true}));thumbs.forEach((d,i)=>zip.file(`photos/${r.id}-${i+1}-thumb.jpg`,d.split(',')[1],{base64:true}));}const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='backup_scheda_riparazioni.zip';a.click();}
-async function ripristina(e){const f=e.target.files?.[0];if(!f)return;const zip=await JSZip.loadAsync(f);const recs=Object.keys(zip.files).filter(k=>k.startsWith('records/')&&k.endsWith('.json'));for(const k of recs){const txt=await zip.files[k].async('string');const r=JSON.parse(txt);await putRecord(r);const photos=Object.keys(zip.files).filter(p=>p.startswith('photos/')&&p.includes(r.id+'-')&&!p.includes('-thumb'));const thumbs=Object.keys(zip.files).filter(p=>p.startswith('photos/')&&p.includes(r.id+'-')&&p.includes('-thumb'));const imgs=[],ths=[];for(const p of photos){const b=await zip.files[p].async('base64');imgs.push('data:image/jpeg;base64,'+b);}for(const p of thumbs){const b=await zip.files[p].async('base64');ths.push('data:image/jpeg;base64,'+b);}if(imgs.length||ths.length)await savePhotosWithThumbs(r.id,imgs,ths);}alert('Ripristino completato');sh('home');refreshDashboard();}
-
-/* KPI → Ricerca + dashboard */
-function goToSearchWithFilter(filterKey){currentFilter=filterKey||null;sh('search');lista();}
-async function refreshDashboard(){const all=await getAllRecords();const kpiTot=$('#kpiTot'),kpiAttesa=$('#kpiAttesa'),kpiLavor=$('#kpiLavor'),kpiSoon=$('#kpiSoon'),kpiCompl=$('#kpiCompl');const cAtt=all.filter(r=>(r.statoPratica||'')==='In attesa').length;const cLav=all.filter(r=>(r.statoPratica||'')==='In lavorazione').length;const cSoon=all.filter(r=>isSoon(parseDate(r.dataScadenza))).length;const cCompl=all.filter(r=>(r.statoPratica||'')==='Completata').length;kpiTot.textContent=all.length;kpiAttesa.textContent=cAtt;kpiLavor.textContent=cLav;kpiSoon.textContent=cSoon;kpiCompl.textContent=cCompl;await populateHomeOpenList();}
+async function ripristina(e){const f=e.target.files?.[0];if(!f)return;const zip=await JSZip.loadAsync(f);const recs=Object.keys(zip.files).filter(k=>k.startsWith('records/')&&k.endsWith('.json'));for(const k of recs){const txt=await zip.files[k].async('string');const r=JSON.parse(txt);await putRecord(r);const photos=Object.keys(zip.files).filter(p=>p.startsWith('photos/')&&p.includes(r.id+'-')&&!p.includes('-thumb'));const thumbs=Object.keys(zip.files).filter(p=>p.startsWith('photos/')&&p.includes(r.id+'-')&&p.includes('-thumb'));const imgs=[],ths=[];for(const p of photos){const b=await zip.files[p].async('base64');imgs.push('data:image/jpeg;base64,'+b);}for(const p of thumbs){const b=await zip.files[p].async('base64');ths.push('data:image/jpeg;base64,'+b);}if(imgs.length||ths.length)await savePhotosWithThumbs(r.id,imgs,ths);}alert('Ripristino completato');sh('home');refreshDashboard();}
 
 /* Debounce ricerca */
 let searchTimer=null; function debouncedSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{lista();},250);}
 
 /* Wire-up */
 document.addEventListener('DOMContentLoaded',()=>{
-  const _stSel=document.getElementById('statoPratica'); if(_stSel){ _stSel.addEventListener('change', updateCompletionUI); }
-  $('#btnHome').onclick=()=>{sh('home');refreshDashboard();};
-  $('#btnSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
-  $('#newRecord').onclick=nuovo; $('#goSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
-  $('#cancelForm').onclick=()=>{sh('home');refreshDashboard();};
-  $('#saveRecord').onclick=salva;
 
-  // Ricerca (filtri tecnici) — applica SOLO su click
-  document.getElementById('btnDoSearch').onclick = lista;
-  document.getElementById('q').addEventListener('input', debouncedSearch);
+  const _stSel=document.getElementById('statoPratica');
+  if(_stSel){ _stSel.addEventListener('change', updateCompletionUI); }
 
-  document.getElementById('btnApplyFilters').onclick = () => {
-    techFilters.battCollettore = ($('#f_battCollettore')?.value || '').trim();
-    techFilters.lunghezzaAsse  = ($('#f_lunghezzaAsse')?.value  || '').trim();
-    techFilters.lunghezzaPacco = ($('#f_lunghezzaPacco')?.value || '').trim();
-    techFilters.larghezzaPacco = ($('#f_larghezzaPacco')?.value || '').trim();
-    techFilters.punta          = ($('#f_punta')?.value          || '').trim();
-    techFilters.numPunte       = ($('#f_numPunte')?.value       || '').trim();
+  document.getElementById('btnHome').onclick=()=>{sh('home');refreshDashboard();};
+  document.getElementById('btnSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
+  document.getElementById('newRecord').onclick=nuovo;
+  document.getElementById('goSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
+  document.getElementById('cancelForm').onclick=()=>{sh('home');refreshDashboard();};
+  document.getElementById('saveRecord').onclick=salva;
+
+  // Ricerca (filtri tecnici)
+  document.getElementById('btnDoSearch').onclick=lista;
+  document.getElementById('q').addEventListener('input',debouncedSearch);
+
+  document.getElementById('btnApplyFilters').onclick=()=>{
+    techFilters.battCollettore = document.getElementById('f_battCollettore').value || '';
+    techFilters.lunghezzaAsse  = document.getElementById('f_lunghezzaAsse').value  || '';
+    techFilters.lunghezzaPacco = document.getElementById('f_lunghezzaPacco').value || '';
+    techFilters.larghezzaPacco = document.getElementById('f_larghezzaPacco').value || '';
+    techFilters.punta          = document.getElementById('f_punta').value          || '';
+    techFilters.numPunte       = document.getElementById('f_numPunte').value       || '';
     lista();
   };
 
-  // Reset filtri robusto
+  // Reset filtri tecnici – super robusto
   function resetTechFilters(){
-    const ids = ['f_battCollettore','f_lunghezzaAsse','f_lunghezzaPacco','f_larghezzaPacco','f_numPunte'];
-    ids.forEach(id=>{
-      const el=document.getElementById(id);
-      if(el){
-        el.value='';
-        el.dispatchEvent(new Event('input',{bubbles:true}));
-        el.dispatchEvent(new Event('change',{bubbles:true}));
+    const ids = {
+      battCollettore: ['f_battCollettore','f-battCollettore'],
+      lunghezzaAsse:  ['f_lunghezzaAsse','f-lunghezzaAsse','f_lungAsse','f-lungAsse'],
+      lunghezzaPacco: ['f_lunghezzaPacco','f-lunghezzaPacco','f_lungPacco','f-lungPacco'],
+      larghezzaPacco: ['f_larghezzaPacco','f-larghezzaPacco','f_largPacco','f-largPacco'],
+      numPunte:       ['f_numPunte','f-numPunte'],
+      punta:          ['f_punta','f-punta']
+    };
+    for(const key of Object.keys(ids)){
+      for(const id of ids[key]){
+        const el=document.getElementById(id);
+        if(!el) continue;
+        if(el.tagName==='SELECT'){
+          el.selectedIndex=0; el.value=''; el.dispatchEvent(new Event('change',{bubbles:true}));
+        }else{
+          el.value=''; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true}));
+        }
       }
-    });
-    const sel=document.getElementById('f_punta');
-    if(sel){
-      sel.selectedIndex=0;
-      sel.value='';
-      sel.dispatchEvent(new Event('change',{bubbles:true}));
     }
-    if(typeof techFilters==='object' && techFilters){
-      Object.keys(techFilters).forEach	k=>techFilters[k]='';
-    }
-    try{ document.dispatchEvent(new CustomEvent('filters:reset')); }catch(_){}
-    lista();
+    Object.keys(techFilters).forEach(k=>techFilters[k]='');
+    try{ localStorage.removeItem('exactFilters'); localStorage.removeItem('filters-exact'); }catch(_){}
+    if(typeof lista==='function') lista();
   }
   const btnReset=document.getElementById('btnResetFilters');
-  if(btnReset){
-    btnReset.addEventListener('click',e=>{ e.preventDefault(); resetTechFilters(); },{capture:true});
-  }
+  if(btnReset){ btnReset.addEventListener('click',e=>{ e.preventDefault(); resetTechFilters(); },{capture:true}); }
 
   // KPI → Ricerca con filtro
   ['kpiTotBtn','kpiAttesaBtn','kpiLavorBtn','kpiSoonBtn','kpiComplBtn'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('click',()=>goToSearchWithFilter(el.dataset.filter));
   });
-
-  // Rimuovi filtro “vista”
-  $('#btnClearFilter').onclick=()=>{ currentFilter=null; lista(); };
+  document.getElementById('btnClearFilter').onclick=()=>{ currentFilter=null; lista(); };
 
   // Backup
-  $('#exportZip').onclick=backup;
-  $('#importZip').addEventListener('change',ripristina);
+  document.getElementById('exportZip').onclick=backup;
+  document.getElementById('importZip').addEventListener('change',ripristina);
 
   // Delete → chiudi modali e torna Home
   document.getElementById('confirmDeleteBtn').addEventListener('click', async ()=>{
@@ -865,15 +873,19 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
 
   // Foto preview e hint
-  $('#photoPreview').addEventListener('click',()=>{
-    const src=$('#photoPreview').src; if(!src) return;
-    $('#imgCenter').src=src; new bootstrap.Modal('#imgModalCenter').show();
+  document.getElementById('photoPreview').addEventListener('click',()=>{
+    const src=document.getElementById('photoPreview').src; if(!src) return;
+    document.getElementById('imgCenter').src=src; new bootstrap.Modal('#imgModalCenter').show();
   });
   const emptyHint=document.getElementById('emptyHint');
   const previewImg=document.getElementById('photoPreview');
-  function updateEmptyHint(){ if(previewImg && emptyHint){ emptyHint.style.display = previewImg.getAttribute('src') ? 'none':'block'; } }
+  function updateEmptyHint(){
+    if(previewImg && emptyHint){
+      emptyHint.style.display = previewImg.getAttribute('src') ? 'none':'block';
+    }
+  }
   updateEmptyHint();
-  $('#photoInput').addEventListener('change',async e=>{
+  document.getElementById('photoInput').addEventListener('change',async e=>{
     const f=e.target.files && e.target.files[0];
     if(f){
       const r=new FileReader();
@@ -892,14 +904,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     item.addEventListener('click',()=>{
       const p=document.getElementById('photoPreview');
       if(p){ p.src=src; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
-      thumbStrip.querySelectorAll('.*thumb-item').forEach(t=>t.classList.remove('active'));
+      thumbStrip.querySelectorAll('.thumb-item').forEach(t=>t.classList.remove('active'));
       item.classList.add('active');
     });
     thumbStrip.appendChild(item);
   }
-  async function fileToDataURL(file){
-    return await new Promise(res=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
-  }
+  async function fileToDataURL(file){return await new Promise(res=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });}
   const photoInputEl=document.getElementById('photoInput');
   if(photoInputEl){
     photoInputEl.addEventListener('change',async e=>{
@@ -918,6 +928,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       }
     },{capture:true});
   }
+
   // Estende modifica() per popolare miniature archivio
   const __orig_modifica=modifica;
   modifica=async function(id){
@@ -949,5 +960,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script src="supabase-singleton.js"></script>
 <!-- 4) Bridge della tua app -->
 <script src="app-supabase.v6.3.3.js"></script>
+<!-- 5) Script opzionali, tutti qui dentro il body -->
+<script src="filters-exact-guard.js?v=1"></script>
+
 </body>
 </html>
