@@ -869,7 +869,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     deleteTargetId=null;
     const confInst=bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal')); if(confInst) confInst.hide();
     const detInst =bootstrap.Modal.getInstance(document.getElementById('detailModal'));       if(detInst) detInst.hide();
-    sh('home'); await refreshDashboard();
+    sh('home'); await window.refreshDashboard();
   });
 
   // Foto preview e hint
@@ -948,7 +948,42 @@ document.addEventListener('DOMContentLoaded',()=>{
     }catch(_){}
   };
 
-  refreshDashboard();
+  /* === Dashboard + KPI + lista Home — versione GLOBALE === */
+  window.refreshDashboard = async function(){
+    try{
+      const all = await getAllRecords();
+
+      // KPI
+      const kpiTot   = document.getElementById('kpiTot');
+      const kpiAtt   = document.getElementById('kpiAttesa');
+      const kpiLav   = document.getElementById('kpiLavor');
+      const kpiSoon  = document.getElementById('kpiSoon');
+      const kpiCompl = document.getElementById('kpiCompl');
+
+      const cAtt  = all.filter(r => (r.statoPratica||'')==='In attesa').length;
+      const cLav  = all.filter(r => (r.statoPratica||'')==='In lavorazione').length;
+      const cSoon = all.filter(r => isSoon(parseDate(r.dataScadenza))).length;
+      const cCom  = all.filter(r => (r.statoPratica||'')==='Completata').length;
+
+      if(kpiTot)   kpiTot.textContent   = all.length;
+      if(kpiAtt)   kpiAtt.textContent   = cAtt;
+      if(kpiLav)   kpiLav.textContent   = cLav;
+      if(kpiSoon)  kpiSoon.textContent  = cSoon;
+      if(kpiCompl) kpiCompl.textContent = cCom;
+
+      // Lista Home (aperte)
+      if (typeof populateHomeOpenList === 'function'){
+        await populateHomeOpenList();
+      }
+    }catch(err){
+      console.error('[refreshDashboard] errore:', err);
+    }
+  };
+
+  // Avvio dashboard iniziale (protetto)
+  if (typeof window.refreshDashboard === 'function') {
+    window.refreshDashboard();
+  }
 });
 </script>
 
