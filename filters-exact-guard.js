@@ -1,4 +1,3 @@
-
 /**
  * filters-exact-guard.js
  * Enforce exact-match filters globally across renders and data sources.
@@ -8,88 +7,104 @@
   function $(s){ return document.querySelector(s); }
   function norm(x){ return (x==null)?'':String(x).trim(); }
 
+  // Legge i filtri dai campi (usa gli ID con underscore, aggiungi fallback se ti servono quelli col trattino)
   function readFilters(){
+    const get = (id, alt) => {
+      const el = document.getElementById(id) || (alt ? document.getElementById(alt) : null);
+      return norm(el ? el.value : '');
+    };
     return {
-      battCollettore: norm($('#f_battCollettore')?.value),
-      lungAsse:       norm($('#f_lunghezzaAsse')?.value),
-      lungPacco:      norm($('#f_lunghezzaPacco')?.value),
-      largPacco:      norm($('#f_larghezzaPacco')?.value),
-      punta:          norm($('#f_punta')?.value),
-      numPunte:       norm($('#f_numPunte')?.value),
+      battCollettore: get('f_battCollettore','f-battCollettore'),
+      lungAsse:       get('f_lunghezzaAsse','f-lunghezzaAsse'),
+      lungPacco:      get('f_lunghezzaPacco','f-lunghezzaPacco'),
+      largPacco:      get('f_larghezzaPacco','f-larghezzaPacco'),
+      punta:          get('f_punta','f-punta'),
+      numPunte:       get('f_numPunte','f-numPunte'),
     };
   }
+
   function hasAny(f){
-    return !!(f.battCollettore || f.lungAsse || f.lungPacco || f.largPacco ||
-      (f.punta && f.punta !== '' && f.punta.toLowerCase() !== 'tutte' && f.punta.toLowerCase() !== 'punta (tutte)') ||
-      f.numPunte);
+    const puntaOk = f.punta && f.punta !== '' &&
+                    f.punta.toLowerCase() !== 'tutte' &&
+                    f.punta.toLowerCase() !== 'punta (tutte)';
+    return !!(f.battCollettore || f.lungAsse || f.lungPacco || f.largPacco || puntaOk || f.numPunte);
   }
+
   function predicate(f){
+    const eq = (a,b)=> norm(a)===norm(b);
     return function(rec){
-      function eq(a,b){ return norm(a)===norm(b); }
       if(f.battCollettore && !eq(rec?.battCollettore, f.battCollettore)) return false;
-      if(f.lungAsse       && !eq(rec?.lungAsse,       f.lungAsse))       return false;
-      if(f.lungPacco      && !eq(rec?.lungPacco,      f.lungPacco))      return false;
-      if(f.largPacco      && !eq(rec?.largPacco,      f.largPacco))      return false;
+      if(f.lungAsse       && !eq(rec?.lunghezzaAsse ?? rec?.lungAsse, f.lungAsse)) return false;
+      if(f.lungPacco      && !eq(rec?.lunghezzaPacco ?? rec?.lungPacco, f.lungPacco)) return false;
+      if(f.largPacco      && !eq(rec?.larghezzaPacco ?? rec?.largPacco, f.largPacco)) return false;
       if(f.punta && f.punta!=='' && f.punta.toLowerCase()!=='tutte' && f.punta.toLowerCase()!=='punta (tutte)' &&
          !eq(rec?.punta, f.punta)) return false;
-      if(f.numPunte       && !eq(rec?.numPunte,       f.numPunte))        return false;
+      if(f.numPunte       && !eq(rec?.numPunte, f.numPunte)) return false;
       return true;
     };
   }
 
-  // GLOBAL FLAGS
-  window.__EXACTFILTER__ = {
-    ACTIVE:false,
-    STATE:null,
-  };
+  // Stato globale
+  window.__EXACTFILTER__ = { ACTIVE:false, STATE:null };
 
   async function runExact(){
     const f = readFilters();
+
+    // Pulisci la search libera (se ne hai una)
     const globalSearch = document.querySelector('input[type="search"], input[placeholder*="cerca"], input[placeholder*="Cerca"]');
     if(globalSearch) globalSearch.value = '';
 
+    // Nessun filtro -> disattiva guard e ricarica lista completa
     if(!hasAny(f)){
       window.__EXACTFILTER__.ACTIVE = false;
       window.__EXACTFILTER__.STATE  = null;
-      console.log('[exact-guard] nessun filtro impostato → guard off');
+      console.log('[exact-guard] nessun filtro impostato → guard off (full list)');
+      if (typeof window.lista === 'function') { window.lista(); }
+      else if (typeof window.refreshDashboard === 'function') { await window.refreshDashboard(); }
       return;
     }
+
+    // Attivo
     window.__EXACTFILTER__.ACTIVE = true;
     window.__EXACTFILTER__.STATE  = f;
     console.log('[exact-guard] attivo con filtri:', f);
 
-    // prova a ricaricare con Supabase (se disponibile)
+    // Prova con Supabase (se presente)
     try{
       const sb = (window.getSupabase && window.getSupabase()) || null;
       if(sb){
-        let q = sb.from('records').select('*');
+        let q = sb.from('records').select('*').order('updatedAt', { ascending:false });
         if(f.battCollettore) q = q.eq('battCollettore', f.battCollettore);
-        if(f.lungAsse)       q = q.eq('lungAsse',       f.lungAsse);
-        if(f.lungPacco)      q = q.eq('lungPacco',      f.lungPacco);
-        if(f.largPacco)      q = q.eq('largPacco',      f.largPacco);
+        if(f.lungAsse)       q = q.or(`lunghezzaAsse.eq.${f.lungAsse},lungAsse.eq.${f.lungAsse}`);
+        if(f.lungPacco)      q = q.or(`lunghezzaPacco.eq.${f.lungPacco},lungPacco.eq.${f.lungPacco}`);
+        if(f.largPacco)      q = q.or(`larghezzaPacco.eq.${f.largPacco},largPacco.eq.${f.largPacco}`);
         if(f.punta && f.punta!=='' && f.punta.toLowerCase()!=='tutte' && f.punta.toLowerCase()!=='punta (tutte)') q = q.eq('punta', f.punta);
-        if(f.numPunte)       q = q.eq('numPunte',       f.numPunte);
-        const { data, error } = await q.order('updatedAt', { ascending:false });
-        const rows = (data||[]).filter(predicate(f));
+        if(f.numPunte)       q = q.eq('numPunte', f.numPunte);
+
+        const { data, error } = await q;
         if(error) console.warn('[exact-guard] supabase error:', error?.message);
+        const rows = (data||[]).filter(predicate(f));
         console.log('[exact-guard] risultati (SB):', rows.length);
-        if(typeof window.renderList === 'function') window.renderList(rows);
-        else if(typeof window.lista === 'function') window.lista(rows);
-        else if(typeof window.refreshDashboard === 'function') window.refreshDashboard();
+
+        if (typeof window.renderList === 'function') window.renderList(rows);
+        else if (typeof window.lista === 'function') window.lista(rows);
+        else if (typeof window.refreshDashboard === 'function') window.refreshDashboard();
         return;
       }
-    }catch(e){}
+    }catch(e){ /* fallback locale */ }
 
-    // fallback locale
+    // Fallback locale
     let all = [];
     if(typeof window.getAllRecords === 'function') all = await window.getAllRecords();
     const rows = (all||[]).filter(predicate(f));
     console.log('[exact-guard] risultati (locale):', rows.length);
-    if(typeof window.renderList === 'function') window.renderList(rows);
-    else if(typeof window.lista === 'function') window.lista(rows);
-    else if(typeof window.refreshDashboard === 'function') window.refreshDashboard();
+
+    if (typeof window.renderList === 'function') window.renderList(rows);
+    else if (typeof window.lista === 'function') window.lista(rows);
+    else if (typeof window.refreshDashboard === 'function') window.refreshDashboard();
   }
 
+  // Patch wrap (non cambia)
   function patch(){
     const pred = () => window.__EXACTFILTER__.ACTIVE ? predicate(window.__EXACTFILTER__.STATE||{}) : null;
 
@@ -109,13 +124,10 @@
     window.renderList = wrapList(window.renderList, 'renderList');
     window.lista      = wrapList(window.lista, 'lista');
 
-    // Wrap refreshDashboard per rifiltrare dopo il refresh
     const _refresh = window.refreshDashboard;
     if(typeof _refresh === 'function'){
       window.refreshDashboard = async function(){
         const res = await _refresh.apply(this, arguments);
-        // se dopo il refresh un'altra parte del codice fa il render, il wrap sopra interverrà
-        // come ulteriore garanzia, prova a rifare una runExact se attivo
         if(window.__EXACTFILTER__.ACTIVE){
           setTimeout(runExact, 30);
         }
@@ -123,7 +135,6 @@
       };
     }
 
-    // Wrap getAllRecords/getByStato per ridurre in origine
     const _getAll = window.getAllRecords;
     if(typeof _getAll === 'function'){
       window.getAllRecords = async function(){
@@ -142,23 +153,46 @@
     }
   }
 
+  // Bind: NON blocca i click, esegue runExact DOPO i tuoi handler
   function bind(){
     patch();
 
-    // intercetta i click nella card "Filtri tecnici (singoli)"
-    const cards = Array.from(document.querySelectorAll('.card'));
-    const card = cards.find(c => (c.querySelector('.card-header')?.textContent||'').trim().toLowerCase() === 'filtri tecnici (singoli)');
-    if(card){
-      card.addEventListener('click', function(e){
-        const t = e.target;
-        if(t && (t.tagName==='BUTTON' || (t.tagName==='INPUT' && (t.type==='button' || t.type==='submit')))){
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          e.stopPropagation();
-          runExact();
-        }
-      }, true);
-    }
+    // Ascolta input/change dei campi: se svuoti → disattiva e ricarica; se compili → applica
+    const ids = [
+      'f_battCollettore','f-battCollettore',
+      'f_lunghezzaAsse','f-lunghezzaAsse',
+      'f_lunghezzaPacco','f-lunghezzaPacco',
+      'f_larghezzaPacco','f-larghezzaPacco',
+      'f_numPunte','f-numPunte',
+      'f_punta','f-punta'
+    ].map(id => document.getElementById(id)).filter(Boolean);
+
+    const onChange = () => { setTimeout(runExact, 0); };
+    ids.forEach(el => {
+      el.addEventListener('input',  onChange, {capture:true});
+      el.addEventListener('change', onChange, {capture:true});
+    });
+
+    // Applica / Reset: lascia lavorare i tuoi handler e poi ricalcola
+    const btnApply = document.getElementById('btnApplyFilters');
+    if (btnApply) btnApply.addEventListener('click', ()=> setTimeout(runExact, 0), {capture:true});
+
+    const btnReset = document.getElementById('btnResetFilters');
+    if (btnReset) btnReset.addEventListener('click', ()=> setTimeout(runExact, 0), {capture:true});
+
+    // Evento globale opzionale emesso dal tuo resetTechFilters()
+    document.addEventListener('filters:reset', ()=>{
+      // azzera stato e ricarica lista completa
+      window.__EXACTFILTER__.ACTIVE = false;
+      window.__EXACTFILTER__.STATE  = null;
+      try {
+        localStorage.removeItem('exactFilters');
+        localStorage.removeItem('filters-exact');
+      } catch(_){}
+      if (typeof window.lista === 'function') window.lista();
+      else if (typeof window.refreshDashboard === 'function') window.refreshDashboard();
+    });
+
     console.log('[filters-exact-guard] attivo');
   }
 
