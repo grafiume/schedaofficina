@@ -919,153 +919,131 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 
 <script>
+/* detail+pdf-tech (inline) */
 (function(){
-  function byPlaceholder(txt){
-    const els = document.querySelectorAll('input,select,textarea');
-    for(const el of els){
-      const ph = (el.getAttribute('placeholder')||'').trim().toLowerCase();
-      if(ph === txt.toLowerCase()) return el;
+  console.log('[detail+pdf-tech] attivo');
+  let __lastDetailId = null;
+  let __lastDetailRecord = null;
+
+  function formatRow(label, value){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<th style="width:40%;font-weight:600;">${label}</th><td>${value ?? ''}</td>`;
+    return tr;
+  }
+  function ensureTechTable(){
+    const body = document.querySelector('.modal-body') || document.querySelector('#detail, #dettaglioScheda, #detailPane');
+    if(!body) return null;
+    let tbl = body.querySelector('table.tech-table');
+    if(!tbl){
+      const title = document.createElement('div');
+      title.textContent = 'Dati tecnici';
+      title.style.fontWeight = '700';
+      title.style.marginTop = '12px';
+      title.style.marginBottom = '4px';
+      tbl = document.createElement('table');
+      tbl.className = 'table tech-table';
+      tbl.style.marginBottom = '12px';
+      body.appendChild(title);
+      body.appendChild(tbl);
     }
+    return tbl;
+  }
+  async function renderTech(record){
+    const tbl = ensureTechTable();
+    if(!tbl) return;
+    tbl.innerHTML = '';
+    const r = record || {};
+    const rows = [
+      ['Batt. collettore', r.battCollettore],
+      ['Lunghezza asse',   r.lungAsse],
+      ['Lunghezza pacco',  r.lungPacco],
+      ['Larghezza pacco',  r.largPacco],
+      ['Punta',            r.punta],
+      ['N. punte',         r.numPunte],
+    ];
+    for(const [lab,val] of rows) tbl.appendChild(formatRow(lab, (val ?? '').toString()));
+  }
+  async function getFirstImageDataUrl(id){
+    try{
+      if(typeof window.getPhotos === 'function'){
+        const p = await window.getPhotos(id);
+        const img = (p && p.images && p.images[0]) ? p.images[0] : null;
+        if(img && img.startsWith('data:image')) return img;
+      }
+      const preview = document.querySelector('.modal-body img, #photoPreview, .preview img');
+      if(preview && preview.src) return preview.src;
+    }catch(e){}
     return null;
   }
-  function ensureId(el, id){
-    if(!el) return;
-    if(!el.id) el.id = id;
-  }
-  function findButtonByText(text){
-    const els = document.querySelectorAll('button,input[type="button"],input[type="submit"]');
-    text = text.trim().toLowerCase();
-    for(const el of els){
-      const t = (el.textContent||el.value||'').trim().toLowerCase();
-      if(t === text) return el;
+  async function makePdf(record, id){
+    if(!window.jspdf || !window.jspdf.jsPDF){
+      alert('jsPDF non disponibile'); return;
     }
-    return null;
-  }
-  function run(){
-    ensureId(byPlaceholder('Batt. collettore'), 'f-battCollettore');
-    ensureId(byPlaceholder('Lunghezza asse'), 'f-lungAsse');
-    ensureId(byPlaceholder('Lunghezza pacco'), 'f-lungPacco');
-    ensureId(byPlaceholder('Larghezza pacco'), 'f-largPacco');
-    let punta = document.querySelector('select') || byPlaceholder('Punta (tutte)') || byPlaceholder('Punta');
-    ensureId(punta, 'f-punta');
-    ensureId(byPlaceholder('N.'), 'f-numPunte');
-    ensureId(findButtonByText('applica filtri'), 'btnApplyFilters');
-    ensureId(findButtonByText('reset'), 'btnResetFilters');
-  }
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
-  else run();
-})();
-</script>
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p','pt','a4');
+    let x = 48, y = 56, lh = 18;
+    doc.setFont('helvetica','bold'); doc.setFontSize(20);
+    doc.text('Scheda riparazioni — Riepilogo', x, y); y += 28;
 
-<script>
-(function(){
-  const Q = (sel) => document.querySelector(sel);
-  function norm(x){ return (x==null)?'':String(x).trim(); }
-
-  async function searchExact(){
-    const battCollettore = norm(Q('#f-battCollettore')?.value);
-    const lungAsse       = norm(Q('#f-lungAsse')?.value);
-    const lungPacco      = norm(Q('#f-lungPacco')?.value);
-    const largPacco      = norm(Q('#f-largPacco')?.value);
-    const punta          = norm(Q('#f-punta')?.value);
-    const numPunte       = norm(Q('#f-numPunte')?.value);
-
-    if(window.supabase && window.SUPABASE_URL && window.SUPABASE_ANON_KEY){
-      const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-      let q = sb.from('records').select('*');
-      if(battCollettore) q = q.eq('battCollettore', battCollettore);
-      if(lungAsse)       q = q.eq('lungAsse',       lungAsse);
-      if(lungPacco)      q = q.eq('lungPacco',      lungPacco);
-      if(largPacco)      q = q.eq('largPacco',      largPacco);
-      if(punta && punta !== 'tutte') q = q.eq('punta', punta);
-      if(numPunte)       q = q.eq('numPunte',       numPunte);
-      const { data, error } = await q.order('updatedAt', { ascending:false });
-      if(error){ console.warn('[filters] supabase error:', error.message); return []; }
-      window.__lastExactFiltered = data||[];
-      if(typeof window.renderList === 'function') window.renderList(window.__lastExactFiltered);
-      else if(typeof window.lista === 'function') window.lista(window.__lastExactFiltered);
-      else if(typeof window.refreshDashboard === 'function') window.refreshDashboard();
-      return data||[];
+    doc.setFontSize(12); doc.setFont('helvetica','bold');
+    function row(label, value){
+      doc.text(label + ' :', x, y);
+      doc.setFont('helvetica','normal'); doc.text(String(value ?? ''), x+150, y);
+      doc.setFont('helvetica','bold'); y += lh;
     }
+    row('Descrizione', record?.descrizione);
+    row('Modello',     record?.modello);
+    row('Cliente',     record?.cliente);
+    row('Stato pratica', record?.statoPratica);
+    row('Preventivo',  record?.preventivoStato);
+    row('Data apertura', record?.dataApertura);
 
-    let all = [];
-    if(typeof window.getAllRecords === 'function') all = await window.getAllRecords();
-    const filtered = (all||[]).filter(r => {
-      if(battCollettore && norm(r.battCollettore)!==battCollettore) return false;
-      if(lungAsse       && norm(r.lungAsse)!==lungAsse) return false;
-      if(lungPacco      && norm(r.lungPacco)!==lungPacco) return false;
-      if(largPacco      && norm(r.largPacco)!==largPacco) return false;
-      if(punta && punta!=='tutte' && norm(r.punta)!==punta) return false;
-      if(numPunte       && norm(r.numPunte)!==numPunte) return false;
-      return true;
-    });
-    window.__lastExactFiltered = filtered;
-    if(typeof window.renderList === 'function') window.renderList(filtered);
-    else if(typeof window.lista === 'function') window.lista(filtered);
-    else if(typeof window.refreshDashboard === 'function') window.refreshDashboard();
-    return filtered;
+    y += 10; doc.setFontSize(14); doc.text('Dati tecnici', x, y); y += lh; doc.setFontSize(12);
+    row('Batt. collettore', record?.battCollettore);
+    row('Lunghezza asse',   record?.lungAsse);
+    row('Lunghezza pacco',  record?.lungPacco);
+    row('Larghezza pacco',  record?.largPacco);
+    row('Punta',            record?.punta);
+    row('N. punte',         record?.numPunte);
+
+    const dataUrl = await getFirstImageDataUrl(id);
+    if(dataUrl){
+      try{ doc.addImage(dataUrl, 'JPEG', x, y+10, 480, 320, null, 'FAST'); }
+      catch(e){ try{ doc.addImage(dataUrl, 'PNG', x, y+10, 480, 320, null, 'FAST'); }catch(_){} }
+    }
+    const name = `Scheda-${(record?.descrizione||'')}-${(record?.modello||'')}.pdf`;
+    doc.save(name.replace(/[^\w\-\.]+/g,'_'));
   }
-
-  window.populateDettaglioTecnico = function(record){
-    if(!record) return;
-    const map = {
-      '#d-battCollettore': 'battCollettore',
-      '#d-lungAsse': 'lungAsse',
-      '#d-lungPacco': 'lungPacco',
-      '#d-largPacco': 'largPacco',
-      '#d-punta': 'punta',
-      '#d-numPunte': 'numPunte'
-    };
-    Object.entries(map).forEach(([sel,key])=>{
-      const el = document.querySelector(sel);
-      if(el) el.textContent = (record?.[key] ?? '').toString();
-    });
-  };
-
-  function bind(){
-    const btnApply = document.querySelector('#btnApplyFilters');
-    if(btnApply) btnApply.addEventListener('click', (e)=>{ e.preventDefault(); searchExact(); });
-
-    const btnReset = document.querySelector('#btnResetFilters');
-    if(btnReset) btnReset.addEventListener('click', (e)=>{
-      e.preventDefault();
-      ['#f-battCollettore','#f-lungAsse','#f-lungPacco','#f-largPacco','#f-punta','#f-numPunte']
-        .forEach(sel => { const el = document.querySelector(sel); if(el) el.value = ''; });
-      if(typeof window.refreshDashboard === 'function') window.refreshDashboard();
-    });
-
-    const _showDettaglio = window.showDettaglio;
+  function interceptPdf(){
+    const btns = Array.from(document.querySelectorAll('button, a'));
+    const target = btns.find(b => (b.textContent||'').trim().toUpperCase() === 'PDF');
+    if(target){
+      target.onclick = async (e) => {
+        e.preventDefault();
+        await makePdf(__lastDetailRecord, __lastDetailId);
+      };
+    }
+  }
+  function patchShow(){
+    const _show = window.showDettaglio;
     window.showDettaglio = async function(id){
-      let rec = null;
-      if(typeof window.getRecord === 'function') rec = await window.getRecord(id);
-      if(typeof _showDettaglio === 'function') _showDettaglio(id);
-      window.populateDettaglioTecnico(rec);
+      __lastDetailId = id;
+      if(typeof _show === 'function') _show(id);
+      setTimeout(async () => {
+        try{
+          if(typeof window.getRecord === 'function'){
+            __lastDetailRecord = await window.getRecord(id);
+            await renderTech(__lastDetailRecord);
+            interceptPdf();
+          }
+        }catch(e){ console.warn('[detail+pdf-tech] errore', e?.message); }
+      }, 120);
     };
   }
-
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
-  else bind();
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', patchShow);
+  else patchShow();
 })();
 </script>
-
-
-<!-- ===== Dati tecnici (inserito) ===== -->
-<div class="card mt-3">
-  <div class="card-header fw-bold">Dati tecnici</div>
-  <div class="card-body row g-2">
-    <div class="col-6"><small class="text-muted">Batt. collettore</small><div id="d-battCollettore" class="fw-semibold"></div></div>
-    <div class="col-6"><small class="text-muted">Lunghezza asse</small><div id="d-lungAsse" class="fw-semibold"></div></div>
-    <div class="col-6"><small class="text-muted">Lunghezza pacco</small><div id="d-lungPacco" class="fw-semibold"></div></div>
-    <div class="col-6"><small class="text-muted">Larghezza pacco</small><div id="d-largPacco" class="fw-semibold"></div></div>
-    <div class="col-6"><small class="text-muted">Punta</small><div id="d-punta" class="fw-semibold"></div></div>
-    <div class="col-6"><small class="text-muted">N.</small><div id="d-numPunte" class="fw-semibold"></div></div>
-  </div>
-</div>
-<!-- ===== /Dati tecnici ===== -->
 
 </body></html>
-
-<script src="tech-detail-only.js"></script>
-<script src="remove-tech-extras.js"></script>
-<script src="detail-and-pdf-tech.js"></script>
 
