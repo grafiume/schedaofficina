@@ -857,7 +857,6 @@ async function refreshDashboard(){const all=await getAllRecords();const kpiTot=$
 let searchTimer=null; function debouncedSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{lista();},250);}
 
 /* Wire-up */
-<script>
 document.addEventListener('DOMContentLoaded',()=>{
 
   const _stSel=document.getElementById('statoPratica');
@@ -884,207 +883,142 @@ document.addEventListener('DOMContentLoaded',()=>{
     lista();
   };
 
-  // === Reset filtri tecnici (funzione robusta) ===
+  // Reset filtri robusto
   function resetTechFilters(){
-    // 1) Elenco ID espliciti
-    const ids = [
-      'f_battCollettore','f_lunghezzaAsse','f_lunghezzaPacco',
-      'f_larghezzaPacco','f_numPunte'
-    ];
-    // 2) Pulisci gli input + notifica listener
+    const ids = ['f_battCollettore','f_lunghezzaAsse','f_lunghezzaPacco','f_larghezzaPacco','f_numPunte'];
     ids.forEach(id=>{
-      const el = document.getElementById(id);
-      if (el) {
-        el.value = '';
-        el.dispatchEvent(new Event('input',  {bubbles:true}));
-        el.dispatchEvent(new Event('change', {bubbles:true}));
+      const el=document.getElementById(id);
+      if(el){
+        el.value='';
+        el.dispatchEvent(new Event('input',{bubbles:true}));
+        el.dispatchEvent(new Event('change',{bubbles:true}));
       }
     });
-    // 3) Pulisci la select "punta"
-    const sel = document.getElementById('f_punta');
-    if (sel) {
-      sel.selectedIndex = 0; // "Punta (tutte)"
-      sel.value = '';
-      sel.dispatchEvent(new Event('change', {bubbles:true}));
+    const sel=document.getElementById('f_punta');
+    if(sel){
+      sel.selectedIndex=0;
+      sel.value='';
+      sel.dispatchEvent(new Event('change',{bubbles:true}));
     }
-    // 4) Azzera oggetto stato filtri
-    if (typeof techFilters === 'object' && techFilters) {
-      Object.keys(techFilters).forEach(k => techFilters[k] = '');
+    if(typeof techFilters==='object' && techFilters){
+      Object.keys(techFilters).forEach(k=>techFilters[k]='');
     }
-    // 5) Ricalcola risultati
-    if (typeof lista === 'function') lista();
+    if(typeof lista==='function') lista();
   }
-
-  // Collega il bottone Reset ai filtri (usa la funzione robusta)
-  const btnReset = document.getElementById('btnResetFilters');
-  if (btnReset) {
-    btnReset.addEventListener('click', (e)=>{
+  const btnReset=document.getElementById('btnResetFilters');
+  if(btnReset){
+    btnReset.addEventListener('click',e=>{
       e.preventDefault();
       resetTechFilters();
-    }, {capture: true});
+    },{capture:true});
   }
 
-  // KPI → passa a Ricerca con filtro
+  // KPI → Ricerca con filtro
   ['kpiTotBtn','kpiAttesaBtn','kpiLavorBtn','kpiSoonBtn','kpiComplBtn'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('click',()=>goToSearchWithFilter(el.dataset.filter));
   });
 
-  // Rimuovi filtro “vista” attivo
+  // Rimuovi filtro “vista”
   $('#btnClearFilter').onclick=()=>{ currentFilter=null; lista(); };
 
-  // backup
+  // Backup
   $('#exportZip').onclick=backup;
   $('#importZip').addEventListener('change',ripristina);
 
-  // delete → chiudi modali e torna alla Home
-  document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
-    if (!deleteTargetId) return;
-
-    try {
-      await deleteRecord(deleteTargetId);
-    } catch (e) {
-      console.error('Errore eliminazione:', e);
-    }
-    deleteTargetId = null;
-
-    // Chiudi modale di conferma
-    const confInst = bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal'));
-    if (confInst) confInst.hide();
-
-    // Chiudi anche "Dettaglio scheda" se aperta
-    const detInst = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
-    if (detInst) detInst.hide();
-
-    // Torna alla Home e aggiorna dashboard
-    sh('home');
-    await refreshDashboard();
+  // Delete → chiudi modali e torna Home
+  document.getElementById('confirmDeleteBtn').addEventListener('click', async ()=>{
+    if(!deleteTargetId) return;
+    try{ await deleteRecord(deleteTargetId); }catch(e){ console.error(e); }
+    deleteTargetId=null;
+    const confInst=bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal')); if(confInst) confInst.hide();
+    const detInst =bootstrap.Modal.getInstance(document.getElementById('detailModal'));       if(detInst) detInst.hide();
+    sh('home'); await refreshDashboard();
   });
 
-  // foto preview (click → popup centrato)
+  // Foto preview e hint
   $('#photoPreview').addEventListener('click',()=>{
-    const src=$('#photoPreview').src;
-    if(!src) return;
-    $('#imgCenter').src=src;
-    new bootstrap.Modal('#imgModalCenter').show();
+    const src=$('#photoPreview').src; if(!src) return;
+    $('#imgCenter').src=src; new bootstrap.Modal('#imgModalCenter').show();
   });
-
-  // foto input → anteprima immediata
-  $('#photoInput').addEventListener('change',async e=>{
-    const f = e.target.files && e.target.files[0];
-    const preview = document.getElementById('photoPreview');
-    if(f && preview){
-      const reader = new FileReader();
-      reader.onload = ev => {
-        preview.src = ev.target.result;
-        if(typeof updateEmptyHint==='function') updateEmptyHint();
-      };
-      reader.readAsDataURL(f);
-    }else if(preview){
-      preview.removeAttribute('src');
-      if(typeof updateEmptyHint==='function') updateEmptyHint();
-    }
-  });
-
-  // Gestione hint vuoto dell'anteprima (destra)
-  const emptyHint = document.getElementById('emptyHint');
-  const previewImg = document.getElementById('photoPreview');
+  const emptyHint=document.getElementById('emptyHint');
+  const previewImg=document.getElementById('photoPreview');
   function updateEmptyHint(){
     if(previewImg && emptyHint){
-      const hasSrc = !!previewImg.getAttribute('src');
-      emptyHint.style.display = hasSrc ? 'none' : 'block';
+      emptyHint.style.display = previewImg.getAttribute('src') ? 'none':'block';
     }
   }
   updateEmptyHint();
-  document.getElementById('photoInput').addEventListener('change', async e=>{
-    const f = e.target.files && e.target.files[0];
+  $('#photoInput').addEventListener('change',async e=>{
+    const f=e.target.files && e.target.files[0];
     if(f){
-      const reader = new FileReader();
-      reader.onload = ev => { previewImg.src = ev.target.result; updateEmptyHint(); };
-      reader.readAsDataURL(f);
-    }else{
-      previewImg.removeAttribute('src'); updateEmptyHint();
-    }
+      const r=new FileReader();
+      r.onload=ev=>{ previewImg.src=ev.target.result; updateEmptyHint(); };
+      r.readAsDataURL(f);
+    }else{ previewImg.removeAttribute('src'); updateEmptyHint(); }
   });
 
-  // === Gestione miniature e anteprima ===
-  const thumbStrip = document.getElementById('thumbStrip');
+  // Miniature
+  const thumbStrip=document.getElementById('thumbStrip');
   function clearThumbs(){ if(thumbStrip) thumbStrip.innerHTML=''; }
-  function addThumb(src, active=false){
+  function addThumb(src,active=false){
     if(!thumbStrip) return;
-    const item = document.createElement('div');
-    item.className = 'thumb-item' + (active?' active':'');
-    const im = document.createElement('img');
-    im.src = src;
-    item.appendChild(im);
-    item.addEventListener('click', ()=>{
-      const preview = document.getElementById('photoPreview');
-      if(preview){
-        preview.src = src;
-        if(typeof updateEmptyHint==='function') updateEmptyHint();
-      }
+    const item=document.createElement('div');
+    item.className='thumb-item'+(active?' active':'');
+    const im=document.createElement('img'); im.src=src; item.appendChild(im);
+    item.addEventListener('click',()=>{
+      const p=document.getElementById('photoPreview');
+      if(p){ p.src=src; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
       thumbStrip.querySelectorAll('.thumb-item').forEach(t=>t.classList.remove('active'));
       item.classList.add('active');
     });
     thumbStrip.appendChild(item);
   }
   async function fileToDataURL(file){
-    return await new Promise(res=>{
-      const r=new FileReader();
-      r.onload=e=>res(e.target.result);
-      r.readAsDataURL(file);
-    });
+    return await new Promise(res=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
   }
-  const photoInputEl = document.getElementById('photoInput');
+  const photoInputEl=document.getElementById('photoInput');
   if(photoInputEl){
-    photoInputEl.addEventListener('change', async (e)=>{
-      const files = Array.from(e.target.files||[]);
+    photoInputEl.addEventListener('change',async e=>{
+      const files=Array.from(e.target.files||[]);
       clearThumbs();
       if(files.length){
-        const first = await fileToDataURL(files[0]);
-        const preview = document.getElementById('photoPreview');
-        if(preview){
-          preview.src = first;
-          if(typeof updateEmptyHint==='function') updateEmptyHint();
-        }
-        addThumb(first, true);
-        for(const f of files.slice(1)){
-          const data = await fileToDataURL(f);
-          addThumb(data, false);
-        }
+        const first=await fileToDataURL(files[0]);
+        const p=document.getElementById('photoPreview');
+        if(p){ p.src=first; if(typeof updateEmptyHint==='function') updateEmptyHint(); }
+        addThumb(first,true);
+        for(const f of files.slice(1)){ const d=await fileToDataURL(f); addThumb(d,false); }
       }else{
-        const preview = document.getElementById('photoPreview');
-        if(preview){
-          preview.removeAttribute('src');
-          if(typeof updateEmptyHint==='function') updateEmptyHint();
-        }
+        const p=document.getElementById('photoPreview');
+        if(p){ p.removeAttribute('src'); if(typeof updateEmptyHint==='function') updateEmptyHint(); }
         clearThumbs();
       }
-    }, { capture: true });
+    },{capture:true});
   }
 
-  // Estendo modifica() per popolare miniature da archivio
-  const __orig_modifica = modifica;
-  modifica = async function(id){
+  // Estende modifica() per popolare miniature archivio
+  const __orig_modifica=modifica;
+  modifica=async function(id){
     await __orig_modifica(id);
     if(!thumbStrip) return;
     clearThumbs();
     try{
-      const p = await getPhotos(id);
-      const imgs = (p && p.images) ? p.images : [];
+      const p=await getPhotos(id);
+      const imgs=(p && p.images)?p.images:[];
       if(imgs.length){
-        const preview = document.getElementById('photoPreview');
-        if(preview && !preview.src) preview.src = imgs[0];
-        addThumb(imgs[0], true);
-        for(const s of imgs.slice(1)){ addThumb(s, false); }
+        const pv=document.getElementById('photoPreview');
+        if(pv && !pv.src) pv.src=imgs[0];
+        addThumb(imgs[0],true);
+        for(const s of imgs.slice(1)) addThumb(s,false);
         if(typeof updateEmptyHint==='function') updateEmptyHint();
       }
-    }catch(err){ /* ignore */ }
+    }catch(_){}
   };
 
   refreshDashboard();
 });
 </script>
+
 
 <!-- 1) Config con le chiavi -->
 <script src="config.js"></script>
