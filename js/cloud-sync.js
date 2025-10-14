@@ -1,4 +1,5 @@
-// === Cloud sync layer (Supabase) — legacy lowercase columns compatible ===
+\
+// === Cloud sync layer (Supabase) — legacy lowercase columns + date normalization ===
 (function(){
   const log = (...a)=>console.log('[cloud-sync]', ...a);
   const warn = (...a)=>console.warn('[cloud-sync]', ...a);
@@ -19,11 +20,37 @@
   window.__sb = sb;
 
   const isoNow = ()=>new Date().toISOString();
+
+  // --- DATE NORMALIZATION ---
+  function normalizeDate(x){
+    if(x===undefined || x===null) return null;
+    if(typeof x==='string'){
+      const s = x.trim();
+      if(s==='' || s==='null' || s==='undefined') return null;
+      // already ISO YYYY-MM-DD
+      if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      // DD/MM/YYYY or DD-MM-YYYY
+      let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if(m){
+        const d = m[1].padStart(2,'0');
+        const mo = m[2].padStart(2,'0');
+        const y = m[3];
+        return `${y}-${mo}-${d}`;
+      }
+      // try parseable date
+      const dt = new Date(s);
+      if(!isNaN(dt.valueOf())) return dt.toISOString().slice(0,10);
+      return null;
+    }
+    if(x instanceof Date) return x.toISOString().slice(0,10);
+    return null;
+  }
+
   const genId = ()=> 'R' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
   function toLegacyRow(v){
     const out = {};
-    out.id               = v.id || genId();
+    out.id               = v.id || v.ID || genId();
     out.descrizione      = v.descrizione ?? v.Descrizione ?? '';
     out.modello          = v.modello ?? v.Modello ?? '';
     out.cliente          = v.cliente ?? v.Cliente ?? '';
@@ -34,11 +61,11 @@
     out.statopratica     = v.statopratica ?? v.statoPratica ?? v.StatoPratica ?? '';
     out.preventivostato  = v.preventivostato ?? v.preventivoStato ?? '';
     out.doctrasporto     = v.doctrasporto ?? v.docTrasporto ?? '';
-    out.dataapertura     = v.dataapertura ?? v.dataApertura ?? null;
-    out.dataaccettazione = v.dataaccettazione ?? v.dataAccettazione ?? null;
-    out.datascadenza     = v.datascadenza ?? v.dataScadenza ?? null;
-    out.dataarrivo       = v.dataarrivo ?? v.dataArrivo ?? null;
-    out.datacompletamento= v.datacompletamento ?? v.dataCompletamento ?? null;
+    out.dataapertura     = normalizeDate(v.dataapertura ?? v.dataApertura);
+    out.dataaccettazione = normalizeDate(v.dataaccettazione ?? v.dataAccettazione);
+    out.datascadenza     = normalizeDate(v.datascadenza ?? v.dataScadenza);
+    out.dataarrivo       = normalizeDate(v.dataarrivo ?? v.dataArrivo);
+    out.datacompletamento= normalizeDate(v.datacompletamento ?? v.dataCompletamento);
     out.note             = v.note ?? '';
     out.createdat        = v.createdat ?? v.createdAt ?? isoNow();
     out.updatedat        = isoNow();
@@ -48,7 +75,7 @@
   async function sbUpsert(table, data){
     const { data: rows, error, status, statusText } = await sb.from(table).upsert(data).select();
     if(error){
-      errL('Upsert error', {table, status, statusText, error});
+      errL('Upsert error', {table, status, statusText, error, payload:data});
       throw error;
     }
     return Array.isArray(rows) ? rows[0] : rows;
@@ -71,9 +98,10 @@
   const _getPhLoc   = window.getPhotos;
 
   async function putRecordCloud(v){
-    const row = await sbUpsert('records', toLegacyRow(v));
-    try{ await _putLocal(row); }catch{}
-    return row;
+    const row = toLegacyRow(v);
+    const saved = await sbUpsert('records', row);
+    try{ await _putLocal(saved || row); }catch{}
+    return saved;
   }
   async function getRecordCloud(id){
     const r = await sbGet('records', id);
@@ -129,5 +157,5 @@
   window.savePhotosWithThumbs = savePhotosWithThumbsCloud;
   window.getPhotos = getPhotosCloud;
 
-  log('Supabase cloud mode ACTIVE (legacy columns compatible)');
+  log('Supabase cloud mode ACTIVE (legacy columns + date normalization)');
 })();
