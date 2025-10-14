@@ -1,34 +1,25 @@
-/* filters-contains-override.js
-   Ripristina confronto "contiene" per i filtri tecnici
-   (tollerante a punteggiatura, accenti e maiuscole/minuscole) */
+/* filters-exact-override.js
+   Match ESATTO per i filtri tecnici (trim + case-insensitive) */
 (function () {
-  // normalizza: rimuove accenti, punteggiatura “rumorosa”, mette in minuscolo
-  const norm = (s) => String(s ?? '')
-    .normalize('NFD').replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    // tieni lettere/numeri/spazi e alcuni separatori utili; elimina il resto (es. ! " # etc.)
-    .replace(/[^a-z0-9\s\.\-\/]/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const eq = (a,b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
 
-  const contains = (a, b) => {
-    const A = norm(a);
-    const B = norm(b);
-    if (!B) return true;     // filtro vuoto => passa
-    return A.includes(B);    // match "contiene"
-  };
-
-  // Override globale: usato dalla tua lista per filtrare i record
+  // Override globale: applicato dopo che la pagina ha definito i record
   window.matchTechFilters = function (r) {
     const w = window.techFilters || {};
-    if (w.battCollettore && !contains(r.battCollettore, w.battCollettore)) return false;
-    if (w.lunghezzaAsse && !contains(r.lunghezzaAsse, w.lunghezzaAsse)) return false;
-    if (w.lunghezzaPacco && !contains(r.lunghezzaPacco, w.lunghezzaPacco)) return false;
-    if (w.larghezzaPacco && !contains(r.larghezzaPacco, w.larghezzaPacco)) return false;
-    if (w.punta && w.punta !== '(tutte)' && !contains(r.punta, w.punta)) return false;
-    if (w.numPunte && !contains(r.numPunte, w.numPunte)) return false;
+
+    // Se un filtro è valorizzato, il campo del record DEVE esistere e combaciare esattamente.
+    if (w.battCollettore && !eq(r.battCollettore, w.battCollettore)) return false;
+    if (w.lunghezzaAsse && !eq(r.lunghezzaAsse, w.lunghezzaAsse)) return false;
+    if (w.lunghezzaPacco && !eq(r.lunghezzaPacco, w.lunghezzaPacco)) return false;
+    if (w.larghezzaPacco && !eq(r.larghezzaPacco, w.larghezzaPacco)) return false;
+
+    // Punta: se selezioni "(tutte)" non filtra, altrimenti match esatto
+    if (w.punta && w.punta !== '(tutte)' && !eq(r.punta, w.punta)) return false;
+
+    if (w.numPunte && !eq(r.numPunte, w.numPunte)) return false;
+
     return true;
   };
 
-  console.log('[filters-contains-override] attivo (match "contiene")');
+  console.log('[filters-exact-override] attivo (match esatto)');
 })();
