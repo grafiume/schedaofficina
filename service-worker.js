@@ -1,31 +1,15 @@
-
-const CACHE_NAME = 'scheda-officina-v1';
-const ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
-  './config.js',
-  './app-supabase.v6.3.2.js',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './favicon.ico',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js',
-  'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
-  'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
-];
-
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE_NAME).then((cache)=> cache.addAll(ASSETS)));
+self.addEventListener('install', e=>{
+  e.waitUntil(caches.open('scheda-officina-v1').then(c=>c.addAll([
+    './','./index.html','./manifest.json','./config.js','./supabase-singleton.js','./app-supabase.v6.3.3.js',
+    './filters-exact-guard.js','./icons/icon-192.png','./icons/icon-512.png','./logo-elip.jpg','./favicon.ico'
+  ])));
 });
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k=>k!==CACHE_NAME).map(k=>caches.delete(k))))
-  );
-});
-self.addEventListener('fetch', (e) => {
+self.addEventListener('fetch', e=>{
   e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request))
+    caches.match(e.request).then(r=>r || fetch(e.request).then(resp=>{
+      const copy = resp.clone();
+      caches.open('scheda-officina-v1').then(c=>c.put(e.request, copy)).catch(()=>{});
+      return resp;
+    }).catch(()=>r))
   );
 });

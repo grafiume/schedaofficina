@@ -1,7 +1,7 @@
 {
   "name": "Scheda riparazioni",
-  "short_name": "Officina",
-  "start_url": ".",
+  "short_name": "Scheda",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#faf9f7",
   "theme_color": "#e07b39",
