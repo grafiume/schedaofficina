@@ -12,7 +12,7 @@ async function deleteRecord(id){ try{ const {data:ph}=await sb.from('photos').se
 async function savePhotosWithThumbs(recordId, images, thumbs){
   if(!images || !images.length) return;
 
-  // carica solo i data-URL (nuove foto scattate/caricate)
+  // carica solo i data-URL (nuove foto scattate/caricate), ignora URL http/https
   const toUpload = images.filter(s => typeof s === 'string' && s.startsWith('data:image/'));
   if(!toUpload.length) return;
 
@@ -29,7 +29,6 @@ async function savePhotosWithThumbs(recordId, images, thumbs){
       const up = await sb.storage.from(window.SB_BUCKET || 'photos')
         .upload(path, bytes, { contentType: 'image/jpeg', upsert: false });
 
-      // se esiste già, va bene lo stesso; se errore reale, logga e continua
       if(up.error && !(up.error.message || '').includes('already exists')){
         console.warn('[upload photo]', up.error);
         continue;
