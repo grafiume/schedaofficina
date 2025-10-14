@@ -682,15 +682,21 @@ function buildSearchIndex(r){
   return p.join(' ');
 }
 
-/* Filtri tecnici singoli */
+/* Filtri tecnici singoli: MATCH ESATTO (niente "contiene") */
 function matchTechFilters(r){
-  const want=techFilters; const like=(a,b)=>String(a||'').toLowerCase().includes(String(b||'').toLowerCase());
-  if(want.battCollettore && !like(r.battCollettore, want.battCollettore)) return false;
-  if(want.lunghezzaAsse && !like(r.lunghezzaAsse, want.lunghezzaAsse)) return false;
-  if(want.lunghezzaPacco && !like(r.lunghezzaPacco, want.lunghezzaPacco)) return false;
-  if(want.larghezzaPacco && !like(r.larghezzaPacco, want.larghezzaPacco)) return false;
-  if(want.punta && String(r.punta||'')!==String(want.punta)) return false;
-  if(want.numPunte && String(r.numPunte||'')!==String(want.numPunte)) return false;
+  const want = techFilters;
+  const eq = (a,b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+
+  // ⬇️ qui tutti e 4 i campi ora sono “esatti”
+  if (want.battCollettore && !eq(r.battCollettore, want.battCollettore)) return false;
+  if (want.lunghezzaAsse && !eq(r.lunghezzaAsse, want.lunghezzaAsse)) return false;
+  if (want.lunghezzaPacco && !eq(r.lunghezzaPacco, want.lunghezzaPacco)) return false;
+  if (want.larghezzaPacco && !eq(r.larghezzaPacco, want.larghezzaPacco)) return false;
+
+  // Punta e Numero punte già erano “esatti”: li lasciamo così (trim+case-insensitive)
+  if (want.punta && !eq(r.punta, want.punta)) return false;
+  if (want.numPunte && !eq(r.numPunte, want.numPunte)) return false;
+
   return true;
 }
 
