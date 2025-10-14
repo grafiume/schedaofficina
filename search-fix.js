@@ -9,17 +9,19 @@
   window.__searchFixBound = true;
 
   // --- 1) EQ esatto per i filtri tecnici
-  const eq = (a,b)=> String(a??'').trim().toLowerCase() === String(b??'').trim().toLowerCase();
-  window.matchTechFilters = function (r) {
-    const w = window.techFilters || {};
-    if (w.battCollettore && !eq(r.battCollettore, w.battCollettore)) return false;
-    if (w.lunghezzaAsse && !eq(r.lunghezzaAsse, w.lunghezzaAsse)) return false;
-    if (w.lunghezzaPacco && !eq(r.lunghezzaPacco, w.lunghezzaPacco)) return false;
-    if (w.larghezzaPacco && !eq(r.larghezzaPacco, w.larghezzaPacco)) return false;
-    if (w.punta && w.punta !== '(tutte)' && !eq(r.punta, w.punta)) return false;
-    if (w.numPunte && !eq(r.numPunte, w.numPunte)) return false;
-    return true;
-  };
+  const el = {
+  batt:  pick(['[name="battCollettore"]','input[placeholder="Batt. collettore"]']),
+  asse:  pick(['[name="lunghezzaAsse"]','input[placeholder="Lunghezza asse"]']),
+  pacL:  pick(['[name="lunghezzaPacco"]','input[placeholder="Lunghezza pacco"]']),
+  pacW:  pick(['[name="larghezzaPacco"]','input[placeholder="Larghezza pacco"]']),
+  punta: pick(['[name="punta"]','select']),
+  num:   pick(['[name="numPunte"]','input[placeholder="N."]']),
+  // ✅ versioni compatibili per i pulsanti
+  btnApply: document.querySelector('button.apply-filters') 
+          || Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().includes('Applica')),
+  btnReset: document.querySelector('button.reset-filters') 
+          || Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().includes('Reset'))
+};
 
   // --- 2) Helper selettori: prova id/name/placeholder
   const pick = (sels) => sels.map(s=>document.querySelector(s)).find(Boolean);
