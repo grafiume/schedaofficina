@@ -1,23 +1,29 @@
-Scheda Officina — Patch definitiva (senza toccare index.html)
-============================================================
+PACCHETTO PUBBLICO — ISTRUZIONI RAPIDE
 
-Contenuto:
-- detail-fields-override.js  → sovrascrive la tabella del "Dettaglio scheda" aggiungendo tutti i campi tecnici
-- modal-a11y-guard.js       → evita il warning aria-hidden/focus sulla modale Bootstrap
-- (questo) README.txt
+1) SUPABASE STORAGE (Bucket 'photos')
+   - Supabase → Storage → Buckets → 'photos' → PUBLIC (ON).
+   - Policies (Auth → Policies → storage.objects):
+     a) SELECT (lettura pubblica):
+        USING: (bucket_id = 'photos')
+     b) INSERT (upload da client anon):
+        WITH CHECK: (bucket_id = 'photos')
+   - Se usi RLS sul DB 'photos' (tabella metadati), dai SELECT/INSERT ad anon per i soli campi necessari.
 
-Come installare:
-1) Copia i due file .js nella stessa cartella del tuo index (dove già includi gli altri script).
-2) Aggiungi PRIMA della chiusura </body> queste righe:
+2) GITHUB PAGES
+   - Carica tutto il contenuto della cartella nel repo 'schedaofficina' (root).
+   - Settings → Pages → Deploy from a branch → main / root.
 
-   <script src="detail-fields-override.js?v=1"></script>
-   <script src="modal-a11y-guard.js?v=1"></script>
+3) INDEX.HTML
+   - Assicurati che contenga questi script (prima di </body>):
+     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+     <script src="./config.js"></script>
+     <script src="./app-supabase-bridge.js"></script>
+     <script src="./app-photos.js"></script>
+     <script> if('serviceWorker' in navigator){ navigator.serviceWorker.register('./service-worker.js'); } </script>
 
-Note:
-- Non tocco la tua grafica originale.
-- I campi tecnici inclusi: Batt. collettore, Lunghezza asse, Lunghezza pacco, Larghezza pacco, Punta, N. punte.
-- Le date sono mostrate in formato gg/mm/aaaa se la sorgente è ISO (YYYY-MM-DD).
-- Se vuoi cambiare l'ordine/etichette dei campi, modifica l'array FIELDS in detail-fields-override.js.
+4) FOTOCAMERA (opzionale)
+   - Aggiungi un input: <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden>
+   - Usa un bottone per trigger: document.getElementById('cameraInput').click()
 
-Filtri esatti:
-- Restano gestiti dal tuo filters-exact-guard.js (già in pagina). Questa patch non interferisce.
+5) DEBUG
+   - getPhotos('<ID>').then(console.log) deve restituire URL pubblici visibili su tutti i device.

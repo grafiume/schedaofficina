@@ -1,4 +1,4 @@
-const CACHE = 'officina-cache-v6-imgfix';
+const CACHE = 'officina-cache-v7-public';
 const ASSETS = [
   './',
   './index.html',

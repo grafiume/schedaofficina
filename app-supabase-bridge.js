@@ -1,8 +1,9 @@
-// app-supabase-bridge.js
+// app-supabase-bridge.js (public bucket)
 (function(){
   const create = (window.supabase && window.supabase.createClient) ? window.supabase.createClient : window.createClient;
   if(!create){ console.error('[supabase] libreria non caricata'); return; }
   const sb = create(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  const BUCKET = 'photos';
 
   function cbust(u){
     try{
@@ -12,23 +13,28 @@
     }catch(_){ return u + (u.includes('?') ? '&' : '?') + 't=' + Date.now(); }
   }
 
+  function publicUrl(path){
+    const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
+    return cbust(data?.publicUrl || '');
+  }
+
   async function listPhotos(recordId){
-    const { data, error } = await sb.from('photos').select('path').eq('record_id', recordId).order('created_at', { ascending: true });
+    const { data, error } = await sb.from('photos')
+      .select('path')
+      .eq('record_id', recordId)
+      .order('created_at', { ascending: true });
     if(error){ console.warn('[supabase] listPhotos', error); return []; }
-    const { data:pubBase } = sb.storage.from('photos').getPublicUrl('');
-    const baseUrl = pubBase?.publicUrl?.replace(/\/$/, '') || '';
-    return data.map(x => cbust(baseUrl + '/' + x.path));
+    return (data || []).map(row => publicUrl(row.path)).filter(Boolean);
   }
 
   async function uploadPhoto(file, recordId){
     try{
       const ext = (file.name && file.name.split('.').pop()) || 'jpg';
       const fname = `${recordId}/${Date.now()}.${ext}`;
-      const { error } = await sb.storage.from('photos').upload(fname, file, { upsert:false, cacheControl: '0' });
+      const { error } = await sb.storage.from(BUCKET).upload(fname, file, { upsert:false, cacheControl: '0' });
       if(error){ console.warn('[supabase] upload error', error); return null; }
       await sb.from('photos').insert({ record_id: recordId, path: fname });
-      const { data:pub } = sb.storage.from('photos').getPublicUrl(fname);
-      return cbust(pub.publicUrl);
+      return publicUrl(fname);
     }catch(e){
       console.warn('[supabase] upload exception', e);
       return null;
@@ -83,7 +89,7 @@
   document.addEventListener('photo-captured', async (ev)=>{
     const { file, recordId } = ev.detail || {};
     if(file && recordId){
-      const url = await uploadPhoto(file, recordId);
+      const url = await uploadPhotoToCloud(file, recordId);
       if(url && typeof window.addThumb === 'function'){ window.addThumb(url, true); }
     }
   }, false);
