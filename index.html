@@ -1182,57 +1182,5 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script src="supabase-client.js"></script>
 <script src="cloud-db.v3.js"></script>
 <script src="./photo-inputs.js"></script>
-
-<!-- Attiva match ESATTO per i filtri tecnici -->
-<script src="./filters-exact-override.js"></script>
-<script src="./search-fix.js?v=dom"></script>
        
 </body></html>
-
-</body></html>
-<script>
-(function(){
-  const $ = (s)=>document.querySelector(s);
-  const first = (arr)=>arr.map(s=>document.querySelector(s)).find(Boolean);
-
-  // Legge i valori dei filtri tecnici (prova più selettori per compatibilità)
-  function readTechFilters(){
-    const batt = first(['#flt-batt','#f-batt','#battCollettore','[name="battCollettore"]','input[placeholder="Batt. collettore"]']);
-    const asse = first(['#flt-asse','#f-asse','#lunghezzaAsse','[name="lunghezzaAsse"]','input[placeholder="Lunghezza asse"]']);
-    const paccL = first(['#flt-pacco-l','#f-pacco-l','#lunghezzaPacco','[name="lunghezzaPacco"]','input[placeholder="Lunghezza pacco"]']);
-    const paccW = first(['#flt-pacco-w','#f-pacco-w','#larghezzaPacco','[name="larghezzaPacco"]','input[placeholder="Larghezza pacco"]']);
-    const punta = first(['#flt-punta','#f-punta','#punta','[name="punta"]','select']);
-    const num   = first(['#flt-num','#f-num','#numPunte','[name="numPunte"]','input[placeholder="N."]']);
-
-    window.techFilters = {
-      battCollettore: (batt?.value ?? '').trim(),
-      lunghezzaAsse:  (asse?.value ?? '').trim(),
-      lunghezzaPacco: (paccL?.value ?? '').trim(),
-      larghezzaPacco: (paccW?.value ?? '').trim(),
-      punta:          (punta?.value ?? '').trim(),
-      numPunte:       (num?.value ?? '').trim(),
-    };
-    // debug opzionale:
-    console.log('[techFilters]', window.techFilters);
-  }
-
-  // Collega i bottoni "Applica filtri" e "Reset"
-  const btnApply = first(['#btnApplyFilters','button#applyFilters','button.apply-filters','button[data-role="apply-filters"]']);
-  const btnReset = first(['#btnResetFilters','button#resetFilters','button.reset-filters','button[data-role="reset-filters"]']);
-
-  btnApply?.addEventListener('click', (e)=>{
-    e.preventDefault();
-    readTechFilters();
-    // ricalcola lista
-    if (typeof lista === 'function') lista();
-    else if (typeof refreshDashboard === 'function') refreshDashboard();
-  });
-
-  btnReset?.addEventListener('click', (e)=>{
-    e.preventDefault();
-    window.techFilters = {};  // svuota
-    if (typeof lista === 'function') lista();
-    else if (typeof refreshDashboard === 'function') refreshDashboard();
-  });
-})();
-</script>
