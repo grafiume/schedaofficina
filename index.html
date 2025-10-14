@@ -317,7 +317,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
               </div>
             </div>
 
-            <div class="col-12"><label class="form-label">Note</label><textarea name="note" rows="2" class="form-control" placeholder="Note"></textarea></div>
+            <div class="col-12"><label class="form-label">Note</label><textarea name="note" rows="1" class="form-control" placeholder="Note"></textarea></div>
           </div>
         </fieldset>
 
@@ -798,56 +798,105 @@ async function lista(){
 
 /* Dettaglio (date IT) */
 async function apri(id){
-  const r=await getRecord(id),{images,thumbs}=await getPhotos(id);const img=images[0]||thumbs[0];
-  const d=$('#detailContent');
-  d.innerHTML=`
-    ${img?`<img class="img-fluid mb-3" src="${img}" id="detailImg" style="cursor:pointer">`:''}
+  const r = await getRecord(id), { images, thumbs } = await getPhotos(id);
+  const img = images[0] || thumbs[0];
+  const d = $('#detailContent');
+  d.innerHTML = `
+    ${img ? `<img class="img-fluid mb-3" src="${img}" id="detailImg" style="cursor:pointer">` : ''}
     <table class="table table-sm">
       <tr><th>Descrizione</th><td>${esc(r.descrizione)}</td></tr>
       <tr><th>Modello</th><td>${esc(r.modello)}</td></tr>
       <tr><th>Cliente</th><td>${esc(r.cliente)}</td></tr>
       <tr><th>Telefono</th><td>${esc(r.telefono)}</td></tr>
       <tr><th>Email</th><td>${esc(r.email)}</td></tr>
-      <tr><th>Punta</th><td>${esc(r.punta||'')} ${r?.numPunte?`(${esc(r.numPunte)} punte)`:''}</td></tr>
-      <tr><th>Stato pratica</th><td>${esc(r.statoPratica||'In attesa')}</td></tr>
-      <tr><th>Preventivo</th><td>${esc(r.preventivoStato||'Non inviato')}</td></tr>
+      <tr><th>Punta</th><td>${esc(r.punta || '')} ${r?.numPunte ? `(${esc(r.numPunte)} punte)` : ''}</td></tr>
+      <tr><th>Battuta collettore</th><td>${esc(r.battCollettore || '')}</td></tr>
+      <tr><th>Lunghezza pacco</th><td>${esc(r.lungPacco || '')}</td></tr>
+      <tr><th>Larghezza pacco</th><td>${esc(r.largPacco || '')}</td></tr>
+      <tr><th>Lunghezza asse</th><td>${esc(r.lungAsse || '')}</td></tr>
+      <tr><th>Stato pratica</th><td>${esc(r.statoPratica || 'In attesa')}</td></tr>
+      <tr><th>Preventivo</th><td>${esc(r.preventivoStato || 'Non inviato')}</td></tr>
       <tr><th>Documento Trasporto</th><td>${esc(r.docTrasporto)}</td></tr>
-      <tr><th>Data apertura</th><td>${fmtIT(r.dataApertura||r.dataArrivo||'')}</td></tr>
+      <tr><th>Data apertura</th><td>${fmtIT(r.dataApertura || r.dataArrivo || '')}</td></tr>
       <tr><th>Data accettazione</th><td>${fmtIT(r.dataAccettazione)}</td></tr>
       <tr><th>Data scadenza</th><td>${fmtIT(r.dataScadenza)}</td></tr>
       <tr><th>Note</th><td>${esc(r.note)}</td></tr>
     </table>`;
-  const modal=new bootstrap.Modal('#detailModal'); modal.show();
-  const imgEl=$('#detailImg'); if(imgEl) imgEl.addEventListener('click',()=>openImg(img));
-  $('#btnPDF').onclick=()=>pdfRec(r,img);
-  $('#btnEdit').onclick=()=>{modal.hide(); modifica(id);};
-  $('#btnDelete').onclick=()=>{ deleteTargetId=id; new bootstrap.Modal('#confirmDeleteModal').show(); };
+  
+  const modal = new bootstrap.Modal('#detailModal'); 
+  modal.show();
+
+  const imgEl = $('#detailImg'); 
+  if (imgEl) imgEl.addEventListener('click', () => openImg(img));
+  
+  $('#btnPDF').onclick = () => pdfRec(r, img);
+  $('#btnEdit').onclick = () => { modal.hide(); modifica(id); };
+  $('#btnDelete').onclick = () => { deleteTargetId = id; new bootstrap.Modal('#confirmDeleteModal').show(); };
 }
 
 /* Full image modal */
 function openImg(src){ if(!src) return; $('#imgFull').src=src; new bootstrap.Modal('#imgModal').show(); }
 
-/* PDF (date IT) */
-function pdfRec(r,img){
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({unit:'pt',format:'a4'});
-  let y=40;
-  doc.setFontSize(18); doc.text('Scheda riparazioni — Riepilogo',40,y); y+=24; doc.setFontSize(12);
-  const L=(l,v)=>{doc.setFont(undefined,'bold');doc.text(l,40,y);doc.setFont(undefined,'normal');doc.text(': '+(v||''),180,y);y+=16;};
-  const map={
-    descrizione:'Descrizione',modello:'Modello',cliente:'Cliente',telefono:'Telefono',email:'Email',
-    punta:'Punta',numPunte:'N. punte',statoPratica:'Stato pratica',preventivoStato:'Preventivo',
-    docTrasporto:'Documento Trasporto',dataApertura:'Data apertura',dataAccettazione:'Data accettazione',
-    dataScadenza:'Data scadenza',note:'Note'
+/* PDF (date IT) — stampa tutti i campi anche se vuoti */
+function pdfRec(r, img){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  let y = 40;
+
+  doc.setFontSize(18);
+  doc.text('Scheda riparazioni — Riepilogo', 40, y);
+  y += 24;
+  doc.setFontSize(12);
+
+  const L = (label, value) => {
+    const v = (value ?? '');
+    doc.setFont(undefined, 'bold');
+    doc.text(String(label), 40, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(': ' + String(v), 180, y);
+    y += 16;
   };
-  Object.keys(map).forEach(k=>{
-    let v=r[k];
-    if(['dataApertura','dataAccettazione','dataScadenza'].includes(k)) v = fmtIT(v);
-    if(k==='numPunte' && !v) return;
-    if(r[k] || v) L(map[k], v);
+
+  const map = {
+    descrizione: 'Descrizione',
+    modello: 'Modello',
+    cliente: 'Cliente',
+    telefono: 'Telefono',
+    email: 'Email',
+    punta: 'Punta',
+    numPunte: 'N. punte',
+    battCollettore: 'Battuta collettore',
+    lungPacco: 'Lunghezza pacco',
+    largPacco: 'Larghezza pacco',
+    lungAsse: 'Lunghezza asse',
+    statoPratica: 'Stato pratica',
+    preventivoStato: 'Preventivo',
+    docTrasporto: 'Documento Trasporto',
+    dataApertura: 'Data apertura',
+    dataAccettazione: 'Data accettazione',
+    dataScadenza: 'Data scadenza',
+    note: 'Note'
+  };
+
+  // Stampa TUTTE le etichette, anche se i valori sono vuoti
+  Object.keys(map).forEach(k => {
+    let v = r ? r[k] : '';
+    if (['dataApertura','dataAccettazione','dataScadenza'].includes(k)) {
+      v = (typeof fmtIT === 'function') ? fmtIT(v) : (v ?? '');
+    }
+    L(map[k], v);
   });
-  if(img){try{doc.addImage(img,'JPEG',40,y+6,500,300);}catch(e){}}
-  doc.save(`Scheda-${(r.descrizione||'').replace(/\s+/g,'_')}-${r.modello||''}.pdf`);
+
+  if (img) {
+    try {
+      doc.addImage(img, 'JPEG', 40, y + 6, 500, 300);
+      y += 312;
+    } catch (e) { /* ignore */ }
+  }
+
+  const safeDesc = ((r && r.descrizione) ? String(r.descrizione) : '').replace(/\s+/g, '_');
+  const safeModel = (r && r.modello) ? String(r.modello) : '';
+  doc.save(`Scheda-${safeDesc}-${safeModel}.pdf`);
 }
 
 /* Backup/Ripristina */
