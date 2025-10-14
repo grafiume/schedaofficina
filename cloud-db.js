@@ -9,8 +9,41 @@ async function getRecord(id){ const {data,error}=await sb.from('records').select
 async function getAllRecords(){ const {data,error}=await sb.from('records').select('*').order('updatedAt',{ascending:false}); if(error) throw error; return data||[]; }
 async function getByStato(st){ const {data,error}=await sb.from('records').select('*').eq('statoPratica',st).order('updatedAt',{ascending:false}); if(error) throw error; return data||[]; }
 async function deleteRecord(id){ try{ const {data:ph}=await sb.from('photos').select('path').eq('record_id',id); const del=(ph||[]).map(p=>p.path).filter(Boolean); if(del.length) await sb.storage.from(window.SB_BUCKET).remove(del); await sb.from('photos').delete().eq('record_id',id);}catch(_){} const {error}=await sb.from('records').delete().eq('id',id); if(error) throw error; }
-async function savePhotosWithThumbs(recordId,images,thumbs){ if(!images||!images.length)return; for(let i=0;i<images.length;i++){ const dataUrl=images[i]; const b64=dataUrl.split(',')[1]; const bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0)); const path=`${recordId}/${Date.now()}-${i+1}.jpg`; const up=await sb.storage.from(window.SB_BUCKET).upload(path,bytes,{contentType:'image/jpeg',upsert:false}); if(up.error && !(up.error.message||'').includes('already exists')){ console.error('[upload photo]',up.error); continue;} const ins=await sb.from('photos').insert({record_id:recordId,path}); if(ins.error){console.error('[photos insert]',ins.error);} } }
-async function getPhotos(recordId){
+async function savePhotosWithThumbs(recordId, images, thumbs){
+  if(!images || !images.length) return;
+
+  // carica solo i data-URL (nuove foto scattate/caricate)
+  const toUpload = images.filter(s => typeof s === 'string' && s.startsWith('data:image/'));
+  if(!toUpload.length) return;
+
+  for(let i=0; i<toUpload.length; i++){
+    try{
+      const dataUrl = toUpload[i];
+      const parts = dataUrl.split(',');
+      if(parts.length < 2) continue; // niente base64, salta
+
+      const base64 = parts[1];
+      const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      const path = `${recordId}/${Date.now()}-${i+1}.jpg`;
+
+      const up = await sb.storage.from(window.SB_BUCKET || 'photos')
+        .upload(path, bytes, { contentType: 'image/jpeg', upsert: false });
+
+      // se esiste già, va bene lo stesso; se errore reale, logga e continua
+      if(up.error && !(up.error.message || '').includes('already exists')){
+        console.warn('[upload photo]', up.error);
+        continue;
+      }
+
+      const ins = await sb.from('photos').insert({ record_id: recordId, path });
+      if(ins.error){ console.warn('[photos insert]', ins.error); }
+    }catch(err){
+      console.warn('[savePhotosWithThumbs] skip image', err);
+      continue;
+    }
+  }
+}
+  async function getPhotos(recordId){
   let {data,error}=await sb.from('photos').select('path').eq('record_id',recordId).order('created_at',{ascending:true});
   if(error && error.code==='42703'){ ({data,error}=await sb.from('photos').select('url').eq('record_id',recordId).order('created_at',{ascending:true})); if(error){console.error(error);return{images:[],thumbs:[]}} const images=(data||[]).map(r=>r.url).filter(Boolean); return {images,thumbs:images}; }
   if(error){ console.error(error); return {images:[],thumbs:[]} }
