@@ -533,40 +533,80 @@ function nuovo(){ _captured = [];cur={id:newId(),createdAt:new Date().toISOStrin
 /* Modifica */
 async function modifica(id){const r=await getRecord(id);if(!r){alert('Scheda non trovata');return;}cur=r;const f=$('#recordForm');$('#formTitle').textContent='Modifica scheda';[...f.elements].forEach(el=>{if(el.name&&r[el.name]!=null) el.value=r[el.name];});const s=$('#statoPratica');if(s)s.value=r.statoPratica||'In attesa';const p=$('#preventivoStato');if(p)p.value=r.preventivoStato||'Non inviato';const {images}=await getPhotos(id);$('#photoPreview').src=images[0]||'';const lbl=document.getElementById('statoLabelText'); if(lbl) lbl.textContent='Stato'; const sm=document.getElementById('completataInline'); if(sm) sm.innerHTML='(Chiusa il <span id="completataDate"></span>)'; sh('form'); updateCompletionUI();}
 
-/* Salva */
+/* Salva (patch anti-doppio-click + dedupe + upload solo nuove foto) */
+let __isSaving = false;
+
 async function salva(){
-const f=$('#recordForm');
-  const d=Object.fromEntries(new FormData(f).entries());
+  if (__isSaving) return;      // blocca doppie invocazioni
+  __isSaving = true;
+
+  const f = $('#recordForm');
+  const d = Object.fromEntries(new FormData(f).entries());
   d.id = cur?.id || newId();
   d.updatedAt = new Date().toISOString();
-  if(FORCE_ATTESA) d.statoPratica='In attesa';
-  if(!d.preventivoStato) d.preventivoStato='Non inviato';
+  if (FORCE_ATTESA) d.statoPratica = 'In attesa';
+  if (!d.preventivoStato) d.preventivoStato = 'Non inviato';
+
   // Stato completata => azzera scadenza e memorizza data completamento
-  if(d.statoPratica==='Completata'){ 
-    if(!d.dataCompletamento){ d.dataCompletamento = todayISO(); }
-    d.dataScadenza='';
+  if (d.statoPratica === 'Completata') {
+    if (!d.dataCompletamento) { d.dataCompletamento = todayISO(); }
+    d.dataScadenza = '';
   } else {
-    d.dataCompletamento='';
+    d.dataCompletamento = '';
   }
   // data arrivo = data apertura
   d.dataArrivo = d.dataApertura || '';
 
-  // Foto
-  let full=[],thumbs=[];
-  const fl=$('#photoInput').files;
-  if(fl&&fl.length){for(const file of fl){const data=await f2url(file);full.push(data);thumbs.push(data);}}
-  else{const prev=$('#photoPreview').getAttribute('src');if(prev){full=[prev];thumbs=[prev];}}
+  // Disabilita bottone durante il salvataggio (se esiste)
+  const btn = document.getElementById('btnSalva') 
+           || document.querySelector('#recordForm [type="submit"], #recordForm .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvataggio...'; }
 
-  
-  // Includi anche eventuali scatti fatti con la fotocamera
-  if(Array.isArray(_captured) && _captured.length){
-    full = _captured.concat(full);
-    thumbs = _captured.concat(thumbs);
+  try {
+    // Foto
+    let full = [], thumbs = [];
+    const fl = $('#photoInput').files;
+    if (fl && fl.length) {
+      for (const file of fl) {
+        const data = await f2url(file);
+        full.push(data); thumbs.push(data);
+      }
+    } else {
+      const prev = $('#photoPreview').getAttribute('src');
+      if (prev) { full = [prev]; thumbs = [prev]; }
+    }
+
+    // Includi anche eventuali scatti fatti con la fotocamera
+    if (Array.isArray(_captured) && _captured.length) {
+      full   = _captured.concat(full);
+      thumbs = _captured.concat(thumbs);
+    }
+
+    // DEDUPE nella stessa save
+    full   = Array.from(new Set(full));
+    thumbs = Array.from(new Set(thumbs));
+
+    // Salva record
+    await putRecord(d);
+
+    // Carica SOLO se ci sono nuove foto in data-URL
+    const hasNewDataUrls = full.some(s => typeof s === 'string' && s.startsWith('data:image/'));
+    if (hasNewDataUrls) {
+      await savePhotosWithThumbs(d.id, full, thumbs);
+    }
+
+    _captured = [];
+    alert('Scheda salvata');
+    sh('home');
+    refreshDashboard();
+
+  } catch (err) {
+    console.error(err);
+    alert('Errore durante il salvataggio.');
+  } finally {
+    __isSaving = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Salva scheda'; }
   }
-await putRecord(d);
-  if(full.length||thumbs.length) await savePhotosWithThumbs(d.id,full,thumbs);
-  _captured = [];
-  alert('Scheda salvata'); sh('home'); refreshDashboard();
 }
 
 /* Rendering thumb + apertura full */
