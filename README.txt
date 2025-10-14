@@ -1,9 +1,16 @@
-# Migrazione foto locali -> Supabase
-1. Copia `migrate-photos.js` nella stessa cartella di `index.html`.
-2. Aggiungi in `index.html` (prima di `</body>`):
-   <script src="migrate-photos.js"></script>
-3. Apri il sito su ciascun dispositivo che contiene foto locali.
-4. In Home comparirà il pulsante **"Sincronizza foto su cloud"**.
-5. Cliccala: le foto verranno caricate su Supabase Storage e registrate in `public.photos`.
+SCHEDA OFFICINA — Patch Galleria/Fotocamera (telefono/tablet)
 
-Nota: funziona solo se il bucket `photos` è pubblico e le policy Storage/Photos sono impostate come ti ho fornito.
+Contenuto:
+1) photo-inputs.js   -> Aggiunge i pulsanti e gli handler per scegliere Galleria o Fotocamera.
+2) index-snippet.html -> Blocco HTML da incollare dove avevi l'input file.
+3) salva-photo-block.js -> Sostituisce SOLO il blocco "Foto" dentro la tua funzione salva().
+
+Passi (non sovrascrive il resto della tua app):
+A) Apri index.html e sostituisci il vecchio input <input id="photoInput"...> con il contenuto di index-snippet.html.
+B) Aggiungi prima di </body> questa riga:
+   <script src="./photo-inputs.js"></script>
+C) Apri la funzione salva() e sostituisci SOLO il blocco "Foto" con il contenuto di salva-photo-block.js.
+D) Salva, fai hard refresh (se serve pulisci il Service Worker) e prova su telefono:
+   - "Scegli dalla galleria" apre la libreria
+   - "Scatta foto" apre la fotocamera
+   - La foto selezionata/scattata compare in anteprima e viene caricata alla pressione di "Salva scheda".
