@@ -1,30 +1,23 @@
-/* search-fix.js
-   - Filtri tecnici con match ESATTO (trim + case-insensitive)
-   - Lettura campi form (per placeholder o name)
-   - Applica/Reset con bind singolo
-   - Niente duplicati: pulizia tbody prima del render
-*/
+/* search-fix.js — definitivo (match esatto + fix Safari + no duplicati) */
 (function () {
   if (window.__searchFixBound) return;
   window.__searchFixBound = true;
 
   // --- 1) EQ esatto per i filtri tecnici
-  const el = {
-  batt:  pick(['[name="battCollettore"]','input[placeholder="Batt. collettore"]']),
-  asse:  pick(['[name="lunghezzaAsse"]','input[placeholder="Lunghezza asse"]']),
-  pacL:  pick(['[name="lunghezzaPacco"]','input[placeholder="Lunghezza pacco"]']),
-  pacW:  pick(['[name="larghezzaPacco"]','input[placeholder="Larghezza pacco"]']),
-  punta: pick(['[name="punta"]','select']),
-  num:   pick(['[name="numPunte"]','input[placeholder="N."]']),
-  // ✅ versioni compatibili per i pulsanti
-  btnApply: document.querySelector('button.apply-filters') 
-          || Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().includes('Applica')),
-  btnReset: document.querySelector('button.reset-filters') 
-          || Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().includes('Reset'))
-};
+  const eq = (a,b)=> String(a??'').trim().toLowerCase() === String(b??'').trim().toLowerCase();
+  window.matchTechFilters = function (r) {
+    const w = window.techFilters || {};
+    if (w.battCollettore && !eq(r.battCollettore, w.battCollettore)) return false;
+    if (w.lunghezzaAsse && !eq(r.lunghezzaAsse, w.lunghezzaAsse)) return false;
+    if (w.lunghezzaPacco && !eq(r.lunghezzaPacco, w.lunghezzaPacco)) return false;
+    if (w.larghezzaPacco && !eq(r.larghezzaPacco, w.larghezzaPacco)) return false;
+    if (w.punta && w.punta !== '(tutte)' && !eq(r.punta, w.punta)) return false;
+    if (w.numPunte && !eq(r.numPunte, w.numPunte)) return false;
+    return true;
+  };
 
-  // --- 2) Helper selettori: prova id/name/placeholder
-  const pick = (sels) => sels.map(s=>document.querySelector(s)).find(Boolean);
+  // --- 2) Helper per selezionare elementi (id, name, placeholder)
+  const pick = sels => sels.map(s=>document.querySelector(s)).find(Boolean);
 
   const el = {
     batt:  pick(['[name="battCollettore"]','input[placeholder="Batt. collettore"]']),
@@ -33,10 +26,14 @@
     pacW:  pick(['[name="larghezzaPacco"]','input[placeholder="Larghezza pacco"]']),
     punta: pick(['[name="punta"]','select']),
     num:   pick(['[name="numPunte"]','input[placeholder="N."]']),
-    btnApply: pick(['button.apply-filters','button:has(> span):contains("Applica filtri")','button']),
-    btnReset: pick(['button.reset-filters','button:has(> span):contains("Reset")','button'])
+    // pulsanti compatibili Safari
+    btnApply: document.querySelector('button.apply-filters')
+           || Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().includes('Applica')),
+    btnReset: document.querySelector('button.reset-filters')
+           || Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().includes('Reset'))
   };
 
+  // --- 3) Leggi valori filtri tecnici
   function readTechFilters(){
     window.techFilters = {
       battCollettore: (el.batt?.value ?? '').trim(),
@@ -49,12 +46,12 @@
     console.log('[techFilters]', window.techFilters);
   }
 
-  // --- 3) Hook render: pulisci tbody per evitare duplicati
+  // --- 4) Pulisci la tabella prima del render (evita duplicati)
   function clearTableBody(){
     const tbody = document.querySelector('#searchTable tbody, table.table tbody, table tbody');
     if (tbody) tbody.innerHTML = '';
   }
-  // wrap di lista() se esiste
+
   if (typeof window.lista === 'function') {
     const origLista = window.lista;
     window.lista = async function(...args){
@@ -63,25 +60,22 @@
     };
   }
 
-  // --- 4) Bind Applica / Reset (una sola volta)
-  el.btnApply?.addEventListener('click', (e)=>{
-    // evita submit form o doppi bind
+  // --- 5) Bind pulsanti una sola volta
+  el.btnApply?.addEventListener('click', e=>{
     e.preventDefault();
     readTechFilters();
     if (typeof window.lista === 'function') window.lista();
     else if (typeof window.refreshDashboard === 'function') window.refreshDashboard();
-  }, { once:false });
+  });
 
-  el.btnReset?.addEventListener('click', (e)=>{
+  el.btnReset?.addEventListener('click', e=>{
     e.preventDefault();
-    // svuota UI
-    ['batt','asse','pacL','pacW','num'].forEach(k=>{ if(el[k]) el[k].value = ''; });
-    if (el.punta) el.punta.value = '(tutte)';
-    // svuota filtri e ricarica
+    ['batt','asse','pacL','pacW','num'].forEach(k=>{ if(el[k]) el[k].value=''; });
+    if (el.punta) el.punta.value='(tutte)';
     window.techFilters = {};
     if (typeof window.lista === 'function') window.lista();
     else if (typeof window.refreshDashboard === 'function') window.refreshDashboard();
-  }, { once:false });
+  });
 
   console.log('[search-fix] attivo');
 })();
