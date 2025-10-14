@@ -5,7 +5,11 @@ function toNullEmpty(v){ return (v===undefined || v==='') ? null : v; }
 async function putRecord(v){
   const row = {
     id:v.id, descrizione:v.descrizione??null, modello:v.modello??null, cliente:v.cliente??null,
-    telefono:v.telefono??null, email:v.email??null, punta:v.punta??null, numPunte:v.numPunte??null,
+    telefono:v.telefono??null, email:v.email??null, battCollettore:  v.battCollettore ?? null,
+lunghezzaAsse:   v.lunghezzaAsse ?? null,
+lunghezzaPacco:  v.lunghezzaPacco ?? null,
+larghezzaPacco:  v.larghezzaPacco ?? null,
+punta:v.punta??null, numPunte:v.numPunte??null,
     statoPratica:v.statoPratica??'In attesa', preventivoStato:v.preventivoStato??'Non inviato',
     docTrasporto:v.docTrasporto??null, dataApertura:toNullEmpty(v.dataApertura),
     dataAccettazione:toNullEmpty(v.dataAccettazione), dataScadenza:toNullEmpty(v.dataScadenza),
