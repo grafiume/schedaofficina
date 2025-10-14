@@ -45,30 +45,129 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 .nowrap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .actions-col{width:140px}
 .input-xxs{max-width:72px;text-align:center}
+
+/* === Layout Modifica/Nuova scheda: due colonne senza scroll pagina === */
 @media (min-width: 992px){
-  #page-form .form-flex{ height: calc(100vh - 220px); display: flex; gap: 1rem; }
+  #page-form .form-flex{
+    height: calc(100vh - 220px); /* header + titolo + sticky */
+    display: flex;
+    gap: 1rem;
+  }
   #page-form .left-pane, #page-form .right-pane{ height: 100%; }
-  #page-form .left-pane{ overflow: auto; padding-right: .5rem; }
+  #page-form .left-pane{
+    overflow: auto;             /* scorre solo la colonna di sinistra se serve */
+    padding-right: .5rem;
+  }
   #page-form .right-pane{ overflow: hidden; }
 }
-.preview-card{ height: 100%; border:1px solid var(--brand-border); border-radius:.75rem; background:#fff; padding:1rem; display:flex; flex-direction:column; gap:.75rem; }
-.image-box{ position:relative; width:100%; aspect-ratio: 4 / 3; border:1px dashed #c8c8c8; border-radius:.5rem; background:#f8f9fa; overflow:hidden; display:flex; align-items:center; justify-content:center; }
-.image-box img{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
-.image-box .empty-hint{ color:#8a8a8a; font-size:.95rem; text-align:center; padding:0 1rem; }
-#page-form .left-pane{ padding-bottom: 96px; }
-.thumb-strip{ display:flex; gap:.5rem; overflow:auto; padding:.25rem 0; border-top:1px dashed #e0e0e0; }
-.thumb-strip .thumb-item{ width:64px; height:64px; border:1px solid #ddd; border-radius:.375rem; overflow:hidden; flex:0 0 auto; cursor:pointer; background:#fff; display:flex; align-items:center; justify-content:center; }
-.thumb-strip .thumb-item img{ width:100%; height:100%; object-fit:cover; }
-.thumb-strip .thumb-item.active{ outline:2px solid var(--brand-orange); outline-offset:2px; }
-@media (min-width: 992px){
-  .tech-grid{ display: grid !important; grid-template-columns: 1fr 1fr 0.6fr 1fr; gap: .75rem 1rem; align-items: start; }
+/* Card anteprima a destra */
+.preview-card{
+  height: 100%;
+  border:1px solid var(--brand-border);
+  border-radius:.75rem;
+  background:#fff;
+  padding:1rem;
+  display:flex;
+  flex-direction:column;
+  gap:.75rem;
 }
-.tech-grid .form-label{ margin-bottom: .35rem; line-height: 1.15; white-space: nowrap; }
-.tech-grid .form-control, .tech-grid .form-select, .tech-grid textarea{ height: 42px; padding-top: .45rem; padding-bottom: .45rem; }
-.tech-grid textarea{ resize: vertical; }
-.tech-grid [name="numPunte"]{ min-width: 80px; text-align: center; }
+/* Riquadro immagine a proporzione fissa (4:3) */
+.image-box{
+  position:relative;
+  width:100%;
+  aspect-ratio: 4 / 3;          /* Cambia in 1/1 o 16/9 se preferisci */
+  border:1px dashed #c8c8c8;
+  border-radius:.5rem;
+  background:#f8f9fa;
+  overflow:hidden;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.image-box img{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:contain;             /* riempie senza deformare */
+}
+.image-box .empty-hint{
+  color:#8a8a8a;
+  font-size:.95rem;
+  text-align:center;
+  padding:0 1rem;
+}
+/* Spazio per evitare che la sticky copra il form */
+#page-form .left-pane{ padding-bottom: 96px; }
+
+/* --- Miniature immagini (thumbnail strip) --- */
+.thumb-strip{
+  display:flex;
+  gap:.5rem;
+  overflow:auto;
+  padding:.25rem 0;
+  border-top:1px dashed #e0e0e0;
+}
+.thumb-strip .thumb-item{
+  width:64px;
+  height:64px;
+  border:1px solid #ddd;
+  border-radius:.375rem;
+  overflow:hidden;
+  flex:0 0 auto;
+  cursor:pointer;
+  background:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.thumb-strip .thumb-item img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.thumb-strip .thumb-item.active{
+  outline:2px solid var(--brand-orange);
+  outline-offset:2px;
+}
+
+/* === Allineamento preciso riquadro "Dati tecnici" (4 campi) === */
+@media (min-width: 992px){
+  .tech-grid{
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 0.6fr 1fr;
+    gap: .75rem 1rem;
+    align-items: start;              /* evita sfasamenti verticali */
+  }
+}
+/* Etichette consistenti */
+.tech-grid .form-label{
+  margin-bottom: .35rem;
+  line-height: 1.15;
+  white-space: nowrap;               /* evita label su due righe */
+}
+/* Altezza uniforme per input/select/textarea (Note a 1 riga) */
+.tech-grid .form-control,
+.tech-grid .form-select,
+.tech-grid textarea{
+  height: 42px;                      /* controlli uniformi */
+  padding-top: .45rem;
+  padding-bottom: .45rem;
+}
+/* Textarea Note come campo mono-riga */
+.tech-grid textarea{
+  resize: vertical;                  /* consentito all'occorrenza */
+}
+/* Evita che i campi "N. punte" stringano troppo */
+.tech-grid [name="numPunte"]{
+  min-width: 80px;
+  text-align: center;
+}
+
+/* Evidenzia scadenze urgenti (<=3 giorni) o scadute */
 .date-urgent{ color: var(--brand-red); font-weight:600; }
 </style></head><body>
+<!-- HEADER -->
 <header class="header-bar position-relative">
   <div class="brand-wrap">
     <img class="brand-logo" src="logo-elip.jpg" alt="Elip Tagliente">
@@ -80,6 +179,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   </div>
 </header>
 
+<!-- HOME -->
 <div class="container my-3" id="page-home">
   <div class="d-flex gap-2 flex-wrap mb-3">
     <button class="card kpi kpi-link border-top-orange text-start" type="button" data-filter="totali" id="kpiTotBtn">
@@ -90,6 +190,9 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
     </button>
     <button class="card kpi kpi-link border-top-orange text-start" type="button" data-filter="lavorazione" id="kpiLavorBtn">
       <div class="card-body"><div class="small text-muted">In lavorazione</div><div class="h4 mb-0" id="kpiLavor">0</div></div>
+    </button>
+    <button class="card kpi kpi-link border-top-red text-start" type="button" data-filter="soon" id="kpiSoonBtn">
+      <div class="card-body"><div class="small text-muted">Scadenze 7gg</div><div class="h4 mb-0" id="kpiSoon">0</div></div>
     </button>
     <button class="card kpi kpi-link text-start" type="button" data-filter="completed" id="kpiComplBtn">
       <div class="card-body"><div class="small text-muted">Completate/Chiuse</div><div class="h4 mb-0" id="kpiCompl">0</div></div>
@@ -124,14 +227,20 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
     <label class="btn btn-outline-success" for="importZip">Ripristina da ZIP</label>
     <input id="importZip" type="file" accept=".zip" hidden>
   </div>
+  <div class="d-grid gap-2 mt-2">
+    <button id="btnClearDB" class="btn btn-outline-danger" type="button">Svuota database</button>
+  </div>
 </div>
 
+<!-- FORM -->
 <div class="container my-3 d-none" id="page-form">
   <h4 class="mb-2" id="formTitle">Nuova scheda</h4>
+
+  <!-- Layout due colonne: SINISTRA campi, DESTRA anteprima -->
   <div class="form-flex">
+    <!-- SINISTRA -->
     <div class="left-pane flex-grow-1">
       <form id="recordForm" class="g-2" onsubmit="return false">
-        <input type="hidden" name="id">
         <input type="hidden" name="numero">
         <input type="hidden" name="dataCompletamento">
 
@@ -203,7 +312,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
               </div>
               <div>
                 <label class="form-label">N. punte</label>
-                <input name="numPunte" class="form-control input-xxs" inputmode="numeric" pattern="\\d{1,2}" maxlength="2" placeholder="0" title="Inserisci 1–2 cifre">
+                <input name="numPunte" class="form-control input-xxs" inputmode="numeric" pattern="\d{1,2}" maxlength="2" placeholder="0" title="Inserisci 1–2 cifre">
               </div>
             </div>
 
@@ -218,6 +327,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
       </div>
     </div>
 
+    <!-- DESTRA: ANTEPRIMA PRINCIPALE + UPLOAD multiplo sotto -->
     <div class="right-pane col-lg-5 col-12">
       <div class="preview-card">
         <div class="d-flex align-items-center justify-content-between">
@@ -232,15 +342,17 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 
         <div>
           <label for="photoInput" class="form-label mb-1">Carica immagini (multiplo)</label>
-          <input id="photoInput" type="file" accept="image/*" class="form-control" multiple>
+          <input id="photoInput" type="file" accept="image/*" capture="environment" class="form-control" multiple>
+          <button id="btnOpenCamera" class="btn btn-outline-secondary w-100 mt-2" type="button">Scatta foto con fotocamera</button>
           <div class="small-muted mt-1">Suggerimento: la prima immagine caricata verrà mostrata qui sopra.</div>
-          <div id="thumbStrip" class="thumb-strip mt-2" aria-label="Anteprime immagini"></div>
+<div id="thumbStrip" class="thumb-strip mt-2" aria-label="Anteprime immagini"></div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
+<!-- RICERCA -->
 <div class="container my-3 d-none" id="page-search">
   <h4>Ricerca</h4>
 
@@ -292,6 +404,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   <nav><ul class="pagination justify-content-center my-2" id="pager"></ul></nav>
 </div>
 
+<!-- DETTAGLIO -->
 <div class="modal fade" id="detailModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
   <div class="modal-header"><h5 class="modal-title">Dettaglio scheda</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
   <div class="modal-body"><div id="detailContent"></div></div>
@@ -303,6 +416,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   </div>
 </div></div></div>
 
+<!-- FULL IMG -->
 <div class="modal fade" id="imgModal" tabindex="-1"><div class="modal-dialog modal-fullscreen"><div class="modal-content bg-dark">
   <div class="modal-body d-flex align-items-center justify-content-center p-0">
     <img id="imgFull" class="img-fluid" alt="Foto">
@@ -310,6 +424,8 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   <div class="position-absolute top-0 end-0 p-3"><button class="btn btn-light" data-bs-dismiss="modal">Chiudi</button></div>
 </div></div></div>
 
+
+<!-- IMG CENTERED (popup bianco) -->
 <div class="modal fade" id="imgModalCenter" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -323,6 +439,8 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   </div>
 </div>
 
+
+<!-- CONFIRM DELETE -->
 <div class="modal fade" id="confirmDeleteModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
   <div class="modal-header"><h5 class="modal-title">Conferma eliminazione</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
   <div class="modal-body">Sei sicuro di voler eliminare questa scheda? L'operazione non può essere annullata.</div>
@@ -337,13 +455,27 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
 <script>
+/* ===== Utils ===== */
 const $=s=>document.querySelector(s);
 const esc = s => String(s??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 function parseDate(v){ if(!v) return null; const d=new Date(v); return isNaN(d)?null:d; }
 function fmtIT(v){ const d=parseDate(v); return d? d.toLocaleDateString('it-IT') : ''; }
-function isUrgent(d){ if(!d) return false; const today = new Date(); today.setHours(0,0,0,0); const due = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const ms = due - today; const days = Math.floor(ms / (1000*60*60*24)); return days <= 3; }
+
+// <= 3 giorni alla scadenza oppure passato => urgente
+function isUrgent(d){
+  if(!d) return false;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const ms = due - today;
+  const days = Math.floor(ms / (1000*60*60*24));
+  return days <= 3; // include anche scadute (days < 0)
+}
+
 function isSoon(d){ if(!d) return false; const t=new Date(); t.setHours(0,0,0,0); const lim=new Date(t); lim.setDate(lim.getDate()+7); return d>=t && d<=lim; }
 function newId(){ return (window.crypto && typeof crypto.randomUUID==='function') ? crypto.randomUUID() : Date.now().toString(); }
+
+
+// === Helpers per data completamento & UI stato ===
 function todayISO(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 function updateCompletionUI(){
   const statoSel = document.getElementById('statoPratica');
@@ -354,8 +486,8 @@ function updateCompletionUI(){
   const fldCompl = f && f.elements['dataCompletamento'];
   const isCompl  = statoSel && statoSel.value === 'Completata';
   if(isCompl){
-    if(fldCompl && !fldCompl.value) fldCompl.value = todayISO();
-    if(fldScad) fldScad.value = '';
+    if(fldCompl && !fldCompl.value) fldCompl.value = todayISO(); // memorizza se manca
+    if(fldScad) fldScad.value = ''; // svuota ma resta visibile/attivo
     if(info && infoDate){
       const d = fldCompl && fldCompl.value ? new Date(fldCompl.value) : new Date();
       infoDate.textContent = d.toLocaleDateString('it-IT');
@@ -367,7 +499,7 @@ function updateCompletionUI(){
   }
 }
 
-/* IndexedDB */
+/* ===== IndexedDB ===== */
 const DB='officinaDB', VER=2;
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB,VER);r.onupgradeneeded=e=>{const db=e.target.result;let rec;if(!db.objectStoreNames.contains('records')){rec=db.createObjectStore('records',{keyPath:'id'});}else{rec=r.transaction.objectStore('records');}
 if(!rec.indexNames.contains('byStato'))rec.createIndex('byStato','statoPratica',{unique:false});
@@ -382,52 +514,64 @@ async function deleteRecord(id){const db=await openDB();return new Promise((res,
 async function savePhotosWithThumbs(id,images,thumbs){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction('photos','readwrite');tx.objectStore('photos').put({id,images,thumbs});tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
 async function getPhotos(id){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction('photos','readonly');const q=tx.objectStore('photos').get(id);q.onsuccess=()=>{const v=q.result||{};res({images:v.images||[],thumbs:v.thumbs||[]});};q.onerror=()=>rej(q.error);});}
 
-/* Stato */
+/* ===== App ===== */
 let cur=null, deleteTargetId=null;
+const FORCE_ATTESA = false;
+
 let currentFilter=null;
 const FILTER_LABELS={totali:'Tutte le schede (tutte)',attesa:'Solo: In attesa',lavorazione:'Solo: In lavorazione',soon:'Solo: Scadenze 7gg',completed:'Solo: Completate/Chiuse'};
-const PAGE_SIZE_CONST=50; let searchRows=[]; let page=1;
+const PAGE_SIZE=50; let searchRows=[]; let page=1;
 const techFilters={battCollettore:'',lunghezzaAsse:'',lunghezzaPacco:'',larghezzaPacco:'',punta:'',numPunte:''};
 
 function sh(n){$('#page-home').classList.toggle('d-none',n!=='home');$('#page-form').classList.toggle('d-none',n!=='form');$('#page-search').classList.toggle('d-none',n!=='search');}
 function f2url(file){return new Promise((res,rej)=>{const R=new FileReader();R.onload=()=>res(R.result);R.onerror=()=>rej(R.error);R.readAsDataURL(file);});}
 
 /* Nuova scheda */
-function nuovo(){cur={id:newId(),createdAt:new Date().toISOString()};const f=$('#recordForm');f.reset();$('#formTitle').textContent='Nuova scheda';$('#photoPreview').src='';const s=$('#statoPratica');if(s)s.value='In attesa';const p=$('#preventivoStato');if(p)p.value='Non inviato'; const lbl=document.getElementById('statoLabelText'); if(lbl) lbl.textContent='Stato'; const sm=document.getElementById('completataInline'); if(sm) sm.innerHTML='(Chiusa il <span id="completataDate"></span>)'; if(f && f.elements['dataCompletamento']) f.elements['dataCompletamento'].value=''; sh('form'); updateCompletionUI();}
+function nuovo(){ _captured = [];cur={id:newId(),createdAt:new Date().toISOString()};const f=$('#recordForm');f.reset();$('#formTitle').textContent='Nuova scheda';$('#photoPreview').src='';const s=$('#statoPratica');if(s)s.value='In attesa';const p=$('#preventivoStato');if(p)p.value='Non inviato'; const lbl=document.getElementById('statoLabelText'); if(lbl) lbl.textContent='Stato'; const sm=document.getElementById('completataInline'); if(sm) sm.innerHTML='(Chiusa il <span id="completataDate"></span>)'; if(f && f.elements['dataCompletamento']) f.elements['dataCompletamento'].value=''; sh('form'); updateCompletionUI();}
 
 /* Modifica */
 async function modifica(id){const r=await getRecord(id);if(!r){alert('Scheda non trovata');return;}cur=r;const f=$('#recordForm');$('#formTitle').textContent='Modifica scheda';[...f.elements].forEach(el=>{if(el.name&&r[el.name]!=null) el.value=r[el.name];});const s=$('#statoPratica');if(s)s.value=r.statoPratica||'In attesa';const p=$('#preventivoStato');if(p)p.value=r.preventivoStato||'Non inviato';const {images}=await getPhotos(id);$('#photoPreview').src=images[0]||'';const lbl=document.getElementById('statoLabelText'); if(lbl) lbl.textContent='Stato'; const sm=document.getElementById('completataInline'); if(sm) sm.innerHTML='(Chiusa il <span id="completataDate"></span>)'; sh('form'); updateCompletionUI();}
 
 /* Salva */
 async function salva(){
-  const f=$('#recordForm');
+const f=$('#recordForm');
   const d=Object.fromEntries(new FormData(f).entries());
   d.id = cur?.id || newId();
   d.updatedAt = new Date().toISOString();
+  if(FORCE_ATTESA) d.statoPratica='In attesa';
   if(!d.preventivoStato) d.preventivoStato='Non inviato';
+  // Stato completata => azzera scadenza e memorizza data completamento
   if(d.statoPratica==='Completata'){ 
     if(!d.dataCompletamento){ d.dataCompletamento = todayISO(); }
     d.dataScadenza='';
   } else {
     d.dataCompletamento='';
   }
+  // data arrivo = data apertura
   d.dataArrivo = d.dataApertura || '';
 
+  // Foto
   let full=[],thumbs=[];
   const fl=$('#photoInput').files;
   if(fl&&fl.length){for(const file of fl){const data=await f2url(file);full.push(data);thumbs.push(data);}}
   else{const prev=$('#photoPreview').getAttribute('src');if(prev){full=[prev];thumbs=[prev];}}
 
-  await putRecord(d);
+  
+  // Includi anche eventuali scatti fatti con la fotocamera
+  if(Array.isArray(_captured) && _captured.length){
+    full = _captured.concat(full);
+    thumbs = _captured.concat(thumbs);
+  }
+await putRecord(d);
   if(full.length||thumbs.length) await savePhotosWithThumbs(d.id,full,thumbs);
-  // Bridge Supabase (se presente)
-  if(window.sbbridge && typeof window.sbbridge.syncRecord==='function'){ try{ await window.sbbridge.syncRecord(d, full, thumbs); }catch(_){ } }
+  _captured = [];
   alert('Scheda salvata'); sh('home'); refreshDashboard();
 }
 
+/* Rendering thumb + apertura full */
 function renderThumb(src,id){return src?`<img class="thumb" loading="lazy" src="${src}" data-id="${id}">`:'<div class="thumb d-flex align-items-center justify-content-center text-secondary">—</div>';}
 
-/* HOME */
+/* HOME: lista aperte (Data arrivo in IT) */
 async function populateHomeOpenList(){
   const all=await getAllRecords(); all.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
   const open=all.filter(r=>(r.statoPratica||'')!=='Completata');
@@ -452,8 +596,42 @@ async function populateHomeOpenList(){
   tb.querySelectorAll('img.thumb').forEach(img=>{img.addEventListener('click',async()=>{const id=img.getAttribute('data-id');const {images,thumbs}=await getPhotos(id);openImg(images[0]||thumbs[0]);});});
   tb.querySelectorAll('button[data-open]').forEach(b=>b.onclick=()=>apri(b.dataset.open));
   tb.querySelectorAll('button[data-edit]').forEach(b=>b.onclick=()=>modifica(b.dataset.edit));
+  
+  // Imposta il valore corrente e abilita salvataggio con conferma
+  document.querySelectorAll('select.state-edit').forEach(sel=>{
+    const id = sel.getAttribute('data-id');
+    const row = searchRows.find(r=>r.id===id);
+    if(row){ sel.value = row.statoPratica || 'In attesa'; }
+    sel.addEventListener('change', async (e)=>{
+      const val = e.target.value;
+      if(!confirm('Confermi il cambio di stato a "'+val+'"?')){ 
+        // ripristina valore precedente
+        const rPrev = searchRows.find(r=>r.id===id);
+        e.target.value = (rPrev && rPrev.statoPratica) ? rPrev.statoPratica : 'In attesa';
+        return;
+      }
+      try{
+        const rec = await getRecord(id);
+        if(rec){
+          rec.statoPratica = val;
+          if(val==='Completata'){ rec.dataCompletamento = todayISO(); rec.dataScadenza=''; } else { rec.dataCompletamento = ''; }
+          rec.updatedAt = new Date().toISOString();
+          await putRecord(rec);
+          // aggiorna cache per la riga e refresh liste/kpi
+          const idx = searchRows.findIndex(r=>r.id===id);
+          if(idx>=0){ searchRows[idx].statoPratica = val; }
+          await refreshDashboard();
+          await lista();
+        }
+      }catch(err){
+        alert('Errore nel salvataggio dello stato.');
+      }
+    });
+  });
+
 }
 
+/* Ricerca — indice testo (include numPunte) */
 function addToSearch(parts,v){if(v)parts.push(String(v).toLowerCase());}
 function buildSearchIndex(r){
   const p=[]; addToSearch(p,r.descrizione); addToSearch(p,r.modello); addToSearch(p,r.cliente);
@@ -463,19 +641,20 @@ function buildSearchIndex(r){
   return p.join(' ');
 }
 
-/* Filtri tecnici — esatti */
+/* Filtri tecnici singoli */
 function matchTechFilters(r){
-  const want=techFilters;
-  const eq = (a,b)=> String(a??'').trim().toLowerCase() === String(b??'').trim().toLowerCase();
-  if(want.battCollettore && !eq(r.battCollettore, want.battCollettore)) return false;
-  if(want.lunghezzaAsse && !eq(r.lunghezzaAsse, want.lunghezzaAsse)) return false;
-  if(want.lunghezzaPacco && !eq(r.lunghezzaPacco, want.lunghezzaPacco)) return false;
-  if(want.larghezzaPacco && !eq(r.larghezzaPacco, want.larghezzaPacco)) return false;
-  if(want.punta && !eq(r.punta, want.punta)) return false;
-  if(want.numPunte && !eq(r.numPunte, want.numPunte)) return false;
+  const want=techFilters; const like=(a,b)=>String(a||'').toLowerCase().includes(String(b||'').toLowerCase());
+  if(want.battCollettore && !like(r.battCollettore, want.battCollettore)) return false;
+  if(want.lunghezzaAsse && !like(r.lunghezzaAsse, want.lunghezzaAsse)) return false;
+  if(want.lunghezzaPacco && !like(r.lunghezzaPacco, want.lunghezzaPacco)) return false;
+  if(want.larghezzaPacco && !like(r.larghezzaPacco, want.larghezzaPacco)) return false;
+  if(want.punta && String(r.punta||'')!==String(want.punta)) return false;
+  if(want.numPunte && String(r.numPunte||'')!==String(want.numPunte)) return false;
   return true;
 }
 
+/* Paginazione */
+const PAGE_SIZE_CONST = 50;
 function renderPager(total){
   const pages=Math.max(1,Math.ceil(total/PAGE_SIZE_CONST));
   const ul=$('#pager'); ul.innerHTML='';
@@ -505,6 +684,7 @@ async function drawListPage(){
         <option value="In attesa">In attesa</option>
         <option value="In lavorazione">In lavorazione</option>
         <option value="Completata">Completata</option>
+        
       </select>
     </td>
       <td class="text-end nowrap">
@@ -517,9 +697,43 @@ async function drawListPage(){
   }
   tb.querySelectorAll('img.thumb').forEach(img=>{img.addEventListener('click',async()=>{const id=img.getAttribute('data-id');const {images,thumbs}=await getPhotos(id);openImg(images[0]||thumbs[0]);});});
   tb.querySelectorAll('button[data-open]').forEach(b=>b.onclick=()=>apri(b.dataset.open));
-  tb.querySelectorAll('button[data-edit']).forEach(b=>b.onclick=()=>modifica(b.dataset.edit));
+  tb.querySelectorAll('button[data-edit]').forEach(b=>b.onclick=()=>modifica(b.dataset.edit));
+  
+  // Imposta il valore corrente e abilita salvataggio con conferma
+  document.querySelectorAll('select.state-edit').forEach(sel=>{
+    const id = sel.getAttribute('data-id');
+    const row = searchRows.find(r=>r.id===id);
+    if(row){ sel.value = row.statoPratica || 'In attesa'; }
+    sel.addEventListener('change', async (e)=>{
+      const val = e.target.value;
+      if(!confirm('Confermi il cambio di stato a "'+val+'"?')){ 
+        // ripristina valore precedente
+        const rPrev = searchRows.find(r=>r.id===id);
+        e.target.value = (rPrev && rPrev.statoPratica) ? rPrev.statoPratica : 'In attesa';
+        return;
+      }
+      try{
+        const rec = await getRecord(id);
+        if(rec){
+          rec.statoPratica = val;
+          if(val==='Completata'){ rec.dataCompletamento = todayISO(); rec.dataScadenza=''; } else { rec.dataCompletamento = ''; }
+          rec.updatedAt = new Date().toISOString();
+          await putRecord(rec);
+          // aggiorna cache per la riga e refresh liste/kpi
+          const idx = searchRows.findIndex(r=>r.id===id);
+          if(idx>=0){ searchRows[idx].statoPratica = val; }
+          await refreshDashboard();
+          await lista();
+        }
+      }catch(err){
+        alert('Errore nel salvataggio dello stato.');
+      }
+    });
+  });
+
 }
 
+/* Ricerca pipeline */
 async function lista(){
   const q=($('#q').value||'').toLowerCase();
   let rows;
@@ -535,7 +749,7 @@ async function lista(){
   searchRows=rows; page=1; renderPager(searchRows.length); drawListPage();
 }
 
-/* Dettaglio */
+/* Dettaglio (date IT) */
 async function apri(id){
   const r=await getRecord(id),{images,thumbs}=await getPhotos(id);const img=images[0]||thumbs[0];
   const d=$('#detailContent');
@@ -547,11 +761,7 @@ async function apri(id){
       <tr><th>Cliente</th><td>${esc(r.cliente)}</td></tr>
       <tr><th>Telefono</th><td>${esc(r.telefono)}</td></tr>
       <tr><th>Email</th><td>${esc(r.email)}</td></tr>
-      <tr><th>Batt. collettore</th><td>${esc(r.battCollettore||'')}</td></tr>
-      <tr><th>Lunghezza asse</th><td>${esc(r.lunghezzaAsse||'')}</td></tr>
-      <tr><th>Lunghezza pacco</th><td>${esc(r.lunghezzaPacco||'')}</td></tr>
-      <tr><th>Larghezza pacco</th><td>${esc(r.larghezzaPacco||'')}</td></tr>
-      <tr><th>Punta</th><td>${esc(r.punta||'')}${r?.numPunte?` (${esc(r.numPunte)} punte)`:''}</td></tr>
+      <tr><th>Punta</th><td>${esc(r.punta||'')} ${r?.numPunte?`(${esc(r.numPunte)} punte)`:''}</td></tr>
       <tr><th>Stato pratica</th><td>${esc(r.statoPratica||'In attesa')}</td></tr>
       <tr><th>Preventivo</th><td>${esc(r.preventivoStato||'Non inviato')}</td></tr>
       <tr><th>Documento Trasporto</th><td>${esc(r.docTrasporto)}</td></tr>
@@ -567,8 +777,10 @@ async function apri(id){
   $('#btnDelete').onclick=()=>{ deleteTargetId=id; new bootstrap.Modal('#confirmDeleteModal').show(); };
 }
 
+/* Full image modal */
 function openImg(src){ if(!src) return; $('#imgFull').src=src; new bootstrap.Modal('#imgModal').show(); }
 
+/* PDF (date IT) */
 function pdfRec(r,img){
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'pt',format:'a4'});
@@ -577,9 +789,7 @@ function pdfRec(r,img){
   const L=(l,v)=>{doc.setFont(undefined,'bold');doc.text(l,40,y);doc.setFont(undefined,'normal');doc.text(': '+(v||''),180,y);y+=16;};
   const map={
     descrizione:'Descrizione',modello:'Modello',cliente:'Cliente',telefono:'Telefono',email:'Email',
-    battCollettore:'Batt. collettore', lunghezzaAsse:'Lunghezza asse', lunghezzaPacco:'Lunghezza pacco', larghezzaPacco:'Larghezza pacco',
-    punta:'Punta',numPunte:'N. punte',
-    statoPratica:'Stato pratica',preventivoStato:'Preventivo',
+    punta:'Punta',numPunte:'N. punte',statoPratica:'Stato pratica',preventivoStato:'Preventivo',
     docTrasporto:'Documento Trasporto',dataApertura:'Data apertura',dataAccettazione:'Data accettazione',
     dataScadenza:'Data scadenza',note:'Note'
   };
@@ -593,33 +803,229 @@ function pdfRec(r,img){
   doc.save(`Scheda-${(r.descrizione||'').replace(/\s+/g,'_')}-${r.modello||''}.pdf`);
 }
 
+/* Backup/Ripristina */
 async function backup(){const zip=new JSZip(),all=await getAllRecords();for(const r of all){zip.file(`records/${r.id}.json`,JSON.stringify(r,null,2));const {images,thumbs}=await getPhotos(r.id);images.forEach((d,i)=>zip.file(`photos/${r.id}-${i+1}.jpg`,d.split(',')[1],{base64:true}));thumbs.forEach((d,i)=>zip.file(`photos/${r.id}-${i+1}-thumb.jpg`,d.split(',')[1],{base64:true}));}const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='backup_scheda_riparazioni.zip';a.click();}
 async function ripristina(e){const f=e.target.files?.[0];if(!f)return;const zip=await JSZip.loadAsync(f);const recs=Object.keys(zip.files).filter(k=>k.startsWith('records/')&&k.endsWith('.json'));for(const k of recs){const txt=await zip.files[k].async('string');const r=JSON.parse(txt);await putRecord(r);const photos=Object.keys(zip.files).filter(p=>p.startsWith('photos/')&&p.includes(r.id+'-')&&!p.includes('-thumb'));const thumbs=Object.keys(zip.files).filter(p=>p.startsWith('photos/')&&p.includes(r.id+'-')&&p.includes('-thumb'));const imgs=[],ths=[];for(const p of photos){const b=await zip.files[p].async('base64');imgs.push('data:image/jpeg;base64,'+b);}for(const p of thumbs){const b=await zip.files[p].async('base64');ths.push('data:image/jpeg;base64,'+b);}if(imgs.length||ths.length)await savePhotosWithThumbs(r.id,imgs,ths);}alert('Ripristino completato');sh('home');refreshDashboard();}
 
+/* KPI → Ricerca + dashboard */
 function goToSearchWithFilter(filterKey){currentFilter=filterKey||null;sh('search');lista();}
-async function refreshDashboard(){const all=await getAllRecords();const kpiTot=$('#kpiTot'),kpiAttesa=$('#kpiAttesa'),kpiLavor=$('#kpiLavor'),kpiCompl=$('#kpiCompl');const cAtt=all.filter(r=>(r.statoPratica||'')==='In attesa').length;const cLav=all.filter(r=>(r.statoPratica||'')==='In lavorazione').length;const cCompl=all.filter(r=>(r.statoPratica||'')==='Completata').length;kpiTot.textContent=all.length;kpiAttesa.textContent=cAtt;kpiLavor.textContent=cLav;kpiCompl.textContent=cCompl;await populateHomeOpenList();}
+async function refreshDashboard(){const all=await getAllRecords();const kpiTot=$('#kpiTot'),kpiAttesa=$('#kpiAttesa'),kpiLavor=$('#kpiLavor'),kpiSoon=$('#kpiSoon'),kpiCompl=$('#kpiCompl');const cAtt=all.filter(r=>(r.statoPratica||'')==='In attesa').length;const cLav=all.filter(r=>(r.statoPratica||'')==='In lavorazione').length;const cSoon=all.filter(r=>isSoon(parseDate(r.dataScadenza))).length;const cCompl=all.filter(r=>(r.statoPratica||'')==='Completata').length;kpiTot.textContent=all.length;kpiAttesa.textContent=cAtt;kpiLavor.textContent=cLav;kpiSoon.textContent=cSoon;kpiCompl.textContent=cCompl;await populateHomeOpenList();}
 
+/* Debounce ricerca */
 let searchTimer=null; function debouncedSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{lista();},250);}
 
+/* Wire-up */
+// ====== Camera & Cattura ======
+let _cameraStream = null;
+let _shotDataUrl = null;
+let _captured = []; // immagini catturate in sessione (DataURL)
+
+async function startCamera(){
+  try{
+    const constraints = {
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    _cameraStream = stream;
+    const video = document.getElementById('cameraVideo');
+    const canvas = document.getElementById('cameraCanvas');
+    if(video){
+      video.srcObject = stream;
+      video.classList.remove('d-none');
+    }
+    if(canvas){
+      canvas.classList.add('d-none');
+    }
+    // reset pulsanti
+    const take = document.getElementById('btnTakeShot');
+    const use  = document.getElementById('btnUseShot');
+    const retry= document.getElementById('btnRetryShot');
+    if(take) take.disabled = false;
+    if(use)  use.disabled  = true;
+    if(retry) retry.disabled = true;
+    _shotDataUrl = null;
+  }catch(err){
+    alert('Impossibile accedere alla fotocamera: ' + err.message + '\\nPuoi comunque caricare un file con "Carica immagini".');
+    // Chiudiamo il modal se non c'è fotocamera
+    const modalEl = document.getElementById('cameraModal');
+    if(modalEl){
+      const m = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+      m.hide();
+    }
+  }
+}
+
+function stopCamera(){
+  if(_cameraStream){
+    _cameraStream.getTracks().forEach(t=>t.stop());
+    _cameraStream = null;
+  }
+}
+
+function takeShot(){
+  const video = document.getElementById('cameraVideo');
+  const canvas = document.getElementById('cameraCanvas');
+  if(!video || !canvas) return;
+  const w = video.videoWidth || 1280;
+  const h = video.videoHeight || 720;
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, w, h);
+  _shotDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+  // UI switch
+  video.classList.add('d-none');
+  canvas.classList.remove('d-none');
+  const take = document.getElementById('btnTakeShot');
+  const use  = document.getElementById('btnUseShot');
+  const retry= document.getElementById('btnRetryShot');
+  if(take) take.disabled = true;
+  if(use)  use.disabled  = false;
+  if(retry) retry.disabled = false;
+}
+
+function retryShot(){
+  const video = document.getElementById('cameraVideo');
+  const canvas = document.getElementById('cameraCanvas');
+  if(video) video.classList.remove('d-none');
+  if(canvas) canvas.classList.add('d-none');
+  const take = document.getElementById('btnTakeShot');
+  const use  = document.getElementById('btnUseShot');
+  const retry= document.getElementById('btnRetryShot');
+  if(take) take.disabled = false;
+  if(use)  use.disabled  = true;
+  if(retry) retry.disabled = true;
+  _shotDataUrl = null;
+}
+
+function useShot(){
+  if(!_shotDataUrl) return;
+  // Aggiungi all'anteprima principale
+  const preview = document.getElementById('photoPreview');
+  if(preview){
+    preview.src = _shotDataUrl;
+    if(typeof updateEmptyHint==='function') updateEmptyHint();
+  }
+  // Aggiungi in testa alla strip miniature
+  if(typeof addThumb==='function'){
+    // Prepend: ricostruisco la strip inserendo come attiva la nuova
+    const strip = document.getElementById('thumbStrip');
+    if(strip){
+      const prev = strip.innerHTML;
+      strip.innerHTML = '';
+      addThumb(_shotDataUrl, true);
+      strip.insertAdjacentHTML('beforeend', prev);
+    }else{
+      addThumb(_shotDataUrl, true);
+    }
+  }
+  // Buffer per il salvataggio
+  _captured.unshift(_shotDataUrl);
+
+  // Chiudi modal e spegni fotocamera
+  const modalEl = document.getElementById('cameraModal');
+  if(modalEl){
+    const m = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    m.hide();
+  }
+}
+
+// ====== Svuota Database ======
+async function clearDB(){
+  const db = await openDB();
+  return new Promise((res, rej)=>{
+    const tx = db.transaction(['records','photos'], 'readwrite');
+    tx.objectStore('records').clear();
+    tx.objectStore('photos').clear();
+    tx.oncomplete = ()=>res();
+    tx.onerror = ()=>rej(tx.error);
+  });
+}
+
 document.addEventListener('DOMContentLoaded',()=>{
+  // Avvio fotocamera
+  const openCamBtn = document.getElementById('btnOpenCamera');
+  if(openCamBtn){
+    openCamBtn.addEventListener('click', ()=>{
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        alert('Questo dispositivo o browser non supporta l\'accesso diretto alla fotocamera. Usa "Carica immagini".');
+        return;
+      }
+      const modalEl = document.getElementById('cameraModal');
+      const m = new bootstrap.Modal(modalEl);
+      m.show();
+      // start camera when shown
+      modalEl.addEventListener('shown.bs.modal', startCamera, { once: true });
+      modalEl.addEventListener('hidden.bs.modal', stopCamera, { once: true });
+    });
+  }
+  // Pulsanti del modal fotocamera
+  const btnTakeShot = document.getElementById('btnTakeShot');
+  const btnUseShot  = document.getElementById('btnUseShot');
+  const btnRetryShot= document.getElementById('btnRetryShot');
+  if(btnTakeShot) btnTakeShot.addEventListener('click', takeShot);
+  if(btnUseShot)  btnUseShot.addEventListener('click', useShot);
+  if(btnRetryShot)btnRetryShot.addEventListener('click', retryShot);
+
+  // Svuota database
+  const btnClear = document.getElementById('btnClearDB');
+  if(btnClear){
+    btnClear.addEventListener('click', async ()=>{
+      if(!confirm('Sei sicuro di voler svuotare completamente il database? Operazione irreversibile.')) return;
+      try{
+        await clearDB();
+        alert('Database svuotato.');
+        sh('home');
+        refreshDashboard();
+        // reset buffer scatti
+        _captured = [];
+        // pulisci anteprima/miniature se sei su form
+        const preview = document.getElementById('photoPreview');
+        if(preview){ preview.removeAttribute('src'); if(typeof updateEmptyHint==='function') updateEmptyHint(); }
+        const strip = document.getElementById('thumbStrip');
+        if(strip) strip.innerHTML = '';
+      }catch(err){
+        alert('Errore durante lo svuotamento del database.');
+      }
+    });
+  }
+
   const _stSel=document.getElementById('statoPratica'); if(_stSel){ _stSel.addEventListener('change', updateCompletionUI); }
   $('#btnHome').onclick=()=>{sh('home');refreshDashboard();};
   $('#btnSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
   $('#newRecord').onclick=nuovo; $('#goSearch').onclick=()=>{currentFilter=null;sh('search');lista();};
   $('#cancelForm').onclick=()=>{sh('home');refreshDashboard();};
   $('#saveRecord').onclick=salva;
+
+  // Ricerca (filtri tecnici)
   $('#btnDoSearch').onclick=lista; $('#q').addEventListener('input',debouncedSearch);
   $('#btnApplyFilters').onclick=()=>{techFilters.battCollettore=$('#f_battCollettore').value||'';techFilters.lunghezzaAsse=$('#f_lunghezzaAsse').value||'';techFilters.lunghezzaPacco=$('#f_lunghezzaPacco').value||'';techFilters.larghezzaPacco=$('#f_larghezzaPacco').value||'';techFilters.punta=$('#f_punta').value||'';techFilters.numPunte=$('#f_numPunte').value||'';lista();};
   $('#btnResetFilters').onclick=()=>{['f_battCollettore','f_lunghezzaAsse','f_lunghezzaPacco','f_larghezzaPacco','f_numPunte'].forEach(id=>{$('#'+id).value='';});$('#f_punta').value='';Object.keys(techFilters).forEach(k=>techFilters[k]='');lista();};
-  ['kpiTotBtn','kpiAttesaBtn','kpiLavorBtn','kpiComplBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('click',()=>goToSearchWithFilter(el.dataset.filter));});
+  ['kpiTotBtn','kpiAttesaBtn','kpiLavorBtn','kpiSoonBtn','kpiComplBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('click',()=>goToSearchWithFilter(el.dataset.filter));});
   $('#btnClearFilter').onclick=()=>{currentFilter=null;lista();};
+
+  // backup
   $('#exportZip').onclick=backup; $('#importZip').addEventListener('change',ripristina);
+
+  // delete
   $('#confirmDeleteBtn').addEventListener('click', async ()=>{if(!deleteTargetId)return;await deleteRecord(deleteTargetId);deleteTargetId=null;bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal')).hide();lista();refreshDashboard();});
+
+  // foto preview
   $('#photoInput').addEventListener('change',async e=>{const f=e.target.files?.[0];if(f)$('#photoPreview').src=await f2url(f);});
   $('#photoPreview').addEventListener('click',()=>{ const src=$('#photoPreview').src; if(!src) return; $('#imgCenter').src=src; new bootstrap.Modal('#imgModalCenter').show(); });
+
+  
+  // Gestione hint vuoto dell'anteprima (destra)
   const emptyHint = document.getElementById('emptyHint');
   const previewImg = document.getElementById('photoPreview');
-  function updateEmptyHint(){ if(previewImg && emptyHint){ const hasSrc = !!previewImg.getAttribute('src'); emptyHint.style.display = hasSrc ? 'none' : 'block'; } }
+  function updateEmptyHint(){
+    if(previewImg && emptyHint){
+      const hasSrc = !!previewImg.getAttribute('src');
+      emptyHint.style.display = hasSrc ? 'none' : 'block';
+    }
+  }
   updateEmptyHint();
   document.getElementById('photoInput').addEventListener('change', async e=>{
     const f = e.target.files && e.target.files[0];
@@ -631,6 +1037,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       previewImg.removeAttribute('src'); updateEmptyHint();
     }
   });
+
+  
+  // === Gestione miniature e anteprima ===
   const thumbStrip = document.getElementById('thumbStrip');
   function clearThumbs(){ if(thumbStrip) thumbStrip.innerHTML=''; }
   function addThumb(src, active=false){
@@ -672,19 +1081,68 @@ document.addEventListener('DOMContentLoaded',()=>{
       }
     }, { capture: true });
   }
-
-  // Focus guard per aria-hidden warning
-  const modalEl = document.getElementById('detailModal');
-  modalEl.addEventListener('hide.bs.modal', () => {
-    if (modalEl.contains(document.activeElement)) document.activeElement.blur();
-  });
+  // Estendo modifica() per popolare miniature da archivio
+  const __orig_modifica = modifica;
+  modifica = async function(id){
+    await __orig_modifica(id);
+    if(!thumbStrip) return;
+    clearThumbs();
+    try{
+      const p = await getPhotos(id);
+      const imgs = (p && p.images) ? p.images : [];
+      if(imgs.length){
+        const preview = document.getElementById('photoPreview');
+        if(preview && !preview.src) preview.src = imgs[0];
+        addThumb(imgs[0], true);
+        for(const s of imgs.slice(1)){ addThumb(s, false); }
+        if(typeof updateEmptyHint==='function') updateEmptyHint();
+      }
+    }catch(err){ /* ignore */ }
+  };
 
   refreshDashboard();
 });
 </script>
 
-<script src="config.js"></script>
+
+<!-- CAMERA MODAL -->
+<div class="modal fade" id="cameraModal" tabindex="-1" aria-labelledby="cameraModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cameraModalLabel">Fotocamera</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+      </div>
+      <div class="modal-body">
+        <div class="ratio ratio-4x3 border rounded bg-dark d-flex align-items-center justify-content-center">
+          <video id="cameraVideo" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+          <canvas id="cameraCanvas" class="d-none" style="width: 100%; height: 100%;"></canvas>
+        </div>
+        <div class="small text-muted mt-2">Suggerimento: su tablet/smartphone verrà usata la fotocamera posteriore quando possibile.</div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div>
+          <button type="button" class="btn btn-outline-secondary" id="btnRetryShot" disabled>Riprova</button>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary" id="btnTakeShot">Scatta</button>
+          <button type="button" class="btn btn-success" id="btnUseShot" disabled>Usa foto</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-singleton.js"></script>
-<script src="app-supabase.v6.3.3.js"></script>
-<script src="app-core.js"></script>
+<script src="./config.js"></script>
+<script src="./app-supabase-bridge.js"></script>
+<script>
+// PWA: registra service worker
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+}
+</script>
+
+</body></html>
+

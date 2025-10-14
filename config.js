@@ -1,1 +1,4 @@
-window.SUPABASE_URL="https://pedmdiljgjgswhfwedno.supabase.co"; window.SUPABASE_ANON="demo";
+// --- Supabase config (public) ---
+// ATTENZIONE: la chiave anon è pubblica per design. Proteggi i dati con RLS su Supabase.
+window.SUPABASE_URL = "https://pedmdiljgjgswhfwedno.supabase.co";
+window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNjgxNTIsImV4cCI6MjA3NTY0NDE1Mn0.4p2T8BJHGjVsj1Bx22Mk1mbYmfh7MX5WpCwxhwi4CmQ";
