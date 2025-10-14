@@ -1,10 +1,12 @@
-<!-- GALLERIA (senza capture) -->
-<input id="photoInput" type="file" accept="image/*" multiple class="d-none">
+<!-- === Foto: Galleria / Fotocamera (iPhone-safe) === -->
 
-<!-- FOTOCAMERA (con capture) -->
-<input id="photoCapture" type="file" accept="image/*" capture="environment" class="d-none">
+<!-- Input Galleria (senza capture) -->
+<input id="photoInput" type="file" accept="image/*" multiple class="visually-hidden">
+
+<!-- Input Fotocamera (con capture) -->
+<input id="photoCapture" type="file" accept="image/*" capture="environment" class="visually-hidden">
 
 <div class="d-flex gap-2 mt-2">
-  <button type="button" id="btnGallery" class="btn btn-secondary">Scegli dalla galleria</button>
-  <button type="button" id="btnCamera"  class="btn btn-outline-primary">Scatta foto</button>
+  <label for="photoInput"  class="btn btn-secondary mb-0">Scegli dalla galleria</label>
+  <label for="photoCapture" class="btn btn-outline-primary mb-0">Scatta foto</label>
 </div>

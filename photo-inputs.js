@@ -1,32 +1,15 @@
-// Handler per Galleria/Fotocamera + anteprima
+// photo-inputs.js — compatibile iPhone (nessun click JS)
 (function(){
-  const byId = id => document.getElementById(id);
-
-  const btnGallery = byId('btnGallery');
-  const btnCamera  = byId('btnCamera');
-  const inpGallery = byId('photoInput');
-  const inpCamera  = byId('photoCapture');
-  const preview    = byId('photoPreview');
-
-  if(btnGallery && inpGallery){
-    btnGallery.addEventListener('click', () => inpGallery.click());
-    inpGallery.addEventListener('change', e => {
-      const f = e.target.files && e.target.files[0];
-      if(f && preview){
-        const url = URL.createObjectURL(f);
-        preview.src = url;
-      }
-    });
+  const prev = document.getElementById('photoPreview');
+  function setPreview(file){
+    if (!file || !prev) return;
+    const url = URL.createObjectURL(file);
+    prev.src = url;
   }
-
-  if(btnCamera && inpCamera){
-    btnCamera.addEventListener('click', () => inpCamera.click());
-    inpCamera.addEventListener('change', e => {
-      const f = e.target.files && e.target.files[0];
-      if(f && preview){
-        const url = URL.createObjectURL(f);
-        preview.src = url;
-      }
-    });
-  }
+  document.getElementById('photoInput')?.addEventListener('change', e=>{
+    setPreview(e.target.files?.[0]);
+  });
+  document.getElementById('photoCapture')?.addEventListener('change', e=>{
+    setPreview(e.target.files?.[0]);
+  });
 })();
