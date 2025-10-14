@@ -1,4 +1,3 @@
-// Creates a single Supabase client and exposes it as window.sb
 (function(){
   if(window.sb && window.sb.__is_singleton) return;
   const url = window.SUPABASE_URL;
