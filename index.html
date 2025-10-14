@@ -166,7 +166,8 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 
 /* Evidenzia scadenze urgenti (<=3 giorni) o scadute */
 .date-urgent{ color: var(--brand-red); font-weight:600; }
-</style></head><body>
+</style>  <link rel="icon" type="image/png" href="icons/icon-192.png">
+</head><body>
 <!-- HEADER -->
 <header class="header-bar position-relative">
   <div class="brand-wrap">
@@ -1135,10 +1136,10 @@ document.addEventListener('DOMContentLoaded',()=>{
 </div>
 
 
-<!-- === Supabase Cloud Sync (added) === -->
+<!-- === Supabase Cloud Sync (patched) === -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="supabase-client.js"></script>
-<script src="cloud-db.js"></script>
+<script src="cloud-db.js?v=2"></script>
 
 </body></html>
