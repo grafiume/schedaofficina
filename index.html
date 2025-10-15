@@ -180,59 +180,64 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   </div>
 </header>
 
-<!-- HOME -->
-<div class="container my-3" id="page-home">
-  <div class="d-flex gap-2 flex-wrap mb-3">
-    <button class="card kpi kpi-link border-top-orange text-start" type="button" data-filter="totali" id="kpiTotBtn">
-      <div class="card-body"><div class="small text-muted">Totali</div><div class="h4 mb-0" id="kpiTot">0</div></div>
-    </button>
-    <button class="card kpi kpi-link border-top-green text-start" type="button" data-filter="attesa" id="kpiAttesaBtn">
-      <div class="card-body"><div class="small text-muted">In attesa</div><div class="h4 mb-0" id="kpiAttesa">0</div></div>
-    </button>
-    <button class="card kpi kpi-link border-top-orange text-start" type="button" data-filter="lavorazione" id="kpiLavorBtn">
-      <div class="card-body"><div class="small text-muted">In lavorazione</div><div class="h4 mb-0" id="kpiLavor">0</div></div>
-    </button>
-    <button class="card kpi kpi-link border-top-red text-start" type="button" data-filter="soon" id="kpiSoonBtn">
-      <div class="card-body"><div class="small text-muted">Scadenze 7gg</div><div class="h4 mb-0" id="kpiSoon">0</div></div>
-    </button>
-    <button class="card kpi kpi-link text-start" type="button" data-filter="completed" id="kpiComplBtn">
-      <div class="card-body"><div class="small text-muted">Completate/Chiuse</div><div class="h4 mb-0" id="kpiCompl">0</div></div>
-    </button>
-  </div>
+/* Home — Tutte le schede aperte (mostra tutti i campi anche vuoti) */
+function renderRecords(records){
+  const root = document.getElementById('cardsAllOpen');
+  if(!root) return;
 
-  <div class="card mb-3">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <span>Tutte le schede (aperte) <span class="small-muted">— esclude Completata</span></span>
-      <div class="btn-group">
-        <button id="newRecord" class="btn btn-primary btn-sm" type="button">+ Nuova scheda</button>
-        <button id="goSearch" class="btn btn-outline-secondary btn-sm" type="button">Vai a Ricerca</button>
+  const L = (label, value) => `
+    <tr>
+      <th style="width:40%;white-space:nowrap">${esc(label)}</th>
+      <td style="width:60%;word-break:break-word">${esc(value ?? '')}</td>
+    </tr>`;
+
+  root.innerHTML = records.map(r => {
+    const stato = (r.statoPratica || r.statopratica || '').toLowerCase();
+    let badge = 'bg-info';
+    if(stato==='in lavorazione') badge='bg-warning';
+    else if(stato==='completata') badge='bg-success';
+    else if(stato==='chiusa') badge='bg-secondary';
+
+    const img = r.coverImg ? `<img src="${r.coverImg}" class="img-fluid w-100 mb-2" style="max-height:240px;object-fit:cover">` : '';
+
+    return `
+      <div class="mb-3 p-2 border rounded shadow-sm bg-white">
+        ${img}
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0 text-truncate">${esc(r.descrizione || r.modello || r.cliente || 'Scheda')}</h6>
+          <span class="badge ${badge}">${esc(r.statoPratica || r.statopratica || 'In attesa')}</span>
+        </div>
+        <table class="table table-sm mb-2">
+          <tbody>
+            ${L('Descrizione', r.descrizione)}
+            ${L('Modello', r.modello)}
+            ${L('Cliente', r.cliente)}
+            ${L('Telefono', r.telefono)}
+            ${L('Email', r.email)}
+            ${L('Punta', r.punta)}
+            ${L('N. punte', r.numPunte || r.numpunte)}
+            ${L('Battuta collettore', r.battCollettore || r.battcollettore)}
+            ${L('Lunghezza pacco', r.lungPacco || r.lungpacco)}
+            ${L('Larghezza pacco', r.largPacco || r.largpacco)}
+            ${L('Lunghezza asse', r.lungAsse || r.lungasse)}
+            ${L('Stato pratica', r.statoPratica || r.statopratica)}
+            ${L('Preventivo', r.preventivoStato || r.preventivostato)}
+            ${L('Documento Trasporto', r.docTrasporto || r.doctrasporto)}
+            ${L('Data apertura', fmtIT(r.dataApertura || r.dataapertura))}
+            ${L('Data accettazione', fmtIT(r.dataAccettazione || r.dataaccettazione))}
+            ${L('Data scadenza', fmtIT(r.dataScadenza || r.datascadenza))}
+            ${L('Note', r.note)}
+          </tbody>
+        </table>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-primary" onclick="apri('${r.id}')">Apri</button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="pdfRec(r,'${r.coverImg||''}')">PDF</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteTargetId='${r.id}';new bootstrap.Modal('#confirmDeleteModal').show();">Elimina</button>
+        </div>
       </div>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-hover align-middle table-list table-fixed">
-        <colgroup>
-          <col style="width:72px"><col style="width:36%"><col style="width:17%">
-          <col style="width:12%"><col style="width:12%"><col class="actions-col">
-        </colgroup>
-        <thead><tr>
-          <th>Foto</th><th>Descrizione/Modello</th><th>Cliente</th><th>Telefono</th>
-          <th>Data arrivo</th><th class="text-end">Azioni</th>
-        </tr></thead>
-        <tbody id="listAllOpenBody"><tr><td colspan="6" class="text-muted">Nessuna scheda</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="d-grid gap-2">
-    <button id="exportZip" class="btn btn-outline-dark" type="button">Backup (ZIP)</button>
-    <label class="btn btn-outline-success" for="importZip">Ripristina da ZIP</label>
-    <input id="importZip" type="file" accept=".zip" hidden>
-  </div>
-  <div class="d-grid gap-2 mt-2">
-    <button id="btnClearDB" class="btn btn-outline-danger" type="button">Svuota database</button>
-  </div>
-</div>
-
+    `;
+  }).join('');
+}
 <!-- FORM -->
 <div class="container my-3 d-none" id="page-form">
   <h4 class="mb-2" id="formTitle">Nuova scheda</h4>
