@@ -202,43 +202,23 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 
   <div class="card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center">
-      <span>Tutte le schede (aperte) <span class="small-muted">— esclude Completata/Chiusa</span></span>
+      <span>Tutte le schede (aperte) <span class="small-muted">— esclude Completata</span></span>
       <div class="btn-group">
         <button id="newRecord" class="btn btn-primary btn-sm" type="button">+ Nuova scheda</button>
         <button id="goSearch" class="btn btn-outline-secondary btn-sm" type="button">Vai a Ricerca</button>
       </div>
     </div>
-
-    <!-- Tabella estesa: include TUTTI i campi, scroll orizzontale su mobile -->
     <div class="table-responsive">
-      <table class="table table-hover align-middle table-list">
-        <thead>
-          <tr>
-            <th>Foto</th>
-            <th>Descrizione</th>
-            <th>Modello</th>
-            <th>Cliente</th>
-            <th>Telefono</th>
-            <th>Email</th>
-            <th>Punta</th>
-            <th>N. punte</th>
-            <th>Battuta collettore</th>
-            <th>Lunghezza pacco</th>
-            <th>Larghezza pacco</th>
-            <th>Lunghezza asse</th>
-            <th>Stato pratica</th>
-            <th>Preventivo</th>
-            <th>Documento Trasporto</th>
-            <th>Data apertura</th>
-            <th>Data accettazione</th>
-            <th>Data scadenza</th>
-            <th>Note</th>
-            <th class="text-end">Azioni</th>
-          </tr>
-        </thead>
-        <tbody id="listAllOpenBody">
-          <tr><td colspan="20" class="text-muted">Nessuna scheda</td></tr>
-        </tbody>
+      <table class="table table-hover align-middle table-list table-fixed">
+        <colgroup>
+          <col style="width:72px"><col style="width:36%"><col style="width:17%">
+          <col style="width:12%"><col style="width:12%"><col class="actions-col">
+        </colgroup>
+        <thead><tr>
+          <th>Foto</th><th>Descrizione/Modello</th><th>Cliente</th><th>Telefono</th>
+          <th>Data arrivo</th><th class="text-end">Azioni</th>
+        </tr></thead>
+        <tbody id="listAllOpenBody"><tr><td colspan="6" class="text-muted">Nessuna scheda</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -252,7 +232,6 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
     <button id="btnClearDB" class="btn btn-outline-danger" type="button">Svuota database</button>
   </div>
 </div>
-
 
 <!-- FORM -->
 <div class="container my-3 d-none" id="page-form">
