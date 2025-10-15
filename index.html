@@ -359,12 +359,17 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 
   <div id="activeFilterBox" class="mb-2 d-none">
     <span class="badge text-bg-info badge-filter" id="activeFilterLabel"></span>
-    <button class="btn btn-sm btn-outline-secondary ms-2" id="btnClearFilter" type="button">Rimuovi filtro</button>
+    <!-- ✅ Aggiunto onclick="sh('home')" -->
+    <button class="btn btn-sm btn-outline-secondary ms-2" id="btnClearFilter" type="button" onclick="sh('home')">Rimuovi filtro</button>
   </div>
 
   <div class="row g-2 mb-2">
-    <div class="col-md-10"><input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT e dati tecnici (ammessi)…"></div>
-    <div class="col-md-2 d-grid"><button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button></div>
+    <div class="col-md-10">
+      <input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT e dati tecnici (ammessi)…">
+    </div>
+    <div class="col-md-2 d-grid">
+      <button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button>
+    </div>
   </div>
 
   <div class="card mb-2">
@@ -377,7 +382,10 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
         <div class="col"><input id="f_larghezzaPacco" class="form-control" placeholder="Larghezza pacco"></div>
         <div class="col d-flex gap-2">
           <select id="f_punta" class="form-select">
-            <option value="">Punta (tutte)</option><option>Destra</option><option>Sinistra</option><option>Dritta</option>
+            <option value="">Punta (tutte)</option>
+            <option>Destra</option>
+            <option>Sinistra</option>
+            <option>Dritta</option>
           </select>
           <input id="f_numPunte" class="form-control input-xxs" inputmode="numeric" pattern="\\d{1,2}" maxlength="2" placeholder="N.">
         </div>
@@ -390,20 +398,40 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   </div>
 
   <div class="table-responsive">
-  <table class="table table-hover align-middle table-fixed" id="tableResults">
-    <colgroup>
-      <col style="width:72px"><col style="width:32%"><col style="width:16%"><col style="width:12%">
-      <col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col class="actions-col">
-    </colgroup>
-    <thead><tr>
-      <th>Foto</th><th>Descrizione/Modello</th><th>Cliente</th><th>Telefono</th>
-      <th>Data arrivo</th><th>Data accettazione</th><th>Data scadenza</th><th>Stato</th><th class="text-end">Azioni</th>
-    </tr></thead>
-    <tbody></tbody>
-  </table>
+    <table class="table table-hover align-middle table-fixed" id="tableResults">
+      <colgroup>
+        <col style="width:72px">
+        <col style="width:32%">
+        <col style="width:16%">
+        <col style="width:12%">
+        <col style="width:10%">
+        <col style="width:10%">
+        <col style="width:10%">
+        <col style="width:10%">
+        <col class="actions-col">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Foto</th>
+          <th>Descrizione/Modello</th>
+          <th>Cliente</th>
+          <th>Telefono</th>
+          <th>Data arrivo</th>
+          <th>Data accettazione</th>
+          <th>Data scadenza</th>
+          <th>Stato</th>
+          <th class="text-end">Azioni</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
-  <nav><ul class="pagination justify-content-center my-2" id="pager"></ul></nav>
+
+  <nav>
+    <ul class="pagination justify-content-center my-2" id="pager"></ul>
+  </nav>
 </div>
+
 
 <!-- DETTAGLIO -->
 <div class="modal fade" id="detailModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
