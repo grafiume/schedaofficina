@@ -279,3 +279,97 @@ window.modifica = async function(id){
   await __orig_modifica(id);
   try { await renderPhotosForRecord(id); } catch(e){ console.warn('renderPhotosForRecord', e); }
 };
+// === BRIDGE FOTO ROBUSTO ===
+
+// 1) client
+function getSB(){
+  return (window.getSupabase && window.getSupabase())
+      || window.sb || window.SB || window.__sb
+      || window.supabaseClient || window.__supabase || window.supabase;
+}
+
+// 2) trova l'id della scheda aperta (fallback multipli)
+function getCurrentRecordId(){
+  // input hidden tipici
+  const sel = ['#id', '#recordId', 'input[name="id"]', 'input[name="record_id"]'];
+  for (const s of sel){
+    const el = document.querySelector(s);
+    if (el && el.value) return el.value.trim();
+  }
+  // da URL (se usi ?id=...)
+  const m = location.search.match(/[?&]id=([0-9a-f\-]{36})/i);
+  if (m) return m[1];
+  return null;
+}
+
+// 3) API
+async function getPhotosByRecordId(id){
+  const sb = getSB();
+  if (!sb || typeof sb.from !== 'function') { console.warn('[photos] client assente'); return null; }
+  const { data, error } = await sb.from('photos').select('images').eq('record_id', id).maybeSingle();
+  if (error) { console.warn('[photos] query error', error); return null; }
+  return data || null;
+}
+
+// 4) UI
+function ensureImg(targetId){
+  let el = document.getElementById(targetId);
+  if (!el || el.tagName !== 'IMG') {
+    const img = document.createElement('img');
+    img.id = targetId;
+    img.className = 'img-fluid';
+    if (el) el.replaceWith(img);
+    else (document.querySelector('#detailPreview, #previewBox, .detail-pane, .preview-area, body')||document.body).appendChild(img);
+    el = img;
+  }
+  return el;
+}
+
+function showPreview(url){
+  const el = ensureImg('photoPreview');
+  el.removeAttribute('srcset');
+  el.src = url;
+}
+
+async function renderPhotosForRecord(id){
+  if (!id) { console.warn('[photos] nessun id'); return; }
+  const p = await getPhotosByRecordId(id);
+  const imgs = (p && Array.isArray(p.images)) ? p.images : [];
+  console.log('[photos] render', id, imgs);
+  if (!imgs.length) return;
+
+  showPreview(imgs[0]);
+
+  const strip = document.getElementById('thumbStrip');
+  if (strip) {
+    strip.innerHTML = '';
+    imgs.forEach(u => {
+      const im = new Image();
+      im.src = u;
+      im.className = 'thumb';
+      im.onclick = () => showPreview(u);
+      strip.appendChild(im);
+    });
+  }
+}
+
+// 5) hook sicuro su modifica(id) + fallback automatici
+const __orig_modifica = window.modifica || (async ()=>{});
+window.modifica = async function(id){
+  await __orig_modifica(id);
+  try { await renderPhotosForRecord(id); } catch(e){ console.warn('[photos] hook modifica', e); }
+};
+
+// 6) trigger automatico al load/pagina dettaglio (se l’id è già presente)
+async function __photosAutostart(){
+  const id = getCurrentRecordId();
+  if (id) { try { await renderPhotosForRecord(id); } catch(e){ console.warn('[photos] autostart', e); } }
+}
+document.addEventListener('DOMContentLoaded', __photosAutostart);
+window.addEventListener('hashchange', __photosAutostart);
+
+// 7) comando manuale per debug da Console
+window.__photosRefresh = async (id) => {
+  await renderPhotosForRecord(id || getCurrentRecordId());
+  console.log('[photos] refresh done');
+};
