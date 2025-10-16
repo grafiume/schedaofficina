@@ -224,3 +224,58 @@
 
   window.apri=apri; window.modifica=modifica;
 })();
+// === Photos bridge (legge da tabella `photos` e mostra anteprima) ===
+function getSB(){
+  return (window.getSupabase && window.getSupabase())
+      || window.sb || window.SB || window.__sb
+      || window.supabaseClient || window.__supabase || window.supabase;
+}
+
+async function getPhotosByRecordId(id){
+  const sb = getSB();
+  if (!sb || typeof sb.from !== 'function') { console.warn('Supabase client assente'); return null; }
+  const { data, error } = await sb.from('photos').select('images').eq('record_id', id).maybeSingle();
+  if (error) { console.warn('getPhotosByRecordId error', error); return null; }
+  return data || null;
+}
+
+function showPreview(url){
+  let el = document.getElementById('photoPreview');
+  if (!el || el.tagName !== 'IMG') {
+    const img = document.createElement('img');
+    img.id = 'photoPreview';
+    img.className = 'img-fluid';
+    if (el) el.replaceWith(img);
+    else (document.querySelector('#detailPreview, #previewBox, .detail-pane, body')||document.body).appendChild(img);
+    el = img;
+  }
+  el.removeAttribute('srcset');
+  el.src = url;
+}
+
+async function renderPhotosForRecord(id){
+  const p = await getPhotosByRecordId(id);
+  const imgs = (p && Array.isArray(p.images)) ? p.images : [];
+  if (imgs.length) {
+    showPreview(imgs[0]);   // anteprima
+    // (opzionale) ricrea la strip di miniature
+    const strip = document.getElementById('thumbStrip');
+    if (strip) {
+      strip.innerHTML = '';
+      imgs.forEach(u => {
+        const im = new Image();
+        im.src = u;
+        im.className = 'thumb';
+        im.onclick = () => showPreview(u);
+        strip.appendChild(im);
+      });
+    }
+  }
+}
+
+// Hook: dopo l’apertura/modifica scheda, aggiorna anche le foto
+const __orig_modifica = window.modifica || (async ()=>{});
+window.modifica = async function(id){
+  await __orig_modifica(id);
+  try { await renderPhotosForRecord(id); } catch(e){ console.warn('renderPhotosForRecord', e); }
+};
