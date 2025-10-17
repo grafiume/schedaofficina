@@ -166,7 +166,8 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 
 /* Evidenzia scadenze urgenti (<=3 giorni) o scadute */
 .date-urgent{ color: var(--brand-red); font-weight:600; }
-</style></head><body>
+</style>  <link rel="icon" type="image/png" href="icons/icon-192.png">
+</head><body>
 <!-- HEADER -->
 <header class="header-bar position-relative">
   <div class="brand-wrap">
@@ -316,7 +317,7 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
               </div>
             </div>
 
-            <div class="col-12"><label class="form-label">Note</label><textarea name="note" rows="2" class="form-control" placeholder="Annotazioni tecniche, lavorazioni, ecc."></textarea></div>
+            <div class="col-12"><label class="form-label">Note</label><textarea name="note" rows="1" class="form-control" placeholder="Note"></textarea></div>
           </div>
         </fieldset>
 
@@ -358,12 +359,17 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
 
   <div id="activeFilterBox" class="mb-2 d-none">
     <span class="badge text-bg-info badge-filter" id="activeFilterLabel"></span>
-    <button class="btn btn-sm btn-outline-secondary ms-2" id="btnClearFilter" type="button">Rimuovi filtro</button>
+    <!-- ✅ Aggiunto onclick="sh('home')" -->
+    <button class="btn btn-sm btn-outline-secondary ms-2" id="btnClearFilter" type="button" onclick="sh('home')">Rimuovi filtro</button>
   </div>
 
   <div class="row g-2 mb-2">
-    <div class="col-md-10"><input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT e dati tecnici (ammessi)…"></div>
-    <div class="col-md-2 d-grid"><button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button></div>
+    <div class="col-md-10">
+      <input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT e dati tecnici (ammessi)…">
+    </div>
+    <div class="col-md-2 d-grid">
+      <button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button>
+    </div>
   </div>
 
   <div class="card mb-2">
@@ -376,7 +382,10 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
         <div class="col"><input id="f_larghezzaPacco" class="form-control" placeholder="Larghezza pacco"></div>
         <div class="col d-flex gap-2">
           <select id="f_punta" class="form-select">
-            <option value="">Punta (tutte)</option><option>Destra</option><option>Sinistra</option><option>Dritta</option>
+            <option value="">Punta (tutte)</option>
+            <option>Destra</option>
+            <option>Sinistra</option>
+            <option>Dritta</option>
           </select>
           <input id="f_numPunte" class="form-control input-xxs" inputmode="numeric" pattern="\\d{1,2}" maxlength="2" placeholder="N.">
         </div>
@@ -389,20 +398,40 @@ legend{font-size:0.95rem;width:auto;padding:0 8px;margin:0;color:#6c757d}
   </div>
 
   <div class="table-responsive">
-  <table class="table table-hover align-middle table-fixed" id="tableResults">
-    <colgroup>
-      <col style="width:72px"><col style="width:32%"><col style="width:16%"><col style="width:12%">
-      <col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col class="actions-col">
-    </colgroup>
-    <thead><tr>
-      <th>Foto</th><th>Descrizione/Modello</th><th>Cliente</th><th>Telefono</th>
-      <th>Data arrivo</th><th>Data accettazione</th><th>Data scadenza</th><th>Stato</th><th class="text-end">Azioni</th>
-    </tr></thead>
-    <tbody></tbody>
-  </table>
+    <table class="table table-hover align-middle table-fixed" id="tableResults">
+      <colgroup>
+        <col style="width:72px">
+        <col style="width:32%">
+        <col style="width:16%">
+        <col style="width:12%">
+        <col style="width:10%">
+        <col style="width:10%">
+        <col style="width:10%">
+        <col style="width:10%">
+        <col class="actions-col">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Foto</th>
+          <th>Descrizione/Modello</th>
+          <th>Cliente</th>
+          <th>Telefono</th>
+          <th>Data arrivo</th>
+          <th>Data accettazione</th>
+          <th>Data scadenza</th>
+          <th>Stato</th>
+          <th class="text-end">Azioni</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
-  <nav><ul class="pagination justify-content-center my-2" id="pager"></ul></nav>
+
+  <nav>
+    <ul class="pagination justify-content-center my-2" id="pager"></ul>
+  </nav>
 </div>
+
 
 <!-- DETTAGLIO -->
 <div class="modal fade" id="detailModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
@@ -532,40 +561,80 @@ function nuovo(){ _captured = [];cur={id:newId(),createdAt:new Date().toISOStrin
 /* Modifica */
 async function modifica(id){const r=await getRecord(id);if(!r){alert('Scheda non trovata');return;}cur=r;const f=$('#recordForm');$('#formTitle').textContent='Modifica scheda';[...f.elements].forEach(el=>{if(el.name&&r[el.name]!=null) el.value=r[el.name];});const s=$('#statoPratica');if(s)s.value=r.statoPratica||'In attesa';const p=$('#preventivoStato');if(p)p.value=r.preventivoStato||'Non inviato';const {images}=await getPhotos(id);$('#photoPreview').src=images[0]||'';const lbl=document.getElementById('statoLabelText'); if(lbl) lbl.textContent='Stato'; const sm=document.getElementById('completataInline'); if(sm) sm.innerHTML='(Chiusa il <span id="completataDate"></span>)'; sh('form'); updateCompletionUI();}
 
-/* Salva */
+/* Salva (patch anti-doppio-click + dedupe + upload solo nuove foto) */
+let __isSaving = false;
+
 async function salva(){
-const f=$('#recordForm');
-  const d=Object.fromEntries(new FormData(f).entries());
+  if (__isSaving) return;      // blocca doppie invocazioni
+  __isSaving = true;
+
+  const f = $('#recordForm');
+  const d = Object.fromEntries(new FormData(f).entries());
   d.id = cur?.id || newId();
   d.updatedAt = new Date().toISOString();
-  if(FORCE_ATTESA) d.statoPratica='In attesa';
-  if(!d.preventivoStato) d.preventivoStato='Non inviato';
+  if (FORCE_ATTESA) d.statoPratica = 'In attesa';
+  if (!d.preventivoStato) d.preventivoStato = 'Non inviato';
+
   // Stato completata => azzera scadenza e memorizza data completamento
-  if(d.statoPratica==='Completata'){ 
-    if(!d.dataCompletamento){ d.dataCompletamento = todayISO(); }
-    d.dataScadenza='';
+  if (d.statoPratica === 'Completata') {
+    if (!d.dataCompletamento) { d.dataCompletamento = todayISO(); }
+    d.dataScadenza = '';
   } else {
-    d.dataCompletamento='';
+    d.dataCompletamento = '';
   }
   // data arrivo = data apertura
   d.dataArrivo = d.dataApertura || '';
 
-  // Foto
-  let full=[],thumbs=[];
-  const fl=$('#photoInput').files;
-  if(fl&&fl.length){for(const file of fl){const data=await f2url(file);full.push(data);thumbs.push(data);}}
-  else{const prev=$('#photoPreview').getAttribute('src');if(prev){full=[prev];thumbs=[prev];}}
+  // Disabilita bottone durante il salvataggio (se esiste)
+  const btn = document.getElementById('btnSalva') 
+           || document.querySelector('#recordForm [type="submit"], #recordForm .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvataggio...'; }
 
-  
-  // Includi anche eventuali scatti fatti con la fotocamera
-  if(Array.isArray(_captured) && _captured.length){
-    full = _captured.concat(full);
-    thumbs = _captured.concat(thumbs);
+  try {
+    // Foto
+    let full = [], thumbs = [];
+    const fl = $('#photoInput').files;
+    if (fl && fl.length) {
+      for (const file of fl) {
+        const data = await f2url(file);
+        full.push(data); thumbs.push(data);
+      }
+    } else {
+      const prev = $('#photoPreview').getAttribute('src');
+      if (prev) { full = [prev]; thumbs = [prev]; }
+    }
+
+    // Includi anche eventuali scatti fatti con la fotocamera
+    if (Array.isArray(_captured) && _captured.length) {
+      full   = _captured.concat(full);
+      thumbs = _captured.concat(thumbs);
+    }
+
+    // DEDUPE nella stessa save
+    full   = Array.from(new Set(full));
+    thumbs = Array.from(new Set(thumbs));
+
+    // Salva record
+    await putRecord(d);
+
+    // Carica SOLO se ci sono nuove foto in data-URL
+    const hasNewDataUrls = full.some(s => typeof s === 'string' && s.startsWith('data:image/'));
+    if (hasNewDataUrls) {
+      await savePhotosWithThumbs(d.id, full, thumbs);
+    }
+
+    _captured = [];
+    alert('Scheda salvata');
+    sh('home');
+    refreshDashboard();
+
+  } catch (err) {
+    console.error(err);
+    alert('Errore durante il salvataggio.');
+  } finally {
+    __isSaving = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Salva scheda'; }
   }
-await putRecord(d);
-  if(full.length||thumbs.length) await savePhotosWithThumbs(d.id,full,thumbs);
-  _captured = [];
-  alert('Scheda salvata'); sh('home'); refreshDashboard();
 }
 
 /* Rendering thumb + apertura full */
@@ -641,15 +710,21 @@ function buildSearchIndex(r){
   return p.join(' ');
 }
 
-/* Filtri tecnici singoli */
+/* Filtri tecnici singoli: MATCH ESATTO (niente "contiene") */
 function matchTechFilters(r){
-  const want=techFilters; const like=(a,b)=>String(a||'').toLowerCase().includes(String(b||'').toLowerCase());
-  if(want.battCollettore && !like(r.battCollettore, want.battCollettore)) return false;
-  if(want.lunghezzaAsse && !like(r.lunghezzaAsse, want.lunghezzaAsse)) return false;
-  if(want.lunghezzaPacco && !like(r.lunghezzaPacco, want.lunghezzaPacco)) return false;
-  if(want.larghezzaPacco && !like(r.larghezzaPacco, want.larghezzaPacco)) return false;
-  if(want.punta && String(r.punta||'')!==String(want.punta)) return false;
-  if(want.numPunte && String(r.numPunte||'')!==String(want.numPunte)) return false;
+  const want = techFilters;
+  const eq = (a,b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+
+  // ⬇️ qui tutti e 4 i campi ora sono “esatti”
+  if (want.battCollettore && !eq(r.battCollettore, want.battCollettore)) return false;
+  if (want.lunghezzaAsse && !eq(r.lunghezzaAsse, want.lunghezzaAsse)) return false;
+  if (want.lunghezzaPacco && !eq(r.lunghezzaPacco, want.lunghezzaPacco)) return false;
+  if (want.larghezzaPacco && !eq(r.larghezzaPacco, want.larghezzaPacco)) return false;
+
+  // Punta e Numero punte già erano “esatti”: li lasciamo così (trim+case-insensitive)
+  if (want.punta && !eq(r.punta, want.punta)) return false;
+  if (want.numPunte && !eq(r.numPunte, want.numPunte)) return false;
+
   return true;
 }
 
@@ -751,56 +826,105 @@ async function lista(){
 
 /* Dettaglio (date IT) */
 async function apri(id){
-  const r=await getRecord(id),{images,thumbs}=await getPhotos(id);const img=images[0]||thumbs[0];
-  const d=$('#detailContent');
-  d.innerHTML=`
-    ${img?`<img class="img-fluid mb-3" src="${img}" id="detailImg" style="cursor:pointer">`:''}
+  const r = await getRecord(id), { images, thumbs } = await getPhotos(id);
+  const img = images[0] || thumbs[0];
+  const d = $('#detailContent');
+  d.innerHTML = `
+    ${img ? `<img class="img-fluid mb-3" src="${img}" id="detailImg" style="cursor:pointer">` : ''}
     <table class="table table-sm">
       <tr><th>Descrizione</th><td>${esc(r.descrizione)}</td></tr>
       <tr><th>Modello</th><td>${esc(r.modello)}</td></tr>
       <tr><th>Cliente</th><td>${esc(r.cliente)}</td></tr>
       <tr><th>Telefono</th><td>${esc(r.telefono)}</td></tr>
       <tr><th>Email</th><td>${esc(r.email)}</td></tr>
-      <tr><th>Punta</th><td>${esc(r.punta||'')} ${r?.numPunte?`(${esc(r.numPunte)} punte)`:''}</td></tr>
-      <tr><th>Stato pratica</th><td>${esc(r.statoPratica||'In attesa')}</td></tr>
-      <tr><th>Preventivo</th><td>${esc(r.preventivoStato||'Non inviato')}</td></tr>
+      <tr><th>Punta</th><td>${esc(r.punta || '')} ${r?.numPunte ? `(${esc(r.numPunte)} punte)` : ''}</td></tr>
+      <tr><th>Battuta collettore</th><td>${esc(r.battCollettore || '')}</td></tr>
+      <tr><th>Lunghezza pacco</th><td>${esc(r.lungPacco || '')}</td></tr>
+      <tr><th>Larghezza pacco</th><td>${esc(r.largPacco || '')}</td></tr>
+      <tr><th>Lunghezza asse</th><td>${esc(r.lungAsse || '')}</td></tr>
+      <tr><th>Stato pratica</th><td>${esc(r.statoPratica || 'In attesa')}</td></tr>
+      <tr><th>Preventivo</th><td>${esc(r.preventivoStato || 'Non inviato')}</td></tr>
       <tr><th>Documento Trasporto</th><td>${esc(r.docTrasporto)}</td></tr>
-      <tr><th>Data apertura</th><td>${fmtIT(r.dataApertura||r.dataArrivo||'')}</td></tr>
+      <tr><th>Data apertura</th><td>${fmtIT(r.dataApertura || r.dataArrivo || '')}</td></tr>
       <tr><th>Data accettazione</th><td>${fmtIT(r.dataAccettazione)}</td></tr>
       <tr><th>Data scadenza</th><td>${fmtIT(r.dataScadenza)}</td></tr>
       <tr><th>Note</th><td>${esc(r.note)}</td></tr>
     </table>`;
-  const modal=new bootstrap.Modal('#detailModal'); modal.show();
-  const imgEl=$('#detailImg'); if(imgEl) imgEl.addEventListener('click',()=>openImg(img));
-  $('#btnPDF').onclick=()=>pdfRec(r,img);
-  $('#btnEdit').onclick=()=>{modal.hide(); modifica(id);};
-  $('#btnDelete').onclick=()=>{ deleteTargetId=id; new bootstrap.Modal('#confirmDeleteModal').show(); };
+  
+  const modal = new bootstrap.Modal('#detailModal'); 
+  modal.show();
+
+  const imgEl = $('#detailImg'); 
+  if (imgEl) imgEl.addEventListener('click', () => openImg(img));
+  
+  $('#btnPDF').onclick = () => pdfRec(r, img);
+  $('#btnEdit').onclick = () => { modal.hide(); modifica(id); };
+  $('#btnDelete').onclick = () => { deleteTargetId = id; new bootstrap.Modal('#confirmDeleteModal').show(); };
 }
 
 /* Full image modal */
 function openImg(src){ if(!src) return; $('#imgFull').src=src; new bootstrap.Modal('#imgModal').show(); }
 
-/* PDF (date IT) */
-function pdfRec(r,img){
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({unit:'pt',format:'a4'});
-  let y=40;
-  doc.setFontSize(18); doc.text('Scheda riparazioni — Riepilogo',40,y); y+=24; doc.setFontSize(12);
-  const L=(l,v)=>{doc.setFont(undefined,'bold');doc.text(l,40,y);doc.setFont(undefined,'normal');doc.text(': '+(v||''),180,y);y+=16;};
-  const map={
-    descrizione:'Descrizione',modello:'Modello',cliente:'Cliente',telefono:'Telefono',email:'Email',
-    punta:'Punta',numPunte:'N. punte',statoPratica:'Stato pratica',preventivoStato:'Preventivo',
-    docTrasporto:'Documento Trasporto',dataApertura:'Data apertura',dataAccettazione:'Data accettazione',
-    dataScadenza:'Data scadenza',note:'Note'
+/* PDF (date IT) — stampa tutti i campi anche se vuoti */
+function pdfRec(r, img){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  let y = 40;
+
+  doc.setFontSize(18);
+  doc.text('Scheda riparazioni — Riepilogo', 40, y);
+  y += 24;
+  doc.setFontSize(12);
+
+  const L = (label, value) => {
+    const v = (value ?? '');
+    doc.setFont(undefined, 'bold');
+    doc.text(String(label), 40, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(': ' + String(v), 180, y);
+    y += 16;
   };
-  Object.keys(map).forEach(k=>{
-    let v=r[k];
-    if(['dataApertura','dataAccettazione','dataScadenza'].includes(k)) v = fmtIT(v);
-    if(k==='numPunte' && !v) return;
-    if(r[k] || v) L(map[k], v);
+
+  const map = {
+    descrizione: 'Descrizione',
+    modello: 'Modello',
+    cliente: 'Cliente',
+    telefono: 'Telefono',
+    email: 'Email',
+    punta: 'Punta',
+    numPunte: 'N. punte',
+    battCollettore: 'Battuta collettore',
+    lungPacco: 'Lunghezza pacco',
+    largPacco: 'Larghezza pacco',
+    lungAsse: 'Lunghezza asse',
+    statoPratica: 'Stato pratica',
+    preventivoStato: 'Preventivo',
+    docTrasporto: 'Documento Trasporto',
+    dataApertura: 'Data apertura',
+    dataAccettazione: 'Data accettazione',
+    dataScadenza: 'Data scadenza',
+    note: 'Note'
+  };
+
+  // Stampa TUTTE le etichette, anche se i valori sono vuoti
+  Object.keys(map).forEach(k => {
+    let v = r ? r[k] : '';
+    if (['dataApertura','dataAccettazione','dataScadenza'].includes(k)) {
+      v = (typeof fmtIT === 'function') ? fmtIT(v) : (v ?? '');
+    }
+    L(map[k], v);
   });
-  if(img){try{doc.addImage(img,'JPEG',40,y+6,500,300);}catch(e){}}
-  doc.save(`Scheda-${(r.descrizione||'').replace(/\s+/g,'_')}-${r.modello||''}.pdf`);
+
+  if (img) {
+    try {
+      doc.addImage(img, 'JPEG', 40, y + 6, 500, 300);
+      y += 312;
+    } catch (e) { /* ignore */ }
+  }
+
+  const safeDesc = ((r && r.descrizione) ? String(r.descrizione) : '').replace(/\s+/g, '_');
+  const safeModel = (r && r.modello) ? String(r.modello) : '';
+  doc.save(`Scheda-${safeDesc}-${safeModel}.pdf`);
 }
 
 /* Backup/Ripristina */
@@ -1134,5 +1258,12 @@ document.addEventListener('DOMContentLoaded',()=>{
   </div>
 </div>
 
-</body></html>
 
+<!-- === Supabase Cloud Sync (patched) === -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="supabase-client.js"></script>
+<script src="cloud-db.v3.js"></script>
+<script src="./photo-inputs.js"></script>
+       
+</body></html>
