@@ -1,6 +1,6 @@
-/*! cloud-db.v3.9.js — Force-Bind Search (IDB-only exact-match incl. note) */
+/*! cloud-db.v3.10.js — Force-Bind + Fallback Renderer (IDB-only exact-match incl. note) */
 (function(){
-  console.log('%c[cloud-db.v3.9] Force-Bind Search override attivo (IDB-only + exact-match incl. note)', 'color:#e07b39');
+  console.log('%c[cloud-db.v3.10] Force-Bind + Fallback Renderer attivo (IDB-only + exact-match incl. note)', 'color:#e07b39');
 
   const norm = v => String(v ?? '').trim().toLowerCase();
   function isExactMatchRecord(r, q){
@@ -16,7 +16,7 @@
 
   async function idbAll(){
     if(typeof window.openDB !== 'function'){
-      console.warn('[v3.9] openDB non definito, impossibile leggere IDB');
+      console.warn('[v3.10] openDB non definito, impossibile leggere IDB');
       return [];
     }
     const db = await window.openDB();
@@ -28,12 +28,65 @@
     });
   }
 
+  function fmtIT(v){
+    try{
+      if(!v) return '';
+      const d = new Date(v);
+      if(isNaN(d)) return '';
+      return d.toLocaleDateString('it-IT');
+    }catch(_){ return ''; }
+  }
+  function safe(s){ return String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+
+  async function fallbackRender(rows){
+    try{
+      const tb = document.querySelector('#tableResults tbody');
+      if(!tb){ console.warn('[v3.10] fallbackRender: tbody non trovato'); return; }
+      tb.innerHTML = '';
+
+      if(!rows.length){
+        tb.innerHTML = `<tr><td colspan="9" class="text-muted">Nessun risultato.</td></tr>`;
+        return;
+      }
+
+      const slice = rows.slice(0, 50);
+      for(const r of slice){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><!-- thumb n/d in fallback --></td>
+          <td class="desc-col"><strong>${safe(r.descrizione)}</strong> ${safe(r.modello)}</td>
+          <td class="nowrap">${safe(r.cliente)}</td>
+          <td class="nowrap">${safe(r.telefono)}</td>
+          <td class="nowrap">${fmtIT(r.dataApertura || r.dataArrivo || '')}</td>
+          <td class="nowrap">${fmtIT(r.dataAccettazione)}</td>
+          <td class="nowrap">${fmtIT(r.dataScadenza)}</td>
+          <td class="nowrap">${safe(r.statoPratica || '')}</td>
+          <td class="text-end nowrap">
+            <div class="btn-group">
+              <button class="btn btn-sm btn-outline-primary" data-open="${r.id}">Apri</button>
+              <button class="btn btn-sm btn-outline-success" data-edit="${r.id}">Modifica</button>
+            </div>
+          </td>`;
+        tb.appendChild(tr);
+      }
+      tb.querySelectorAll('button[data-open]').forEach(b=>{
+        b.addEventListener('click', ()=>{ if(typeof window.apri==='function') window.apri(b.dataset.open); });
+      });
+      tb.querySelectorAll('button[data-edit]').forEach(b=>{
+        b.addEventListener('click', ()=>{ if(typeof window.modifica==='function') window.modifica(b.dataset.edit); });
+      });
+      console.log('[v3.10] fallbackRender completato:', slice.length, 'righe');
+    }catch(err){
+      console.error('[v3.10] fallbackRender err:', err);
+    }
+  }
+
   const __orig_lista = window.lista;
   async function lista_override(){
     const t0 = performance.now();
     try{
       if(typeof window.openDB !== 'function'){
-        console.warn('[v3.9] openDB assente, fallback lista() originale');
+        console.warn('[v3.10] openDB assente, fallback lista() originale');
         if(typeof __orig_lista === 'function') return await __orig_lista();
         return;
       }
@@ -68,6 +121,7 @@
 
       rows.sort((a,b)=>(String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))));
 
+      // badge filtro attivo
       const box = document.getElementById('activeFilterBox');
       const lab = document.getElementById('activeFilterLabel');
       if(box && lab){
@@ -81,17 +135,31 @@
         }
       }
 
-      window.searchRows = rows;
-      window.page = 1;
-      if(typeof window.renderPager === 'function') window.renderPager(window.searchRows.length);
-      if(typeof window.drawListPage === 'function') await window.drawListPage();
+      // standard pipeline
+      let standardRendered = false;
+      try{
+        window.searchRows = rows;
+        window.page = 1;
+        if(typeof window.renderPager === 'function') window.renderPager(window.searchRows.length);
+        if(typeof window.drawListPage === 'function'){
+          await window.drawListPage();
+          standardRendered = true;
+          console.log('[v3.10] drawListPage OK');
+        }
+      }catch(e){
+        console.warn('[v3.10] drawListPage ha dato errore, uso fallbackRender:', e?.message || e);
+      }
+
+      if(!standardRendered){
+        await fallbackRender(rows);
+      }
 
       const t1 = performance.now();
-      console.log(`[v3.9] lista(): IDB total:${totalBefore} -> afterFilter:${afterFilter} -> afterSearch:${afterSearch} -> afterTech:${afterTech} | ${Math.round(t1-t0)}ms`);
+      console.log(`[v3.10] lista(): IDB total:${totalBefore} -> afterFilter:${afterFilter} -> afterSearch:${afterSearch} -> afterTech:${afterTech} | ${Math.round(t1-t0)}ms`);
     }catch(err){
-      console.error('[cloud-db.v3.9] lista():', err);
+      console.error('[cloud-db.v3.10] lista():', err);
       if(typeof __orig_lista === 'function'){
-        try{ return await __orig_lista(); }catch(e){ console.error('[cloud-db.v3.9] fallback lista() err:', e); }
+        try{ return await __orig_lista(); }catch(e){ console.error('[cloud-db.v3.10] fallback lista() err:', e); }
       }
     }
   }
@@ -105,9 +173,9 @@
       if(q){
         q.addEventListener('input', ()=>{ window.lista && window.lista(); }, { passive:true });
       }
-      console.log('[v3.9] forceBind: handlers ricollegati');
+      console.log('[v3.10] forceBind: handlers ricollegati');
     }catch(e){
-      console.warn('[v3.9] forceBind err', e);
+      console.warn('[v3.10] forceBind err', e);
     }
   }
 
@@ -126,7 +194,7 @@
       }
       return r;
     };
-    console.log('[v3.9] sh() wrapped');
+    console.log('[v3.10] sh() wrapped');
   }
 
   const __orig_go = window.goToSearchWithFilter;
@@ -136,6 +204,6 @@
       setTimeout(()=>{ if(typeof window.lista === 'function') window.lista(); }, 0);
       return r;
     };
-    console.log('[v3.9] goToSearchWithFilter() wrapped');
+    console.log('[v3.10] goToSearchWithFilter() wrapped');
   }
 })();
