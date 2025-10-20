@@ -1,209 +1,98 @@
-/*! cloud-db.v3.10.js — Force-Bind + Fallback Renderer (IDB-only exact-match incl. note) */
-(function(){
-  console.log('%c[cloud-db.v3.10] Force-Bind + Fallback Renderer attivo (IDB-only + exact-match incl. note)', 'color:#e07b39');
+/* cloud-db.js (v3.1) — dedupe uploads to avoid duplicate photos */
+if(!window.sb){ console.error("[cloud-db] Supabase client assente"); }
+function toNullEmpty(v){ return (v===undefined || v==='') ? null : v; }
 
-  const norm = v => String(v ?? '').trim().toLowerCase();
-  function isExactMatchRecord(r, q){
-    const needle = norm(q);
-    const fields = [
-      'descrizione','modello','cliente','telefono','docTrasporto',
-      'battCollettore','lunghezzaAsse','lunghezzaPacco','larghezzaPacco',
-      'punta','numPunte','note'
-    ];
-    for(const k of fields){ if(norm(r?.[k]) === needle) return true; }
-    return false;
-  }
+async function putRecord(v){
+  const row = {
+    id:v.id, descrizione:v.descrizione??null, modello:v.modello??null, cliente:v.cliente??null,
+    telefono:v.telefono??null, email:v.email??null, punta:v.punta??null, numPunte:v.numPunte??null,
+    statoPratica:v.statoPratica??'In attesa', preventivoStato:v.preventivoStato??'Non inviato',
+    docTrasporto:v.docTrasporto??null, dataApertura:toNullEmpty(v.dataApertura),
+    dataAccettazione:toNullEmpty(v.dataAccettazione), dataScadenza:toNullEmpty(v.dataScadenza),
+    dataArrivo:toNullEmpty(v.dataArrivo), dataCompletamento:toNullEmpty(v.dataCompletamento),
+    note:v.note??null, createdAt:v.createdAt??new Date().toISOString(), updatedAt:new Date().toISOString()
+  };
+  const { error } = await sb.from('records').upsert(row, { onConflict:'id' });
+  if(error){ console.error(error); throw error; }
+}
 
-  async function idbAll(){
-    if(typeof window.openDB !== 'function'){
-      console.warn('[v3.10] openDB non definito, impossibile leggere IDB');
-      return [];
-    }
-    const db = await window.openDB();
-    return await new Promise((res, rej)=>{
-      const tx = db.transaction('records','readonly');
-      const q  = tx.objectStore('records').getAll();
-      q.onsuccess = ()=> res(q.result || []);
-      q.onerror   = ()=> rej(q.error);
-    });
-  }
+async function getRecord(id){ const {data,error}=await sb.from('records').select('*').eq('id',id).single(); if(error) throw error; return data; }
+async function getAllRecords(){ const {data,error}=await sb.from('records').select('*').order('updatedAt',{ascending:false}); if(error) throw error; return data||[]; }
+async function getByStato(st){ const {data,error}=await sb.from('records').select('*').eq('statoPratica',st).order('updatedAt',{ascending:false}); if(error) throw error; return data||[]; }
+async function deleteRecord(id){ try{ const {data:ph}=await sb.from('photos').select('path').eq('record_id',id); const del=(ph||[]).map(p=>p.path).filter(Boolean); if(del.length) await sb.storage.from(window.SB_BUCKET||'photos').remove(del); await sb.from('photos').delete().eq('record_id',id);}catch(_){} const {error}=await sb.from('records').delete().eq('id',id); if(error) throw error; }
 
-  function fmtIT(v){
-    try{
-      if(!v) return '';
-      const d = new Date(v);
-      if(isNaN(d)) return '';
-      return d.toLocaleDateString('it-IT');
-    }catch(_){ return ''; }
-  }
-  function safe(s){ return String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+// --- DEDUPE GUARD MEMORY
+window.__photoUploadGuards = window.__photoUploadGuards || {};
 
-  async function fallbackRender(rows){
-    try{
-      const tb = document.querySelector('#tableResults tbody');
-      if(!tb){ console.warn('[v3.10] fallbackRender: tbody non trovato'); return; }
-      tb.innerHTML = '';
+async function savePhotosWithThumbs(recordId, images, thumbs){
+  if(!images || !images.length) return;
 
-      if(!rows.length){
-        tb.innerHTML = `<tr><td colspan="9" class="text-muted">Nessun risultato.</td></tr>`;
-        return;
-      }
+  // evita doppie chiamate contemporanee sullo stesso record
+  if(window.__photoUploadGuards[recordId]) return;
+  window.__photoUploadGuards[recordId] = true;
 
-      const slice = rows.slice(0, 50);
-      for(const r of slice){
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><!-- thumb n/d in fallback --></td>
-          <td class="desc-col"><strong>${safe(r.descrizione)}</strong> ${safe(r.modello)}</td>
-          <td class="nowrap">${safe(r.cliente)}</td>
-          <td class="nowrap">${safe(r.telefono)}</td>
-          <td class="nowrap">${fmtIT(r.dataApertura || r.dataArrivo || '')}</td>
-          <td class="nowrap">${fmtIT(r.dataAccettazione)}</td>
-          <td class="nowrap">${fmtIT(r.dataScadenza)}</td>
-          <td class="nowrap">${safe(r.statoPratica || '')}</td>
-          <td class="text-end nowrap">
-            <div class="btn-group">
-              <button class="btn btn-sm btn-outline-primary" data-open="${r.id}">Apri</button>
-              <button class="btn btn-sm btn-outline-success" data-edit="${r.id}">Modifica</button>
-            </div>
-          </td>`;
-        tb.appendChild(tr);
-      }
-      tb.querySelectorAll('button[data-open]').forEach(b=>{
-        b.addEventListener('click', ()=>{ if(typeof window.apri==='function') window.apri(b.dataset.open); });
-      });
-      tb.querySelectorAll('button[data-edit]').forEach(b=>{
-        b.addEventListener('click', ()=>{ if(typeof window.modifica==='function') window.modifica(b.dataset.edit); });
-      });
-      console.log('[v3.10] fallbackRender completato:', slice.length, 'righe');
-    }catch(err){
-      console.error('[v3.10] fallbackRender err:', err);
-    }
-  }
+  try {
+    // carica solo data-URL (nuove foto)
+    const onlyData = images.filter(s => typeof s === 'string' && s.startsWith('data:image/'));
+    if(!onlyData.length) return;
 
-  const __orig_lista = window.lista;
-  async function lista_override(){
-    const t0 = performance.now();
-    try{
-      if(typeof window.openDB !== 'function'){
-        console.warn('[v3.10] openDB assente, fallback lista() originale');
-        if(typeof __orig_lista === 'function') return await __orig_lista();
-        return;
-      }
-      const qEl = document.getElementById('q');
-      const q = qEl ? qEl.value : '';
-      const qn = norm(q);
+    // deduplica dataURL identici nella stessa save
+    const toUpload = Array.from(new Set(onlyData));
 
-      let rows = await idbAll();
-      const totalBefore = rows.length;
-
-      if(window.currentFilter === 'attesa'){
-        rows = rows.filter(r => (r.statoPratica||'') === 'In attesa');
-      }else if(window.currentFilter === 'lavorazione'){
-        rows = rows.filter(r => (r.statoPratica||'') === 'In lavorazione');
-      }else if(window.currentFilter === 'completed'){
-        rows = rows.filter(r => (r.statoPratica||'') === 'Completata' || (r.statoPratica||'') === 'Consegnata');
-      }
-      if(window.currentFilter === 'soon' && typeof window.isSoon==='function' && typeof window.parseDate==='function'){
-        rows = rows.filter(r => window.isSoon(window.parseDate(r.dataScadenza)));
-      }
-      const afterFilter = rows.length;
-
-      if(qn){
-        rows = rows.filter(r => isExactMatchRecord(r, qn));
-      }
-      const afterSearch = rows.length;
-
-      if(typeof window.matchTechFilters === 'function'){
-        rows = rows.filter(window.matchTechFilters);
-      }
-      const afterTech = rows.length;
-
-      rows.sort((a,b)=>(String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))));
-
-      // badge filtro attivo
-      const box = document.getElementById('activeFilterBox');
-      const lab = document.getElementById('activeFilterLabel');
-      if(box && lab){
-        if(window.currentFilter){
-          box.classList.remove('d-none');
-          const lbl = (window.FILTER_LABELS && window.FILTER_LABELS[window.currentFilter]) || 'Filtro attivo';
-          lab.textContent = lbl;
-        }else{
-          box.classList.add('d-none');
-          lab.textContent = '';
-        }
-      }
-
-      // standard pipeline
-      let standardRendered = false;
+    for(let i=0;i<toUpload.length;i++){
       try{
-        window.searchRows = rows;
-        window.page = 1;
-        if(typeof window.renderPager === 'function') window.renderPager(window.searchRows.length);
-        if(typeof window.drawListPage === 'function'){
-          await window.drawListPage();
-          standardRendered = true;
-          console.log('[v3.10] drawListPage OK');
+        const dataUrl = toUpload[i];
+        const parts = dataUrl.split(','); if(parts.length<2) continue;
+        const base64 = parts[1];
+        const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+        const path  = `${recordId}/${Date.now()}-${i+1}.jpg`;
+
+        const up = await sb.storage.from(window.SB_BUCKET||'photos')
+          .upload(path, bytes, { contentType:'image/jpeg', upsert:false });
+
+        if(up.error && !(up.error.message||'').includes('already exists')){
+          console.warn('[upload photo]', up.error); continue;
         }
-      }catch(e){
-        console.warn('[v3.10] drawListPage ha dato errore, uso fallbackRender:', e?.message || e);
-      }
 
-      if(!standardRendered){
-        await fallbackRender(rows);
-      }
+        const ins = await sb.from('photos').insert({ record_id: recordId, path });
+        if(ins.error){ console.warn('[photos insert]', ins.error); }
 
-      const t1 = performance.now();
-      console.log(`[v3.10] lista(): IDB total:${totalBefore} -> afterFilter:${afterFilter} -> afterSearch:${afterSearch} -> afterTech:${afterTech} | ${Math.round(t1-t0)}ms`);
-    }catch(err){
-      console.error('[cloud-db.v3.10] lista():', err);
-      if(typeof __orig_lista === 'function'){
-        try{ return await __orig_lista(); }catch(e){ console.error('[cloud-db.v3.10] fallback lista() err:', e); }
-      }
+        // aggiorna anteprima con l'ultima foto caricata
+        const pub = sb.storage.from(window.SB_BUCKET||'photos').getPublicUrl(path);
+        const url = (pub && pub.data && pub.data.publicUrl) ? pub.data.publicUrl : '';
+        if(url){ const preview = document.getElementById('photoPreview'); if(preview) preview.src = url; }
+
+      }catch(e){ console.warn('[savePhotosWithThumbs] skip image', e); }
+      await new Promise(r=>setTimeout(r, 40)); // piccolo respiro
     }
+  } finally {
+    // rilascia guard dopo un tick (evita re-entry immediati)
+    setTimeout(()=>{ delete window.__photoUploadGuards[recordId]; }, 150);
   }
-  window.lista = lista_override;
+}
 
-  function forceBind(){
-    try{
-      const btn = document.getElementById('btnDoSearch');
-      if(btn){ btn.onclick = lista_override; }
-      const q = document.getElementById('q');
-      if(q){
-        q.addEventListener('input', ()=>{ window.lista && window.lista(); }, { passive:true });
-      }
-      console.log('[v3.10] forceBind: handlers ricollegati');
-    }catch(e){
-      console.warn('[v3.10] forceBind err', e);
-    }
+async function getPhotos(recordId){
+  const {data,error}=await sb.from('photos').select('path').eq('record_id',recordId).order('created_at',{ascending:false});
+  if(error){ console.error('[getPhotos]', error); return {images:[], thumbs:[]} }
+  const images=[];
+  for(const row of (data||[])){
+    if(!row || !row.path) continue;
+    const pub=sb.storage.from(window.SB_BUCKET||'photos').getPublicUrl(row.path);
+    const url=(pub && pub.data && pub.data.publicUrl) ? String(pub.data.publicUrl) : '';
+    if(url) images.push(url);
   }
+  return { images, thumbs: images };
+}
 
-  if(document.readyState === 'complete' || document.readyState === 'interactive'){
-    forceBind();
-  }else{
-    document.addEventListener('DOMContentLoaded', forceBind, { once:true });
-  }
-
-  const __orig_sh = window.sh;
-  if(typeof __orig_sh === 'function'){
-    window.sh = function(n){
-      const r = __orig_sh.apply(this, arguments);
-      if(n === 'search'){
-        setTimeout(()=>{ if(typeof window.lista === 'function') window.lista(); }, 0);
-      }
-      return r;
-    };
-    console.log('[v3.10] sh() wrapped');
-  }
-
-  const __orig_go = window.goToSearchWithFilter;
-  if(typeof __orig_go === 'function'){
-    window.goToSearchWithFilter = function(filterKey){
-      const r = __orig_go.apply(this, arguments);
-      setTimeout(()=>{ if(typeof window.lista === 'function') window.lista(); }, 0);
-      return r;
-    };
-    console.log('[v3.10] goToSearchWithFilter() wrapped');
-  }
-})();
+(function(){ try{
+  const ch1 = sb.channel('records-ch').on('postgres_changes',{event:'*',schema:'public',table:'records'},()=>{
+    if(typeof refreshDashboard==='function') refreshDashboard();
+    if(typeof lista==='function') lista();
+  }).subscribe();
+  const ch2 = sb.channel('photos-ch').on('postgres_changes',{event:'*',schema:'public',table:'photos'},()=>{
+    if(typeof refreshDashboard==='function') refreshDashboard();
+  }).subscribe();
+  window.__sb_channels=[ch1,ch2];
+  window.addEventListener('focus',()=>{ if(typeof refreshDashboard==='function') refreshDashboard(); });
+  console.log('[realtime] attivo');
+}catch(err){ console.warn('[realtime] non attivo:', err?.message||err); } })();
