@@ -1,11 +1,10 @@
 
 /*!
- * search-notes-addon.v1.js  (rev3, strict note-only)
- * Cambiamenti principali:
- * - La ricerca "Note (match esatto)" NON richiama più il flusso di ricerca generale dell'app.
- * - Se disponibile Supabase, usa .ilike('note', value) SENZA wildcard per un match esatto case-insensitive.
- * - I risultati vengono renderizzati in un pannello dedicato dentro la card delle Note.
- * - Rimuovi = cancella pannello e disattiva modalità, senza toccare altri risultati.
+ * search-notes-addon.v1.js  (rev4, robust client detect + strict exact)
+ * - Rileva il client Supabase anche se esposto via getSupabase(), sb, __supabaseClient, ecc.
+ * - Query in ordine: eq('note', raw) → ilike('note', raw) → filtro client norm-equal.
+ * - UI risultati autonoma, zero dipendenze dal renderer dell'app.
+ * - NESSUNA modifica a index.html necessaria.
  */
 (function () {
   const LOG_PREFIX = "[notes-addon]";
@@ -13,7 +12,20 @@
   const $$ = (sel, ctx=document) => Array.from(ctx.querySelectorAll(sel));
   const safeStr = (v) => (v == null ? "" : String(v));
   const norm = (v) => safeStr(v).toLowerCase().trim().replace(/\s+/g, " ");
-  const hasSupabase = !!(window.supabase && typeof window.supabase.from === "function");
+
+  function resolveSupabase() {
+    try {
+      if (window.supabase && typeof window.supabase.from === "function") return window.supabase;
+      if (typeof window.getSupabase === "function") {
+        const c = window.getSupabase();
+        if (c && typeof c.from === "function") return c;
+      }
+      if (window.sb && typeof window.sb.from === "function") return window.sb;
+      if (window.__supabase && typeof window.__supabase.from === "function") return window.__supabase;
+      if (window.__supabaseClient && typeof window.__supabaseClient.from === "function") return window.__supabaseClient;
+    } catch (e) {}
+    return null;
+  }
 
   // Stato modalità "solo note"
   window.__NOTE_SEARCH_ACTIVE = false;
@@ -43,15 +55,21 @@
     return res;
   }
 
-  function renderResults(data, rawQuery) {
+  function renderStatus(msg, type="secondary") {
+    const res = ensureResultsBox();
+    if (!res) return;
+    res.innerHTML = `<div class="alert alert-${type} my-2">${msg}</div>`;
+  }
+
+  function renderResults(data, rawQuery, diag) {
     const res = ensureResultsBox();
     if (!res) return;
     const arr = Array.isArray(data) ? data : [];
     if (!arr.length) {
-      res.innerHTML = `<div class="alert alert-warning my-2">Nessun record con <strong>note = "${escapeHtml(rawQuery)}"</strong>.</div>`;
+      res.innerHTML = `<div class="alert alert-warning my-2">Nessun record con <strong>note = "${escapeHtml(rawQuery)}"</strong>.</div>`
+        + (diag ? `<div class="small text-muted">${diag}</div>` : "");
       return;
     }
-    // Render compatto con campi utili
     const rows = arr.map(r => {
       const id = safeStr(r.id);
       const numero = safeStr(r.numero || "");
@@ -77,6 +95,7 @@
       <div class="mt-2">
         <div class="small text-muted mb-2">Vista filtrata: <code>note = "${escapeHtml(rawQuery)}"</code> (match esatto, case-insensitive)</div>
         ${rows}
+        ${diag ? `<div class="small text-muted mt-2">${diag}</div>` : ""}
       </div>
     `;
   }
@@ -115,7 +134,7 @@
       '    <div class="col-md-2 d-grid"><button id="btnNoteExact" class="btn btn-primary" type="button">Cerca Note</button></div>',
       '    <div class="col-md-2 d-grid"><button id="btnNoteClear" class="btn btn-outline-secondary" type="button">Rimuovi</button></div>',
       '  </div>',
-      '  <div class="small text-muted mt-2">Case-insensitive. Non usa la ricerca generale, mostra qui i risultati esatti su <code>note</code>.</div>',
+      '  <div class="small text-muted mt-2">Case-insensitive. Ricerca dedicata su <code>note</code>, indipendente dalla ricerca generale.</div>',
       '</div>'
     ].join("");
 
@@ -135,28 +154,37 @@
       clearResults();
       if (!raw) return;
 
-      if (hasSupabase) {
-        try {
-          // ilike senza wildcard → uguaglianza case-insensitive
-          const { data, error } = await window.supabase
-            .from("records")
-            .select("*")
-            .ilike("note", raw);
-          if (error) throw error;
-          // Sicurezza extra: filtro client per coerenza (spazi/normalizzazione)
-          const target = norm(raw);
-          const out = (data || []).filter(r => norm(r && r.note) === target);
-          renderResults(out, raw);
-          return;
-        } catch (e) {
-          console.warn(LOG_PREFIX, "Supabase ilike(note) fallita:", e);
-          renderResults([], raw);
-          return;
-        }
-      } else {
-        // Nessun supabase disponibile → impossibile garantire risultati corretti
-        renderResults([], raw);
+      const sb = resolveSupabase();
+      if (!sb) {
+        renderStatus('Nessun client Supabase rilevato. Verifica che il client sia esposto come <code>window.supabase</code> o <code>window.getSupabase()</code>.', "danger");
         return;
+      }
+
+      try {
+        // Step 1: eq — match esatto case-sensitive sul DB
+        let diag = "";
+        let data = null, error = null;
+
+        ({ data, error } = await sb.from("records").select("*").eq("note", raw));
+        diag += `Query: eq(note, "${escapeHtml(raw)}") → ${(data && data.length) || 0} risultati. `;
+        if (error) diag += `Errore eq: ${escapeHtml(safeStr(error.message))}. `;
+
+        // Step 2: se eq non trova nulla, prova ilike (case-insensitive) senza wildcard
+        if (!error && (!data || data.length === 0)) {
+          let res2 = await sb.from("records").select("*").ilike("note", raw);
+          data = res2.data;
+          if (res2.error) diag += `Errore ilike: ${escapeHtml(safeStr(res2.error.message))}. `;
+          else diag += `Query: ilike(note, "${escapeHtml(raw)}") → ${(data && data.length) || 0} risultati. `;
+        }
+
+        // Step 3: filtro client rigoroso (norm equality), utile se nel DB compaiono spazi o maiuscole/minuscole
+        const target = norm(raw);
+        const out = (data || []).filter(r => norm(r && r.note) === target);
+
+        renderResults(out, raw, diag + ` | Post-filtro (norm eq) → ${out.length} risultati.`);
+      } catch (e) {
+        console.warn(LOG_PREFIX, "Errore ricerca note:", e);
+        renderStatus("Errore durante la ricerca. Dettagli console.", "danger");
       }
     });
 
@@ -173,11 +201,11 @@
       clearResults();
     });
 
-    console.log(LOG_PREFIX, "UI Note (match esatto) iniettata. Supabase:", hasSupabase ? "OK" : "NO");
+    const sb = resolveSupabase();
+    console.log(LOG_PREFIX, "UI Note (match esatto) iniettata. Supabase:", sb ? "OK" : "NO");
   }
 
-  // ========== Ricerca generale: opzionale supporto quote per parola intera ==========
-  // (rimane disponibile ma indipendente dalla ricerca Note)
+  // ========== Ricerca generale (opzionale) ==========
   function buildWordBoundaryRegex(needle) {
     const esc = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp(`(^|[^\\p{L}\\p{N}_])${esc}([^\\p{L}\\p{N}_]|$)`, "iu");
