@@ -1,10 +1,13 @@
 
 /*!
- * search-notes-addon.v1.js  (rev4, robust client detect + strict exact)
- * - Rileva il client Supabase anche se esposto via getSupabase(), sb, __supabaseClient, ecc.
- * - Query in ordine: eq('note', raw) → ilike('note', raw) → filtro client norm-equal.
- * - UI risultati autonoma, zero dipendenze dal renderer dell'app.
- * - NESSUNA modifica a index.html necessaria.
+ * search-notes-addon.v1.js  (rev6 — render in tabella principale con Azioni)
+ * - Pannello Note (match esatto) resta in alto per digitare.
+ * - I risultati vengono mostrati direttamente dentro #tableResults (tbody),
+ *   con le stesse colonne: Foto | Descr/Modello | Cliente | Telefono | Date | Stato | Azioni
+ * - Bottoni "Apri" / "Modifica" funzionano:
+ *     - se esiste window.openRecord(id) o window.editRecord(id), li usiamo
+ *     - altrimenti emettiamo eventi "record:open" / "record:edit" con {id}
+ * - "Rimuovi" ripristina la lista originale riusando il flusso di ricerca generale (click su #btnDoSearch)
  */
 (function () {
   const LOG_PREFIX = "[notes-addon]";
@@ -15,21 +18,56 @@
 
   function resolveSupabase() {
     try {
-      if (window.supabase && typeof window.supabase.from === "function") return window.supabase;
-      if (typeof window.getSupabase === "function") {
-        const c = window.getSupabase();
-        if (c && typeof c.from === "function") return c;
-      }
-      if (window.sb && typeof window.sb.from === "function") return window.sb;
-      if (window.__supabase && typeof window.__supabase.from === "function") return window.__supabase;
-      if (window.__supabaseClient && typeof window.__supabaseClient.from === "function") return window.__supabaseClient;
+      if (window.supabase?.from) return window.supabase;
+      if (typeof window.getSupabase === "function") { const c = window.getSupabase(); if (c?.from) return c; }
+      if (window.sb?.from) return window.sb;
+      if (window.__supabase?.from) return window.__supabase;
+      if (window.__supabaseClient?.from) return window.__supabaseClient;
     } catch (e) {}
     return null;
   }
 
+  function fmtIT(d) {
+    if (!d) return "";
+    try {
+      const date = (typeof d === "string") ? new Date(d) : d;
+      if (isNaN(date)) return safeStr(d);
+      const dd = String(date.getDate()).padStart(2, "0");
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const yyyy = date.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    } catch(e){ return safeStr(d); }
+  }
+
+  function badgeForState(st) {
+    const v = (st||"").toLowerCase();
+    let cls = "secondary";
+    if (v.includes("in attesa") || v === "attesa") cls = "warning";
+    else if (v.includes("in lavorazione")) cls = "info";
+    else if (v.includes("chius") || v.includes("complet")) cls = "success";
+    else if (v.includes("non")) cls = "secondary";
+    return `<span class="badge text-bg-${cls}">${escapeHtml(st || "—")}</span>`;
+  }
+
+  function imgCell(url) {
+    const u = safeStr(url);
+    const src = u ? u : "";
+    const img = src ? `<img src="${escapeAttr(src)}" alt="" style="width:64px;height:48px;object-fit:cover;border-radius:6px">` :
+                      `<div class="bg-light border" style="width:64px;height:48px;border-radius:6px"></div>`;
+    return img;
+  }
+
+  function escapeHtml(s) {
+    return safeStr(s).replace(/[&<>"']/g, m => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[m]));
+  }
+  function escapeAttr(s) { return escapeHtml(s).replace(/"/g, "&quot;"); }
+
   // Stato modalità "solo note"
   window.__NOTE_SEARCH_ACTIVE = false;
   window.__NOTE_SEARCH_VALUE = "";
+  window.__NOTE_SEARCH_BACKUP_HTML = ""; // backup tbody per ripristino
 
   function activateNoteExactMode(val) {
     window.__NOTE_SEARCH_VALUE = norm(val);
@@ -42,74 +80,103 @@
     console.log(LOG_PREFIX, "note-only exact mode: OFF");
   }
 
-  function ensureResultsBox() {
-    const box = $("#noteExactBox");
-    if (!box) return null;
-    let res = $("#noteExactResults", box);
-    if (!res) {
-      res = document.createElement("div");
-      res.id = "noteExactResults";
-      res.className = "card-body pt-2";
-      box.appendChild(res);
-    }
-    return res;
+  function ensureResultsBanner(rawQuery, diag) {
+    const host = $("#noteExactBox .note-banner");
+    if (!host) return;
+    host.innerHTML = `<div class="small text-muted">Vista filtrata: <code>note = "${escapeHtml(rawQuery)}"</code> (match esatto). ${diag?escapeHtml(diag):""}</div>`;
   }
 
-  function renderStatus(msg, type="secondary") {
-    const res = ensureResultsBox();
-    if (!res) return;
-    res.innerHTML = `<div class="alert alert-${type} my-2">${msg}</div>`;
-  }
-
-  function renderResults(data, rawQuery, diag) {
-    const res = ensureResultsBox();
-    if (!res) return;
-    const arr = Array.isArray(data) ? data : [];
-    if (!arr.length) {
-      res.innerHTML = `<div class="alert alert-warning my-2">Nessun record con <strong>note = "${escapeHtml(rawQuery)}"</strong>.</div>`
-        + (diag ? `<div class="small text-muted">${diag}</div>` : "");
-      return;
+  function setTableRows(data) {
+    const tbl = $("#tableResults");
+    if (!tbl) {
+      console.warn(LOG_PREFIX, "#tableResults non trovato, mostro nel pannello compatto.");
+      return false;
     }
-    const rows = arr.map(r => {
+    const tbody = tbl.querySelector("tbody");
+    if (!tbody) return false;
+
+    if (!window.__NOTE_SEARCH_BACKUP_HTML) {
+      window.__NOTE_SEARCH_BACKUP_HTML = tbody.innerHTML; // salva
+    }
+
+    const rows = (data||[]).map(r => {
       const id = safeStr(r.id);
       const numero = safeStr(r.numero || "");
+      const descr = safeStr(r.descrizione || r.modello || "");
+      const modello = safeStr(r.modello || "");
       const cliente = safeStr(r.cliente || "");
-      const descrizione = safeStr(r.descrizione || "");
-      const note = safeStr(r.note || "");
+      const tel = safeStr(r.telefono || "");
+      const dArr = fmtIT(r.dataArrivo || r.dataarrivo || r.data_apertura || r.dataApertura);
+      const dAcc = fmtIT(r.dataAccettazione || r.data_accettazione);
+      const dScad = fmtIT(r.dataScadenza || r.data_scadenza);
       const stato = safeStr(r.statoPratica || r.stato || "");
-      const dataArrivo = safeStr(r.dataArrivo || "");
+      const note = safeStr(r.note || "");
+      const foto = imgCell(r.image_url);
+
+      const descFull = descr || modello || "—";
+      const numeroLine = numero ? `<div class="small text-muted">#${escapeHtml(numero)}</div>` : "";
+      const noteLine = note ? `<div class="small">Note: <strong>${escapeHtml(note)}</strong></div>` : "";
+
       return `
-        <div class="border rounded p-2 mb-2">
-          <div class="d-flex justify-content-between">
-            <div class="fw-semibold">${cliente || "(cliente n/d)"} <span class="text-muted">#${numero || id.slice(0,8)}</span></div>
-            <div class="badge text-bg-secondary">${stato || "—"}</div>
-          </div>
-          <div class="small text-muted">${descrizione || "—"}</div>
-          <div>Note: <strong>${escapeHtml(note)}</strong></div>
-          <div class="small text-muted">Arrivo: ${escapeHtml(safeStr(dataArrivo))}</div>
-        </div>
+        <tr data-id="${escapeAttr(id)}">
+          <td class="align-middle">${foto}</td>
+          <td class="align-middle">
+            <div class="fw-semibold">${escapeHtml(descFull)}</div>
+            ${numeroLine}
+            ${noteLine}
+          </td>
+          <td class="align-middle"><div>${escapeHtml(cliente || "—")}</div></td>
+          <td class="align-middle"><div>${escapeHtml(tel || "—")}</div></td>
+          <td class="align-middle">${escapeHtml(dArr)}</td>
+          <td class="align-middle">${escapeHtml(dAcc)}</td>
+          <td class="align-middle">${escapeHtml(dScad)}</td>
+          <td class="align-middle">${badgeForState(stato)}</td>
+          <td class="align-middle">
+            <div class="d-flex gap-1">
+              <button type="button" class="btn btn-sm btn-outline-primary btn-open" data-id="${escapeAttr(id)}">Apri</button>
+              <button type="button" class="btn btn-sm btn-outline-success btn-edit" data-id="${escapeAttr(id)}">Modifica</button>
+            </div>
+          </td>
+        </tr>
       `;
     }).join("");
 
-    res.innerHTML = `
-      <div class="mt-2">
-        <div class="small text-muted mb-2">Vista filtrata: <code>note = "${escapeHtml(rawQuery)}"</code> (match esatto, case-insensitive)</div>
-        ${rows}
-        ${diag ? `<div class="small text-muted mt-2">${diag}</div>` : ""}
-      </div>
-    `;
+    tbody.innerHTML = rows || `<tr><td colspan="9" class="text-center text-muted py-4">Nessun risultato per questa nota.</td></tr>`;
+
+    // Collega azioni ai possibili handler globali
+    tbody.querySelectorAll(".btn-open").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-id");
+        if (typeof window.openRecord === "function") return window.openRecord(id);
+        window.dispatchEvent(new CustomEvent("record:open", { detail: { id } }));
+      });
+    });
+    tbody.querySelectorAll(".btn-edit").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-id");
+        if (typeof window.editRecord === "function") return window.editRecord(id);
+        window.dispatchEvent(new CustomEvent("record:edit", { detail: { id } }));
+      });
+    });
+
+    console.log(LOG_PREFIX, `inserite ${data.length} righe in #tableResults`);
+    return true;
   }
 
-  function clearResults() {
-    const box = $("#noteExactBox");
-    const res = $("#noteExactResults", box);
-    if (res) res.innerHTML = "";
-  }
-
-  function escapeHtml(s) {
-    return safeStr(s).replace(/[&<>"']/g, m => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[m]));
+  function restoreTable() {
+    const tbl = $("#tableResults");
+    if (!tbl) return;
+    const tbody = tbl.querySelector("tbody");
+    if (!tbody) return;
+    if (window.__NOTE_SEARCH_BACKUP_HTML) {
+      tbody.innerHTML = window.__NOTE_SEARCH_BACKUP_HTML;
+      window.__NOTE_SEARCH_BACKUP_HTML = "";
+      console.log(LOG_PREFIX, "ripristinata tabella originale.");
+    } else {
+      // fallback: rilancia ricerca generale
+      const btn = $("#btnDoSearch");
+      if (btn) btn.click();
+    }
   }
 
   // ========== UI Injection ==========
@@ -118,14 +185,14 @@
     if (!host) return console.warn(LOG_PREFIX, "#page-search non trovato, UI note non iniettata.");
     if ($("#noteExactBox", host)) return;
 
-    const title = $("h4", host);
-    const anchor = title ? title.nextElementSibling : host.firstElementChild;
-
     const box = document.createElement("div");
     box.id = "noteExactBox";
     box.className = "card mb-2";
     box.innerHTML = [
-      '<div class="card-header py-2">Ricerca Note (match esatto)</div>',
+      '<div class="card-header py-2 d-flex justify-content-between align-items-center">',
+      '  <span>Ricerca Note (match esatto)</span>',
+      '  <div class="note-banner small text-muted"></div>',
+      '</div>',
       '<div class="card-body py-2">',
       '  <div class="row g-2 align-items-center">',
       '    <div class="col-md-8">',
@@ -134,15 +201,13 @@
       '    <div class="col-md-2 d-grid"><button id="btnNoteExact" class="btn btn-primary" type="button">Cerca Note</button></div>',
       '    <div class="col-md-2 d-grid"><button id="btnNoteClear" class="btn btn-outline-secondary" type="button">Rimuovi</button></div>',
       '  </div>',
-      '  <div class="small text-muted mt-2">Case-insensitive. Ricerca dedicata su <code>note</code>, indipendente dalla ricerca generale.</div>',
+      '  <div class="small text-muted mt-2">I risultati vengono mostrati nella tabella sottostante con **Azioni** “Apri / Modifica”.</div>',
       '</div>'
     ].join("");
 
-    if (anchor && anchor.nextSibling) {
-      host.insertBefore(box, anchor.nextSibling);
-    } else {
-      host.appendChild(box);
-    }
+    // Inserisci in alto nel container Ricerca
+    const head = host.firstElementChild;
+    host.insertBefore(box, head);
 
     const input = $("#qNoteExact", box);
     const btnGo = $("#btnNoteExact", box);
@@ -151,103 +216,54 @@
     btnGo?.addEventListener("click", async () => {
       const raw = (input.value || "").trim();
       activateNoteExactMode(raw);
-      clearResults();
       if (!raw) return;
 
       const sb = resolveSupabase();
       if (!sb) {
-        renderStatus('Nessun client Supabase rilevato. Verifica che il client sia esposto come <code>window.supabase</code> o <code>window.getSupabase()</code>.', "danger");
+        ensureResultsBanner(raw, "Client Supabase non trovato.");
+        setTableRows([]);
         return;
       }
-
       try {
-        // Step 1: eq — match esatto case-sensitive sul DB
+        // eq → ilike (senza wildcard) → post filtro
         let diag = "";
         let data = null, error = null;
-
         ({ data, error } = await sb.from("records").select("*").eq("note", raw));
-        diag += `Query: eq(note, "${escapeHtml(raw)}") → ${(data && data.length) || 0} risultati. `;
-        if (error) diag += `Errore eq: ${escapeHtml(safeStr(error.message))}. `;
-
-        // Step 2: se eq non trova nulla, prova ilike (case-insensitive) senza wildcard
+        diag += `eq(note,"${raw}")→${(data&&data.length)||0}; `;
         if (!error && (!data || data.length === 0)) {
-          let res2 = await sb.from("records").select("*").ilike("note", raw);
+          const res2 = await sb.from("records").select("*").ilike("note", raw);
           data = res2.data;
-          if (res2.error) diag += `Errore ilike: ${escapeHtml(safeStr(res2.error.message))}. `;
-          else diag += `Query: ilike(note, "${escapeHtml(raw)}") → ${(data && data.length) || 0} risultati. `;
+          diag += `ilike(note,"${raw}")→${(data&&data.length)||0}; `;
         }
-
-        // Step 3: filtro client rigoroso (norm equality), utile se nel DB compaiono spazi o maiuscole/minuscole
         const target = norm(raw);
         const out = (data || []).filter(r => norm(r && r.note) === target);
 
-        renderResults(out, raw, diag + ` | Post-filtro (norm eq) → ${out.length} risultati.`);
-      } catch (e) {
-        console.warn(LOG_PREFIX, "Errore ricerca note:", e);
-        renderStatus("Errore durante la ricerca. Dettagli console.", "danger");
+        ensureResultsBanner(raw, diag + `post=${out.length}`);
+        if (!setTableRows(out)) {
+          // fallback (non dovrebbe servire su schedaofficina): pannello semplice
+          console.warn(LOG_PREFIX, "fallback rendering non implementato perché è richiesto #tableResults");
+        }
+      } catch(e) {
+        console.warn(LOG_PREFIX, "Errore query note:", e);
+        ensureResultsBanner(raw, "Errore durante la query.");
+        setTableRows([]);
       }
     });
 
     input?.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        btnGo?.click();
-      }
+      if (e.key === "Enter") { e.preventDefault(); btnGo?.click(); }
     });
 
     btnClr?.addEventListener("click", () => {
       input.value = "";
       deactivateNoteExactMode();
-      clearResults();
+      ensureResultsBanner("", "");
+      restoreTable();
     });
 
-    const sb = resolveSupabase();
-    console.log(LOG_PREFIX, "UI Note (match esatto) iniettata. Supabase:", sb ? "OK" : "NO");
+    console.log(LOG_PREFIX, "UI Note (match esatto) pronta (rev6).");
   }
 
-  // ========== Ricerca generale (opzionale) ==========
-  function buildWordBoundaryRegex(needle) {
-    const esc = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`(^|[^\\p{L}\\p{N}_])${esc}([^\\p{L}\\p{N}_]|$)`, "iu");
-  }
-  const fieldsDefault = [
-    "descrizione","modello","cliente","telefono","ddt",
-    "marca","battCollettore","battcollettore","datiTecnici","note"
-  ];
-  function defaultMatcher(r, q) {
-    const s = safeStr(q);
-    const quoted = /^"(.*)"$/.test(s.trim());
-    const needleRaw = quoted ? s.trim().slice(1, -1) : s;
-    const needle = norm(needleRaw);
-    if (!needle) return true;
-    const hay = fieldsDefault.map(k => norm(r && r[k])).join(" ");
-    if (quoted) {
-      const re = buildWordBoundaryRegex(needleRaw.toLowerCase().trim());
-      return re.test(hay);
-    } else {
-      return hay.includes(needle);
-    }
-  }
-  try {
-    const original = (typeof window.recordMatchesQuery === "function") ? window.recordMatchesQuery : null;
-    window.recordMatchesQuery = function (r, q) {
-      if (window.__NOTE_SEARCH_ACTIVE) {
-        const target = window.__NOTE_SEARCH_VALUE;
-        const val = norm(r && (r.note ?? r.notesk ?? r.notes ?? r.osservazioni));
-        return !!target && val === target;
-      }
-      try { if (original) return original.call(this, r, q); } catch (e) {
-        console.warn(LOG_PREFIX, "original recordMatchesQuery failed:", e);
-      }
-      return defaultMatcher(r, q);
-    };
-  } catch (e) {
-    console.warn(LOG_PREFIX, "recordMatchesQuery patch error:", e);
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", injectNoteSearchUI);
-  } else {
-    injectNoteSearchUI();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", injectNoteSearchUI);
+  else injectNoteSearchUI();
 })();
