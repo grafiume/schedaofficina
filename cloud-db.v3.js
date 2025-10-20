@@ -1,14 +1,13 @@
-/* cloud-db.js (v3.2.1) — v3.2 + SEARCH_EXACT_COLS selezionabili */
+/* cloud-db.js (v3.2.3) — base v3.1 + exact search case-insensitive + fallback renderer */
 if(!window.sb){ console.error("[cloud-db] Supabase client assente"); }
 function toNullEmpty(v){ return (v===undefined || v==='') ? null : v; }
 
-/* === CONFIG: colonne ammesse nella exact-search === */
+/* === CONFIG: colonne ammesse nella exact-search (case-insensitive) === */
 window.SEARCH_EXACT_COLS = [
   'descrizione',
   'modello',
   'cliente',
   'note'
-  // Se vuoi ri-aggiungerle: 'telefono','docTrasporto','battCollettore','lunghezzaAsse','lunghezzaPacco','larghezzaPacco','punta','numPunte'
 ];
 
 async function putRecord(v){
@@ -54,16 +53,13 @@ window.__photoUploadGuards = window.__photoUploadGuards || {};
 async function savePhotosWithThumbs(recordId, images, thumbs){
   if(!images || !images.length) return;
 
-  // evita doppie chiamate contemporanee sullo stesso record
   if(window.__photoUploadGuards[recordId]) return;
   window.__photoUploadGuards[recordId] = true;
 
   try {
-    // carica solo data-URL (nuove foto)
     const onlyData = images.filter(s => typeof s === 'string' && s.startsWith('data:image/'));
     if(!onlyData.length) return;
 
-    // deduplica dataURL identici nella stessa save
     const toUpload = Array.from(new Set(onlyData));
 
     for(let i=0;i<toUpload.length;i++){
@@ -84,13 +80,12 @@ async function savePhotosWithThumbs(recordId, images, thumbs){
         const ins = await sb.from('photos').insert({ record_id: recordId, path });
         if(ins.error){ console.warn('[photos insert]', ins.error); }
 
-        // aggiorna anteprima con l'ultima foto caricata
         const pub = sb.storage.from(window.SB_BUCKET||'photos').getPublicUrl(path);
         const url = (pub && pub.data && pub.data.publicUrl) ? pub.data.publicUrl : '';
         if(url){ const preview = document.getElementById('photoPreview'); if(preview) preview.src = url; }
 
       }catch(e){ console.warn('[savePhotosWithThumbs] skip image', e); }
-      await new Promise(r=>setTimeout(r, 40)); // piccolo respiro
+      await new Promise(r=>setTimeout(r, 40));
     }
   } finally {
     setTimeout(()=>{ delete window.__photoUploadGuards[recordId]; }, 150);
@@ -123,29 +118,23 @@ async function getPhotos(recordId){
   console.log('[realtime] attivo');
 }catch(err){ console.warn('[realtime] non attivo:', err?.message||err); } })();
 
-/* ============ Ricerca ESATTA server-side (Supabase) con colonne selezionabili ============ */
-function __norm(v){ return String(v??'').trim().toLowerCase(); }
+/* ============ Ricerca ESATTA server-side (Supabase) — case-insensitive ============ */
+function __escapeForOr(val){ return String(val).replace(/,/g,'\\,'); }
 
-/**
- * Match ESATTO (case-insensitive) SOLO sulle colonne in SEARCH_EXACT_COLS,
- * SENZA sottostringhe. Filtri tecnici e stato applicati server-side.
- */
 async function searchExactSupabase(opts){
   const {
     q = '',
-    statoKey = null,            // 'attesa' | 'lavorazione' | 'completed' | null
+    statoKey = null,
     tech = {},
     includeSoon = false
   } = opts || {};
 
   let query = sb.from('records').select('*');
 
-  // Filtro stato
-  if(statoKey === 'attesa') query = query.eq('statoPratica','In attesa');
+  if(statoKey === 'attesa')       query = query.eq('statoPratica','In attesa');
   else if(statoKey === 'lavorazione') query = query.eq('statoPratica','In lavorazione');
   else if(statoKey === 'completed')   query = query.in('statoPratica',['Completata','Consegnata']);
 
-  // Filtri tecnici esatti
   const techMap = {
     battCollettore: tech?.battCollettore,
     lunghezzaAsse:  tech?.lunghezzaAsse,
@@ -160,14 +149,13 @@ async function searchExactSupabase(opts){
     }
   });
 
-  // Ricerca a MATCH ESATTO (ILIKE senza wildcard) solo sulle colonne scelte
   const cols = Array.isArray(window.SEARCH_EXACT_COLS) && window.SEARCH_EXACT_COLS.length
     ? window.SEARCH_EXACT_COLS
-    : ['descrizione','modello','cliente','note']; // fallback sicuro
+    : ['descrizione','modello','cliente','note'];
 
-  const needle = String(q||'').trim();
-  if(needle){
-    const val = needle.replace(/,/g,'\\,'); // proteggi virgole
+  const needleRaw = String(q||'').trim();
+  if(needleRaw){
+    const val = __escapeForOr(needleRaw);
     const orCond = cols.map(c => `${c}.ilike.${val}`).join(',');
     query = query.or(orCond);
   }
@@ -187,6 +175,53 @@ async function searchExactSupabase(opts){
     });
   }
   return data || [];
+}
+
+/* ====== Fallback renderer se drawListPage non disegna ====== */
+function __safe(s){ return String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+function __fmtIT(v){ try{ if(!v) return ''; const d=new Date(v); if(isNaN(d)) return ''; return d.toLocaleDateString('it-IT'); }catch(_){ return ''; } }
+
+async function __fallbackRender(rows){
+  try{
+    const tb = document.querySelector('#tableResults tbody');
+    if(!tb){ console.warn('[v3.2.3] fallback: tbody non trovato'); return; }
+    tb.innerHTML = '';
+
+    if(!rows.length){
+      tb.innerHTML = `<tr><td colspan="9" class="text-muted">Nessun risultato.</td></tr>`;
+      return;
+    }
+
+    const slice = rows.slice(0, 50);
+    for(const r of slice){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><!-- thumb by drawListPage, qui omessa --></td>
+        <td class="desc-col"><strong>${__safe(r.descrizione)}</strong> ${__safe(r.modello)}</td>
+        <td class="nowrap">${__safe(r.cliente)}</td>
+        <td class="nowrap">${__safe(r.telefono)}</td>
+        <td class="nowrap">${__fmtIT(r.dataApertura || r.dataArrivo || '')}</td>
+        <td class="nowrap">${__fmtIT(r.dataAccettazione)}</td>
+        <td class="nowrap">${__fmtIT(r.dataScadenza)}</td>
+        <td class="nowrap">${__safe(r.statoPratica || '')}</td>
+        <td class="text-end nowrap">
+          <div class="btn-group">
+            <button class="btn btn-sm btn-outline-primary" data-open="${r.id}">Apri</button>
+            <button class="btn btn-sm btn-outline-success" data-edit="${r.id}">Modifica</button>
+          </div>
+        </td>`;
+      tb.appendChild(tr);
+    }
+    tb.querySelectorAll('button[data-open]').forEach(b=>{
+      b.addEventListener('click', ()=>{ if(typeof window.apri==='function') window.apri(b.dataset.open); });
+    });
+    tb.querySelectorAll('button[data-edit]').forEach(b=>{
+      b.addEventListener('click', ()=>{ if(typeof window.modifica==='function') window.modifica(b.dataset.edit); });
+    });
+    console.log('[v3.2.3] fallbackRender completato:', slice.length, 'righe');
+  }catch(err){
+    console.error('[v3.2.3] fallbackRender err:', err);
+  }
 }
 
 /* ============ OVERRIDE soft di lista() (non serve toccare index) ============ */
@@ -250,12 +285,28 @@ async function searchExactSupabase(opts){
 
     window.searchRows = rows;
     window.page = 1;
-    if(typeof window.renderPager === 'function') window.renderPager(window.searchRows.length);
-    if(typeof window.drawListPage === 'function') await window.drawListPage();
 
-    console.log('[v3.2.1] lista() exact-search:', {
+    let rendered = false;
+    try{
+      if(typeof window.renderPager === 'function') window.renderPager(window.searchRows.length);
+      if(typeof window.drawListPage === 'function'){
+        await window.drawListPage();
+        const trCount = (tb && tb.querySelectorAll('tr').length) || 0;
+        rendered = trCount > 0;
+        console.log('[v3.2.3] drawListPage OK, rows:', trCount);
+      }
+    }catch(e){
+      console.warn('[v3.2.3] drawListPage errore:', e?.message||e);
+    }
+
+    if(!rendered){
+      await __fallbackRender(rows);
+    }
+
+    console.log('[v3.2.3] lista() exact-search:', {
       q:String(q).trim(),
       cols: window.SEARCH_EXACT_COLS,
+      caseInsensitiveExact: true,
       fkey,
       techActive:hasTech,
       count:rows.length
