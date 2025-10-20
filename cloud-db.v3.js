@@ -1,10 +1,6 @@
-/*! cloud-db.v3.8.js — Search override (IDB-Only) + Exact-Match incl. note
- *  - Sovrascrive SOLO `window.lista()`
- *  - Legge direttamente da IndexedDB (openDB) per evitare dipendenze dal cloud
- *  - Se IndexedDB non è disponibile, esegue la lista() originale
- */
+/*! cloud-db.v3.9.js — Force-Bind Search (IDB-only exact-match incl. note) */
 (function(){
-  console.log('%c[cloud-db.v3.8] Search override: IndexedDB-Only + exact-match (incl. note)', 'color:#1e8b3d');
+  console.log('%c[cloud-db.v3.9] Force-Bind Search override attivo (IDB-only + exact-match incl. note)', 'color:#e07b39');
 
   const norm = v => String(v ?? '').trim().toLowerCase();
   function isExactMatchRecord(r, q){
@@ -20,7 +16,7 @@
 
   async function idbAll(){
     if(typeof window.openDB !== 'function'){
-      console.warn('[v3.8] openDB non definito: non posso leggere IndexedDB');
+      console.warn('[v3.9] openDB non definito, impossibile leggere IDB');
       return [];
     }
     const db = await window.openDB();
@@ -33,12 +29,11 @@
   }
 
   const __orig_lista = window.lista;
-
-  window.lista = async function(){
+  async function lista_override(){
     const t0 = performance.now();
     try{
       if(typeof window.openDB !== 'function'){
-        console.warn('[v3.8] openDB assente, fallback a lista() originale');
+        console.warn('[v3.9] openDB assente, fallback lista() originale');
         if(typeof __orig_lista === 'function') return await __orig_lista();
         return;
       }
@@ -46,11 +41,9 @@
       const q = qEl ? qEl.value : '';
       const qn = norm(q);
 
-      // Carica TUTTO da IDB
       let rows = await idbAll();
       const totalBefore = rows.length;
 
-      // Applica filtri "stato" della tua UX
       if(window.currentFilter === 'attesa'){
         rows = rows.filter(r => (r.statoPratica||'') === 'In attesa');
       }else if(window.currentFilter === 'lavorazione'){
@@ -63,22 +56,18 @@
       }
       const afterFilter = rows.length;
 
-      // Ricerca a MATCH ESATTO (incl. note)
       if(qn){
         rows = rows.filter(r => isExactMatchRecord(r, qn));
       }
       const afterSearch = rows.length;
 
-      // Filtri tecnici già esatti
       if(typeof window.matchTechFilters === 'function'){
         rows = rows.filter(window.matchTechFilters);
       }
       const afterTech = rows.length;
 
-      // Ordine come originale
       rows.sort((a,b)=>(String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))));
 
-      // Aggiorna badge filtro attivo
       const box = document.getElementById('activeFilterBox');
       const lab = document.getElementById('activeFilterLabel');
       if(box && lab){
@@ -92,19 +81,61 @@
         }
       }
 
-      // Render
       window.searchRows = rows;
       window.page = 1;
       if(typeof window.renderPager === 'function') window.renderPager(window.searchRows.length);
       if(typeof window.drawListPage === 'function') await window.drawListPage();
 
       const t1 = performance.now();
-      console.log(`[v3.8] lista(): IDB total:${totalBefore} -> afterFilter:${afterFilter} -> afterSearch:${afterSearch} -> afterTech:${afterTech} | ${Math.round(t1-t0)}ms`);
+      console.log(`[v3.9] lista(): IDB total:${totalBefore} -> afterFilter:${afterFilter} -> afterSearch:${afterSearch} -> afterTech:${afterTech} | ${Math.round(t1-t0)}ms`);
     }catch(err){
-      console.error('[cloud-db.v3.8] lista():', err);
+      console.error('[cloud-db.v3.9] lista():', err);
       if(typeof __orig_lista === 'function'){
-        try{ return await __orig_lista(); }catch(e){ console.error('[cloud-db.v3.8] fallback lista() err:', e); }
+        try{ return await __orig_lista(); }catch(e){ console.error('[cloud-db.v3.9] fallback lista() err:', e); }
       }
     }
-  };
+  }
+  window.lista = lista_override;
+
+  function forceBind(){
+    try{
+      const btn = document.getElementById('btnDoSearch');
+      if(btn){ btn.onclick = lista_override; }
+      const q = document.getElementById('q');
+      if(q){
+        q.addEventListener('input', ()=>{ window.lista && window.lista(); }, { passive:true });
+      }
+      console.log('[v3.9] forceBind: handlers ricollegati');
+    }catch(e){
+      console.warn('[v3.9] forceBind err', e);
+    }
+  }
+
+  if(document.readyState === 'complete' || document.readyState === 'interactive'){
+    forceBind();
+  }else{
+    document.addEventListener('DOMContentLoaded', forceBind, { once:true });
+  }
+
+  const __orig_sh = window.sh;
+  if(typeof __orig_sh === 'function'){
+    window.sh = function(n){
+      const r = __orig_sh.apply(this, arguments);
+      if(n === 'search'){
+        setTimeout(()=>{ if(typeof window.lista === 'function') window.lista(); }, 0);
+      }
+      return r;
+    };
+    console.log('[v3.9] sh() wrapped');
+  }
+
+  const __orig_go = window.goToSearchWithFilter;
+  if(typeof __orig_go === 'function'){
+    window.goToSearchWithFilter = function(filterKey){
+      const r = __orig_go.apply(this, arguments);
+      setTimeout(()=>{ if(typeof window.lista === 'function') window.lista(); }, 0);
+      return r;
+    };
+    console.log('[v3.9] goToSearchWithFilter() wrapped');
+  }
 })();
