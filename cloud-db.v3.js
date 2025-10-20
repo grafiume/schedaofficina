@@ -1,21 +1,23 @@
-/*! cloud-db.v3.2.js — Supabase sync + Exact-Match search (safe fix)
- *  - Fix: usa `const sb = window.sb` per evitare ReferenceError e blocchi JS.
- *  - R/W su Supabase + upload foto con dedupe.
- *  - Realtime refresh.
- *  - Override di `lista()` per ricerca a MATCH ESATTO senza toccare l'index.
+/*! cloud-db.v3.3.js — Supabase sync + Exact-Match (incl. NOTE) — FULL
+ *  - Safe binding a Supabase (`const sb = window.sb`)
+ *  - CRUD per `records` e `photos`
+ *  - Upload foto con dedupe (solo nuove dataURL), anteprima aggiornata
+ *  - Realtime refresh (records/photos)
+ *  - Override `lista()` con ricerca a MATCH ESATTO su tutti i campi chiave **incluso `note`**
+ *  - Espone funzioni su `window` per compatibilità con index
  */
 (function(){
   // ===== Safe Supabase binding =====
   const sb = (typeof window !== 'undefined') ? window.sb : null;
   if(!sb){
-    console.error("[cloud-db] Supabase client assente (window.sb non definito). Carica prima supabase-client.js");
-    // Non throw: evitiamo di bloccare il resto dell'app. Le funzioni ritorneranno fallback.
+    console.error("[cloud-db] Supabase client assente (window.sb non definito). Assicurati di caricare supabase-client.js prima di questo file.");
+    // Non lanciamo eccezioni per non bloccare la UI: le funzioni restituiranno fallback sicuri.
   }
 
   function toNullEmpty(v){ return (v===undefined || v==='') ? null : v; }
   const BUCKET = (typeof window !== 'undefined' && window.SB_BUCKET) ? window.SB_BUCKET : 'photos';
 
-  // ===== CRUD =====
+  // ===== CRUD: Records =====
   async function putRecord(v){
     if(!sb) return;
     const row = {
@@ -72,28 +74,30 @@
     if(error){ console.error('[deleteRecord]', error); throw error; }
   }
 
-  // Esponi a window per l'index
+  // Esponi a window per compatibilità con l'index
   window.putRecord = putRecord;
   window.getRecord = getRecord;
   window.getAllRecords = getAllRecords;
   window.getByStato = getByStato;
   window.deleteRecord = deleteRecord;
 
-  // ===== Photo upload dedupe =====
+  // ===== Photos: upload dedupe & get =====
   window.__photoUploadGuards = window.__photoUploadGuards || {};
   async function savePhotosWithThumbs(recordId, images, thumbs){
     if(!sb) return;
     if(!images || !images.length) return;
 
-    // evita chiamate simultanee per lo stesso record
+    // evitando chiamate simultanee per stesso record
     if(window.__photoUploadGuards[recordId]) return;
     window.__photoUploadGuards[recordId] = true;
 
     try{
+      // carica solo data-URL (nuove foto locali)
       const onlyData = images.filter(s => typeof s === 'string' && s.startsWith('data:image/'));
       if(!onlyData.length) return;
 
-      const toUpload = Array.from(new Set(onlyData)); // dedupe dataURL identici
+      // dedupe identici nella stessa save
+      const toUpload = Array.from(new Set(onlyData));
       for(let i=0;i<toUpload.length;i++){
         try{
           const dataUrl = toUpload[i];
@@ -112,7 +116,7 @@
           const ins = await sb.from('photos').insert({ record_id: recordId, path });
           if(ins?.error){ console.warn('[photos insert]', ins.error); }
 
-          // Aggiorna anteprima con l'ultima foto caricata
+          // aggiorna anteprima con l'ultima foto caricata
           const pub = sb.storage.from(BUCKET).getPublicUrl(path);
           const url = (pub && pub.data && pub.data.publicUrl) ? String(pub.data.publicUrl) : '';
           if(url){
@@ -122,7 +126,7 @@
         }catch(e){
           console.warn('[savePhotosWithThumbs] skip image', e);
         }
-        // micro delay per non saturare
+        // breve pausa
         await new Promise(r=>setTimeout(r, 40));
       }
     }finally{
@@ -149,7 +153,7 @@
   }
   window.getPhotos = getPhotos;
 
-  // ===== Realtime sync =====
+  // ===== Realtime =====
   (function(){
     if(!sb) return;
     try{
@@ -174,17 +178,16 @@
     }
   })();
 
-  // ===== Exact-Match Search override for `lista()` =====
+  // ===== Exact-Match Search override (INCLUDE `note`) =====
   (function(){
-    // Normalizza query/campi
     function norm(v){ return String(v ?? '').trim().toLowerCase(); }
-    // true se almeno un campo è esattamente uguale alla query
+    // true se almeno un campo è esattamente uguale alla query (case-insensitive)
     function isExactMatchRecord(r, q){
       const needle = norm(q);
       const fields = [
         'descrizione','modello','cliente','telefono','docTrasporto',
         'battCollettore','lunghezzaAsse','lunghezzaPacco','larghezzaPacco',
-        'punta','numPunte'
+        'punta','numPunte','note' // <-- incluso "note"
       ];
       for(const k of fields){ if(norm(r?.[k]) === needle) return true; }
       return false;
@@ -199,7 +202,7 @@
         if(window.currentFilter === 'attesa' || window.currentFilter === 'lavorazione' || window.currentFilter === 'completed'){
           if(window.currentFilter === 'completed'){
             const comp = await window.getByStato('Completata');
-            const cons = await window.getByStato('Consegnata'); // compat se esiste
+            const cons = await window.getByStato('Consegnata'); // compat
             rows = [...comp, ...cons];
           }else{
             const stato = (window.currentFilter === 'attesa') ? 'In attesa' : 'In lavorazione';
@@ -233,11 +236,13 @@
         if(typeof window.renderPager === 'function') window.renderPager(window.searchRows.length);
         if(typeof window.drawListPage === 'function') await window.drawListPage();
       }catch(err){
-        console.error('[cloud-db.v3.2] lista():', err);
-        if(typeof __orig_lista === 'function'){ try{ return await __orig_lista(); }catch(e){ console.error('[cloud-db.v3.2] fallback lista() err:', e); } }
+        console.error('[cloud-db.v3.3] lista():', err);
+        if(typeof __orig_lista === 'function'){
+          try{ return await __orig_lista(); }catch(e){ console.error('[cloud-db.v3.3] fallback lista() err:', e); }
+        }
       }
     };
-    console.log('[cloud-db] Exact-Match override attivo');
+    console.log('[cloud-db] Exact-Match override attivo (campi incl. NOTE)');
   })();
 
 })();
