@@ -3,96 +3,110 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Scheda Officina — Ricerca</title>
+  <title>Scheda Officina — Light</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script defer src="config.js"></script>
-  <script defer src="supabase-singleton.js"></script>
-  <script defer src="app-supabase.js"></script>
-  <script defer src="app-core.js"></script>
+  <meta name="theme-color" content="#ffffff">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <img src="assets/logo-elip.jpg" alt="Logo" class="logo">
-      <div class="title">
-        <h1>Scheda Officina</h1>
-        <p class="subtitle">Ricerca con match esatto • case-insensitive • senza accenti</p>
+  <header class="appbar">
+    <div class="row">
+      <div class="logo"><span class="mark"></span> Scheda Officina <span class="small">– Light</span></div>
+      <div class="tag">Stato: <span id="syncState" class="small">Offline-ready</span></div>
+      <div class="searchbar">
+        <input id="q" placeholder="Cerca per descrizione, cliente, DDT, modello, battuta collettore…">
+        <button id="btnSearch">Cerca</button>
+        <button id="btnReset" class="btn-outline">Reset</button>
       </div>
+      <label class="tag"><input type="checkbox" id="chkExact" style="margin-right:6px"> Ricerca esatta</label>
     </div>
-    <nav class="kpis">
-      <div class="kpi"><span id="kpiTot">0</span><small>Totali</small></div>
-      <div class="kpi"><span id="kpiAttesa">0</span><small>In attesa</small></div>
-      <div class="kpi"><span id="kpiLavorazione">0</span><small>In lavorazione</small></div>
-      <div class="kpi"><span id="kpiCompletate">0</span><small>Completate</small></div>
-    </nav>
   </header>
 
   <main class="container">
-    <section class="search-panel card">
-      <div class="search-row">
-        <input id="q" type="text" placeholder="Ricerca generale (match esatto)" />
-        <button id="btnSearch" class="btn btn-primary">Ricerca</button>
-        <button id="btnReset" class="btn btn-ghost">Reset</button>
+    <section id="page-home">
+      <div class="kpis">
+        <div class="kpi"><div class="label">Totali</div><div class="value" id="kpiTot">0</div></div>
+        <div class="kpi"><div class="label">In attesa</div><div class="value" id="kpiAttesa">0</div></div>
+        <div class="kpi"><div class="label">In lavorazione</div><div class="value" id="kpiLav">0</div></div>
+        <div class="kpi"><div class="label">Chiuse</div><div class="value" id="kpiChiuse">0</div></div>
       </div>
 
-      <details class="filters">
-        <summary>Filtri tecnici (match esatto per campo)</summary>
-        <div class="grid">
-          <label>Cliente <input id="f_cliente" type="text"></label>
-          <label>Modello <input id="f_modello" type="text"></label>
-          <label>Descrizione <input id="f_descrizione" type="text"></label>
-          <label>Telefono <input id="f_telefono" type="text"></label>
-          <label>Email <input id="f_email" type="text"></label>
-          <label>Note <input id="f_note" type="text"></label>
-
-          <label>Punta
-            <select id="f_punta">
-              <option value="">—</option>
-              <option>Sinistra</option>
-              <option>Destra</option>
-              <option>Dritta</option>
-            </select>
-          </label>
-          <label>Num Punte <input id="f_numPunte" type="number" step="1" min="0"></label>
-          <label>Batt. Collettore <input id="f_battCollettore" type="number" step="1" min="0"></label>
-          <label>Lungh. Asse <input id="f_lunghezzaAsse" type="number" step="1" min="0"></label>
-          <label>Lungh. Pacco <input id="f_lunghezzaPacco" type="number" step="1" min="0"></label>
-          <label>Larg. Pacco <input id="f_larghezzaPacco" type="number" step="1" min="0"></label>
+      <div class="card">
+        <div class="card-header">
+          <strong>Archivio</strong>
+          <div class="toolbar">
+            <button class="btn" id="btnNew">Nuovo</button>
+            <button class="btn" id="btnReload">Ricarica</button>
+          </div>
         </div>
-      </details>
+        <div class="card-body">
+          <table class="table" id="tbl">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Cliente</th>
+                <th>Descrizione</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody id="rows">
+              <tr><td class="small" colspan="5">Nessun record…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
-    <section class="results" id="results"></section>
+    <section id="page-edit" class="hidden">
+      <div class="card">
+        <div class="card-header">
+          <strong id="formTitle">Nuova scheda</strong>
+          <div class="toolbar">
+            <span id="closedStamp" class="stamp-closed hidden">CHIUSA</span>
+            <button class="btn" id="btnSave">Salva</button>
+            <button class="btn" id="btnBack">Torna all’archivio</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="input"><label>Cliente</label><input id="f_cliente"></div>
+            <div class="input"><label>Telefono</label><input id="f_telefono"></div>
+            <div class="input"><label>Descrizione</label><input id="f_descrizione"></div>
+            <div class="input"><label>DDT</label><input id="f_ddt"></div>
+            <div class="input"><label>Marca</label><input id="f_marca"></div>
+            <div class="input"><label>Modello</label><input id="f_modello"></div>
+            <div class="input"><label>Battuta collettore</label><input id="f_battcoll"></div>
+            <div class="input"><label>Stato</label>
+              <select id="f_stato">
+                <option value="In attesa">In attesa</option>
+                <option value="In lavorazione">In lavorazione</option>
+                <option value="Completata">Completata</option>
+              </select>
+            </div>
+            <div class="input"><label>Data apertura</label><input id="f_dataApertura" type="date"></div>
+            <div class="input"><label>Data accettazione</label><input id="f_dataAccettazione" type="date"></div>
+            <div class="input"><label>Data fine (chiusura)</label><input id="f_dataFine" type="date"></div>
+            <div class="input"><label>Note</label><textarea id="f_note" rows="3"></textarea></div>
+          </div>
+          <hr class="sep">
+          <div class="small">ID: <span id="recId">—</span></div>
+        </div>
+      </div>
+    </section>
   </main>
 
-  <template id="cardTpl">
-    <article class="card item">
-      <div class="thumbwrap">
-        <img class="thumb" alt="anteprima"/>
-      </div>
-      <div class="meta">
-        <h3 class="cliente"></h3>
-        <p class="descrizione"></p>
-        <div class="tags">
-          <span class="tag stato"></span>
-          <span class="tag modello"></span>
-          <span class="tag punte"></span>
-          <span class="tag ddt"></span>
-          <span class="tag scadenza"></span>
-        </div>
-        <div class="actions">
-          <button class="btn btn-outline">Apri</button>
-          <button class="btn btn-outline">Modifica</button>
-        </div>
-        <div class="closed-banner hidden">CHIUSA</div>
-      </div>
-    </article>
-  </template>
+  <footer class="footer">© 2025 – Graziano Fiume — Tema chiaro su sfondo bianco</footer>
 
-  <footer class="foot">
-    <small>© ELIP — UI chiara su fondo bianco • ricerca esatta</small>
-  </footer>
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-singleton.js"></script>
+  <script src="app-supabase.js"></script>
+  <script src="app-core.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./service-worker.js');
+    }
+  </script>
 </body>
 </html>

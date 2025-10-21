@@ -1,21 +1,39 @@
-// Data layer Supabase (v2)
-const TABLE = window.APP_CONFIG.table;
-const BUCKET = window.APP_CONFIG.storageBucket;
+// Bridge funzioni Supabase
+(function(){
+  const sb = window.getSB();
 
-async function sbListAll(limit=500){
-  // Carica tutti i record e filtra lato client (match esatto)
-  const { data, error } = await sb
-    .from(TABLE)
-    .select('*')
-    .order('dataApertura', { ascending: false })
-    .limit(limit);
-  if(error){ console.error(error); return []; }
-  return data || [];
-}
+  async function listRecords(q, exact) {
+    // Seleziona tutto, ordina per dataApertura desc (se presente)
+    let query = sb.from('records').select('*').order('dataApertura', {ascending:false}, { nullsFirst: false });
+    if (q && q.trim() !== '') {
+      const term = q.trim();
+      const cols = ['descrizione','cliente','telefono','ddt','modello','marca','battcoll','note','notes','notesk'];
+      if (exact) {
+        // ILIKE senza % => match esatto case-insensitive
+        const parts = cols.map(c => `${c}.ilike.${term}`);
+        query = query.or(parts.join(','));
+      } else {
+        const like = `%${term}%`;
+        const parts = cols.map(c => `${c}.ilike.${like}`);
+        query = query.or(parts.join(','));
+      }
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
 
-function sbPublicImage(urlOrPath){
-  if(!urlOrPath) return null;
-  if(/^https?:\/\//i.test(urlOrPath)) return urlOrPath;
-  const { data } = sb.storage.from(BUCKET).getPublicUrl(urlOrPath);
-  return data?.publicUrl || null;
-}
+  async function getRecord(id){
+    const { data, error } = await sb.from('records').select('*').eq('id', id).single();
+    if (error) throw error;
+    return data;
+  }
+
+  async function upsertRecord(payload){
+    const { data, error } = await sb.from('records').upsert(payload).select().single();
+    if (error) throw error;
+    return data;
+  }
+
+  window.api = { listRecords, getRecord, upsertRecord };
+})();
