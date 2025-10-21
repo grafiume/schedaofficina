@@ -35,13 +35,17 @@ function hasAnyFilter(F){ return Object.keys(F).some(k => F[k]); }
 
 async function search(){
   const F = getFilters();
-  let q = sb.from("records").select("*").limit(500);
-
-  // esatti testo (case-insensitive exact -> ILIKE senza %)
-  const textFields = ["descrizione","modello","cliente","telefono","email","note","battCollettore","punta"];
-  for (const k of textFields){
-    if (F[k]) q = q.ilike(k, F[k]);
+  let { data, error } = await sb.from('records').select('*').order('dataApertura', {ascending:false}).limit(2000);
+  if (error) {
+    console.error(error);
+    $("#resBody").innerHTML = `<tr><td colspan="5" class="text-danger">${error.message}</td></tr>`;
+    $("#results").classList.remove("d-none");
+    $("#resCount").textContent = "0";
+    return;
   }
+  const rows = clientExactFilter(Array.isArray(data)?data:[], F);
+  renderResults(rows);
+}
   // numerici = eq
   const numFields = ["lunghezzaAsse","lunghezzaPacco","larghezzaPacco","numPunte"];
   for (const k of numFields){
@@ -142,4 +146,36 @@ async function showPreviewFor(recordId){
     const empty = document.getElementById('previewEmpty');
     imgEl.src = ""; imgEl.classList.add('d-none'); empty.classList.remove('d-none');
   }
+}
+
+
+// --- v3.1 exact filter like "prima": client-side normalization with accent removal ---
+const deacc = s => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const normExact = v => deacc(v).toLowerCase().trim().replace(/\s+/g,' ');
+
+function clientExactFilter(rows, F){
+  const has = key => F[key] && String(F[key]).length>0;
+  const numEq = (a,b) => {
+    const na = Number(a), nb = Number(b);
+    if (Number.isFinite(na) && Number.isFinite(nb)) return na === nb;
+    return String(a)==String(b);
+  };
+
+  const wantQ = has("q");
+  const qCols = ["descrizione","modello","cliente","telefono","email","note"];
+
+  return rows.filter(r => {
+    if (wantQ){
+      const nq = normExact(F.q);
+      const okQ = qCols.some(c => normExact(r[c]) === nq);
+      if (!okQ) return false;
+    }
+    for (const k of ["descrizione","modello","cliente","telefono","email","note","battCollettore","punta"]){
+      if (has(k) && normExact(r[k]) !== normExact(F[k])) return false;
+    }
+    for (const k of ["lunghezzaAsse","lunghezzaPacco","larghezzaPacco","numPunte"]){
+      if (has(k) && !numEq(r[k], F[k])) return false;
+    }
+    return true;
+  });
 }
