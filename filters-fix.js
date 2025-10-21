@@ -1,136 +1,178 @@
+
 /*!
- * filters-fix.js — v3 (reset & unlock)
- * - Aggiunge "Note (match esatto)" in Filtri tecnici
- * - Ricerca deterministica (match esatto) via Supabase
- * - Sblocca sempre dopo la ricerca e permette ricerche successive
- * - Aggiunge reset dei filtri (integra #btnClearFilter se esiste)
+ * filters-fix.js — v4 (deterministico + reset completo)
+ * - Aggiunge "Note (match esatto)" nei Filtri tecnici (se manca)
+ * - Ricerca deterministica (match ESATTO) via supabase-js
+ * - Sblocca sempre alla fine (permette ricerche successive)
+ * - RESET pulisce TUTTO: Note, filtri tecnici e **ricerca generale #q**
+ * - Renderer compatibile: usa window.searchRows + drawListPage()/renderPager()
  */
 (function(){
-  const LOG = "[filters-fix]";
+  const LOG = "[filters-fix v4]";
   const $  = (s,ctx=document)=>ctx.querySelector(s);
   const $$ = (s,ctx=document)=>Array.from(ctx.querySelectorAll(s));
-  const norm = v => String(v ?? '').toLowerCase().trim().replace(/\s+/g, ' ');
+  const norm = v => String(v ?? '').toLowerCase().trim().replace(/\s+/g,' ');
 
-  if (!window.sb) { console.warn(LOG, "Supabase client mancante"); return; }
+  // ---- Supabase client ----
+  const sb = (window.sb || window.supabase);
+  if (!sb || !sb.from) { console.warn(LOG, "Supabase client non trovato"); return; }
 
+  // ---- UI helpers ----
   function findFiltersBox(){
+    // prova selettori più comuni
+    const candidates = [
+      '#page-search',
+      '#filters-tech',
+      '.filters-tech',
+      'form#filters-tech'
+    ];
+    for (const sel of candidates){
+      const el = $(sel);
+      if (el && /filtri\s*tecnici/i.test(el.textContent||"")) return el;
+    }
+    // fallback: blocco che contiene il testo "Filtri tecnici (singoli)"
     const all = $$('div,section,form');
-    return all.find(el => /Filtri tecnici\s*\(singoli\)/i.test(el.textContent||""));
+    return all.find(el => /Filtri tecnici\s*\(singoli\)/i.test(el.textContent||"")) || $('#page-search') || document.body;
   }
+
   function ensureNoteInput(){
     if ($("#filterNoteExact")) return true;
     const box = findFiltersBox();
     if (!box) return false;
-    const wrap = document.createElement('div');
-    wrap.className = 'col-md-3';
-    wrap.innerHTML = `<input id="filterNoteExact" class="form-control" placeholder="Note (match esatto)">`;
-    const btnApply = Array.from(box.querySelectorAll('button')).find(b => /applica\s*filtri/i.test(b.textContent||""));
-    if (btnApply) btnApply.parentElement.insertAdjacentElement('beforebegin', wrap);
-    else box.appendChild(wrap);
-    console.log(LOG, "campo Note (match esatto) aggiunto");
+
+    const col = document.createElement('div');
+    col.className = 'col-md-3 my-1';
+    col.innerHTML = '<input id="filterNoteExact" class="form-control" placeholder="Note (match esatto)">';
+    // Inserisci vicino al bottone Cerca se c'è una .row
+    const row = box.querySelector('.row') || box;
+    row.appendChild(col);
+
+    // Enter avvia ricerca
+    $("#filterNoteExact")?.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter') { e.preventDefault(); $('#btnDoSearch')?.click(); }
+    });
+
+    console.log(LOG, "Campo Note (match esatto) aggiunto");
     return true;
   }
 
-  // Reset filtri (se esiste #btnClearFilter lo usiamo; altrimenti lo creiamo)
-  function attachReset(){
-    const doReset = () => {
-      try {
-        $("#q") && ($("#q").value = "");
-        $("#filterNoteExact") && ($("#filterNoteExact").value = "");
+  // ---- Reset (pulisce tutto, compreso #q) ----
+  function doReset(){
+    try {
+      // ricerca generale
+      const q = $('#q'); if (q) q.value = '';
 
-        const ids = ["#f_battCollettore","#f_lunghezzaAsse","#f_lunghezzaPacco","#f_larghezzaPacco","#f_punta","#f_numPunte"];
-        ids.forEach(sel => { const el = $(sel); if (el) el.value = ""; });
+      // note
+      const n = $('#filterNoteExact'); if (n) n.value = '';
 
-        window.__SEARCH_ACTIVE__ = false;
-        if (window.__searchLock?.unlock) window.__searchLock.unlock();
+      // filtri tecnici singoli (supporta sia id che name)
+      const ids = ["#f_battCollettore","#f_lunghezzaAsse","#f_lunghezzaPacco","#f_larghezzaPacco","#f_punta","#f_numPunte"];
+      ids.forEach(sel => { const el = $(sel); if (el) el.value = ""; });
+      ['battCollettore','lunghezzaAsse','lunghezzaPacco','larghezzaPacco','punta','numPunte']
+        .forEach(name => { const el = document.querySelector(`[name="${name}"]`); if (el) el.value = ''; });
 
-        // ripristina pagina 1 e tabella vuota
-        window.searchRows = [];
-        window.page = 1;
-        if (typeof window.renderPager === 'function') window.renderPager(0);
-        if (typeof window.drawListPage === 'function') window.drawListPage();
+      // sblocca eventuale lock
+      window.__SEARCH_ACTIVE__ = false;
+      if (window.__searchLock?.unlock) window.__searchLock.unlock();
 
-        console.log(LOG, "reset filtri");
-      } catch(e){ console.warn(LOG, "reset error", e); }
-    };
+      // svuota lista/tabella
+      window.searchRows = [];
+      window.page = 1;
+      if (typeof window.renderPager === 'function') window.renderPager(0);
+      if (typeof window.drawListPage === 'function') window.drawListPage();
 
-    let btn = $("#btnClearFilter");
-    if (!btn) {
-      // crea un pulsante reset vicino al bottone Cerca
-      const row = $("#page-search .row") || $("#page-search");
-      if (row) {
-        btn = document.createElement("button");
-        btn.id = "btnClearFilter";
-        btn.type = "button";
-        btn.className = "btn btn-outline-secondary ms-2";
-        btn.textContent = "Rimuovi filtro";
-        const cercaBtn = $("#btnDoSearch");
-        if (cercaBtn && cercaBtn.parentElement) {
-          cercaBtn.parentElement.appendChild(btn);
-        } else if (row.appendChild) {
-          row.appendChild(btn);
-        }
-      }
+      console.log(LOG, "RESET completo eseguito");
+    } catch(e){
+      console.warn(LOG, "reset error", e);
     }
-    if (btn) btn.addEventListener("click", doReset);
   }
 
+  function attachResetButton(){
+    // Aggancia #btnClearFilter se presente, altrimenti creane uno
+    let btn = $('#btnClearFilter');
+    if (!btn){
+      const near = $('#btnDoSearch');
+      btn = document.createElement('button');
+      btn.id = 'btnClearFilter';
+      btn.type = 'button';
+      btn.className = 'btn btn-outline-secondary ms-2';
+      btn.textContent = 'Rimuovi filtro';
+      if (near && near.parentElement) near.parentElement.appendChild(btn);
+      else (findFiltersBox() || document.body).appendChild(btn);
+    }
+    btn.addEventListener('click', doReset);
+  }
+
+  // ---- Gate refresh: evita refresh concorrenti mentre cerchiamo ----
   if (typeof window.refreshDashboard === 'function' && !window.__refreshDashboard_orig){
     window.__refreshDashboard_orig = window.refreshDashboard;
     window.refreshDashboard = function(){
       if (window.__SEARCH_ACTIVE__) {
-        console.log(LOG, "skip refreshDashboard");
+        console.log(LOG, 'skip refreshDashboard (ricerca attiva)');
         return;
       }
       return window.__refreshDashboard_orig.apply(this, arguments);
     };
   }
   function pauseRealtime(){
-    try { const sb = window.sb; if (sb?.removeAllChannels) sb.removeAllChannels(); } catch(e){}
+    try { if (sb.removeAllChannels) { sb.removeAllChannels(); console.log(LOG, 'Realtime OFF durante ricerca'); } } catch(e){}
   }
 
+  // ---- Lettura filtri ----
   function getFilters(){
     const F = {};
-    F.q = norm($("#q")?.value || "");
-    const techMap = {
-      battCollettore: "#f_battCollettore",
-      lunghezzaAsse:  "#f_lunghezzaAsse",
-      lunghezzaPacco: "#f_lunghezzaPacco",
-      larghezzaPacco: "#f_larghezzaPacco",
-      punta:          "#f_punta",
-      numPunte:       "#f_numPunte"
+    F.q = norm($('#q')?.value || '');
+
+    const techIdMap = {
+      battCollettore: '#f_battCollettore',
+      lunghezzaAsse:  '#f_lunghezzaAsse',
+      lunghezzaPacco: '#f_lunghezzaPacco',
+      larghezzaPacco: '#f_larghezzaPacco',
+      punta:          '#f_punta',
+      numPunte:       '#f_numPunte'
     };
-    for (const [k,sel] of Object.entries(techMap)){
+    for (const [k,sel] of Object.entries(techIdMap)){
       const v = $(sel)?.value;
       if (v && norm(v)) F[k] = norm(v);
     }
-    const noteX = $("#filterNoteExact")?.value;
+    // fallback per name=
+    ['battCollettore','lunghezzaAsse','lunghezzaPacco','larghezzaPacco','punta','numPunte']
+      .forEach(k => {
+        if (F[k]) return;
+        const el = document.querySelector(`[name="${k}"]`);
+        if (el && norm(el.value)) F[k] = norm(el.value);
+      });
+
+    const noteX = $('#filterNoteExact')?.value;
     if (noteX && norm(noteX)) F.note = norm(noteX);
+
     return F;
   }
+
+  // ---- Query deterministica (match ESATTO) ----
   function buildOrForQ(q){
+    // Supabase .or() usa una stringa tipo: 'note.eq."le",cliente.eq."le",...'
     const cols = ['note','cliente','descrizione','modello','telefono','numero','email','statoPratica'];
-    const enc = q.replace(/"/g,'\\"');
-    return `or=(${cols.map(c => `${c}.eq."${enc}"`).join(',')})`;
+    const esc = q.replace(/"/g, '\\"');
+    return cols.map(c => `${c}.eq."${esc}"`).join(',');
   }
-  async function querySupabaseExact(F){
-    let url = `${window.SUPABASE_URL}/rest/v1/records?select=*`;
-    const p = [];
+
+  async function queryExact(F){
+    let q = sb.from('records').select('*').order('dataArrivo', { ascending:false }).order('created_at', { ascending:false }).order('id', { ascending:true });
+
+    // eq per ogni filtro esplicito (incluso note)
     for (const [k,v] of Object.entries(F)){
-      if (!v || k==='q') continue;
-      p.push(`${encodeURIComponent(k)}=eq.${encodeURIComponent(v)}`);
+      if (!v || k === 'q') continue;
+      q = q.eq(k, v);
     }
-    if (F.q) p.push(buildOrForQ(F.q));
-    p.push('order=dataArrivo.desc,created_at.desc,id.asc');
-    url += '&' + p.join('&');
-    const res = await fetch(url, {
-      headers: { apikey: window.SUPABASE_ANON_KEY, Authorization: `Bearer ${window.SUPABASE_ANON_KEY}`,'Accept-Profile':'public' },
-      method: 'GET'
-    });
-    if (!res.ok){ throw new Error(`HTTP ${res.status}`); }
-    const data = await res.json();
-    return Array.isArray(data) ? data : (data?.data||[]);
+    // q generico come esatto su varie colonne
+    if (F.q) q = q.or(buildOrForQ(F.q));
+
+    const { data, error } = await q;
+    if (error) throw error;
+    return data || [];
   }
+
   function dedupeSort(rows){
     const seen = new Set(); const out = [];
     for (const r of rows){
@@ -148,8 +190,9 @@
     return out;
   }
 
+  // ---- Override lista() ----
   async function lista_exact(){
-    // Se una ricerca precedente fosse rimasta "appesa", sblocco ora
+    // Sblocca prima (in caso di lock rimasto)
     window.__SEARCH_ACTIVE__ = false;
     if (window.__searchLock?.unlock) window.__searchLock.unlock();
 
@@ -159,10 +202,20 @@
       pauseRealtime();
 
       const F = getFilters();
-      console.log(LOG, "filtri", F);
+      // se non c'è nessun filtro né q, non facciamo query e svuotiamo la lista
+      const allEmpty = Object.values(F).every(v => !v);
+      if (allEmpty){
+        window.searchRows = [];
+        window.page = 1;
+        if (typeof window.renderPager === 'function') window.renderPager(0);
+        if (typeof window.drawListPage === 'function') await window.drawListPage();
+        console.log(LOG, "Nessun filtro: lista svuotata");
+        return;
+      }
 
-      const rows = await querySupabaseExact(F);
+      const rows = await queryExact(F);
 
+      // Rete di sicurezza: verifica match esatto normalizzato
       const keys = Object.keys(F).filter(k => F[k] && k!=='q');
       const filtered = rows.filter(r => {
         for (const k of keys){ if (norm(r[k]) !== F[k]) return false; }
@@ -180,43 +233,41 @@
       if (typeof window.renderPager === 'function') window.renderPager(clean.length);
       if (typeof window.drawListPage === 'function') await window.drawListPage();
 
-      console.log(LOG, `OK: ${clean.length} risultati`);
+      console.log(LOG, `OK: ${clean.length} risultati (match esatto)`);
     } catch (e){
       console.error(LOG, e);
-      alert("Errore ricerca: " + (e.message||e));
+      alert("Errore ricerca: " + (e.message || e));
     } finally {
-      // sblocca SEMPRE per permettere la ricerca successiva
+      // Sblocca SEMPRE
       window.__SEARCH_ACTIVE__ = false;
       if (window.__searchLock?.unlock) window.__searchLock.unlock();
     }
   }
 
+  // ---- Init ----
   function init(){
     ensureNoteInput();
-    attachReset();
+    attachResetButton();
 
-    // Enter sui campi => nuova ricerca (e sblocca eventuale lock precedente)
-    ['#q','#filterNoteExact','#f_battCollettore','#f_lunghezzaAsse','#f_lunghezzaPacco','#f_larghezzaPacco','#f_punta','#f_numPunte']
-      .forEach(sel => {
-        const el = $(sel);
-        if (!el) return;
-        el.addEventListener('keydown', (e)=>{
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            window.__SEARCH_ACTIVE__ = false;
-            if (window.__searchLock?.unlock) window.__searchLock.unlock();
-            $('#btnDoSearch')?.click();
-          }
-        });
-      });
+    // Enter in #q avvia ricerca e sblocca eventuale lock
+    const q = $('#q');
+    if (q) q.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        window.__SEARCH_ACTIVE__ = false;
+        if (window.__searchLock?.unlock) window.__searchLock.unlock();
+        $('#btnDoSearch')?.click();
+      }
+    });
 
-    // Sovrascrivo lista()
+    // Sovrascrivi lista() e aggancia il bottone Cerca
     window.lista = lista_exact;
     const btn = $('#btnDoSearch');
     if (btn) btn.addEventListener('click', lista_exact, true);
-    console.log(LOG, "override lista() attivo (v3)");
+
+    console.log(LOG, "override lista() attivo (v4)");
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
