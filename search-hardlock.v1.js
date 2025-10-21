@@ -1,7 +1,6 @@
-
 /*!
  * search-hardlock.v1.js
- * (retry writing file)
+ * Blocca refresh automatici e request concorrenti durante la ricerca.
  */
 (function(){
   const LOG = "[search-hardlock]";
@@ -37,27 +36,14 @@
     window.__SEARCH_HARDLOCK_TIMERS__ = true;
   })();
 
-  function disconnectObservers(){
-    try {
-      const body = document.querySelector('body');
-      if (!body) return;
-      const key = '__moList__';
-      if (!body[key]) return;
-      const list = body[key];
-      if (Array.isArray(list)) {
-        list.forEach(mo => { try{ mo.disconnect(); }catch(e){} State.observers.add(mo); });
-      }
-    } catch(e){}
-  }
-
+  function disconnectObservers(){}
   function suspendRealtime(){
     try{
       const sb = window.supabase || window.__supabaseClient || window.sb;
-      if (!sb) return;
-      if (sb.removeAllChannels) {
+      if (sb?.removeAllChannels) {
         sb.removeAllChannels();
         State.realtime.add('removed-all');
-        console.log(LOG, "Realtime rimosso durante la ricerca");
+        console.log(LOG, "Realtime OFF");
       }
     }catch(e){}
   }
@@ -68,7 +54,7 @@
     State.inFlight = 0;
     disconnectObservers();
     suspendRealtime();
-    console.log(LOG, "LOCK attivo");
+    console.log(LOG, "LOCK on");
   }
   function unlockSearch(){
     if (!State.active) return;
@@ -77,7 +63,7 @@
       try{ (t.type==='int' ? clearInterval : clearTimeout)(t.id); }catch(e){}
       State.timers.delete(t);
     }
-    console.log(LOG, "LOCK rilasciato");
+    console.log(LOG, "LOCK off");
   }
 
   (function hookFetchCount(){
@@ -86,7 +72,7 @@
     window.fetch = async function(input, init){
       let url = typeof input === 'string' ? input : (input?.url || '');
       const method = (init?.method || (typeof input!=='string' ? input?.method : '') || 'GET').toUpperCase();
-      const isRecords = method==='GET' && /\/rest\/v1\/(records|records_view)\b/i.test(url) && /[?&]select=/.test(url);
+      const isRecords = method==='GET' && /\/rest\/v1\/(records|records_view)\b/i.test(url);
       if (isRecords && State.active) {
         State.inFlight++;
         try {
