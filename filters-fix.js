@@ -38,7 +38,7 @@
         $("#q") && ($("#q").value = "");
         $("#filterNoteExact") && ($("#filterNoteExact").value = "");
 
-        const ids = ["#f_battCollettore","#f_lunghezzaAsse","#f_lunghezzaPacco","#f_larghezzaPacco","#f_punta","#f_numPunte"];
+        const ids = ["#f_descrizione","#f_modello","#f_cliente","#f_telefono","#f_email","#filterNoteExact","#f_battCollettore","#f_lunghezzaAsse","#f_lunghezzaPacco","#f_larghezzaPacco","#f_punta","#f_numPunte"];
         ids.forEach(sel => { const el = $(sel); if (el) el.value = ""; });
 
         window.__SEARCH_ACTIVE__ = false;
@@ -90,26 +90,34 @@
   }
 
   function getFilters(){
-    const F = {};
-    F.q = norm($("#q")?.value || "");
-    const techMap = {
-      battCollettore: "#f_battCollettore",
-      lunghezzaAsse:  "#f_lunghezzaAsse",
-      lunghezzaPacco: "#f_lunghezzaPacco",
-      larghezzaPacco: "#f_larghezzaPacco",
-      punta:          "#f_punta",
-      numPunte:       "#f_numPunte"
-    };
-    for (const [k,sel] of Object.entries(techMap)){
-      const v = $(sel)?.value;
-      if (v && norm(v)) F[k] = norm(v);
-    }
-    const noteX = $("#filterNoteExact")?.value;
-    if (noteX && norm(noteX)) F.note = norm(noteX);
-    return F;
+  const F = {};
+  const norm = v => String(v ?? '').toLowerCase().trim().replace(/\s+/g, ' ');
+  // query "q" => exact across common columns
+  F.q = norm($("#q")?.value || "");
+
+  // Exact single fields like the form (excluding date/preventivo/DDT/stato)
+  const map = {
+    descrizione: "#f_descrizione",
+    modello: "#f_modello",
+    cliente: "#f_cliente",
+    telefono: "#f_telefono",
+    email: "#f_email",
+    note: "#filterNoteExact",
+    battCollettore: "#f_battCollettore",
+    lunghezzaAsse: "#f_lunghezzaAsse",
+    lunghezzaPacco: "#f_lunghezzaPacco",
+    larghezzaPacco: "#f_larghezzaPacco",
+    punta: "#f_punta",
+    numPunte: "#f_numPunte"
+  };
+  for (const [k,sel] of Object.entries(map)){
+    const v = $(sel)?.value;
+    if (v && norm(v)) F[k] = norm(v);
   }
+  return F;
+}
   function buildOrForQ(q){
-    const cols = ['note','cliente','descrizione','modello','telefono','numero','email','statoPratica'];
+    const cols = ['note','cliente','descrizione','modello','telefono','numero','email','statoPratica','battCollettore','lunghezzaAsse','lunghezzaPacco','larghezzaPacco','punta','numPunte'];
     const enc = q.replace(/"/g,'\\"');
     return `or=(${cols.map(c => `${c}.eq."${enc}"`).join(',')})`;
   }
@@ -148,7 +156,7 @@
     return out;
   }
 
-  async function lista_exact(){
+  async async function lista_exact(){
     // Se una ricerca precedente fosse rimasta "appesa", sblocco ora
     window.__SEARCH_ACTIVE__ = false;
     if (window.__searchLock?.unlock) window.__searchLock.unlock();
@@ -167,7 +175,7 @@
       const filtered = rows.filter(r => {
         for (const k of keys){ if (norm(r[k]) !== F[k]) return false; }
         if (F.q){
-          const cols = ['note','cliente','descrizione','modello','telefono','numero','email','statoPratica'];
+          const cols = ['note','cliente','descrizione','modello','telefono','numero','email','statoPratica','battCollettore','lunghezzaAsse','lunghezzaPacco','larghezzaPacco','punta','numPunte'];
           if (!cols.some(c => norm(r[c]) === F.q)) return false;
         }
         return true;
