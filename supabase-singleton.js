@@ -1,8 +1,13 @@
-(function(){
-  if (window.supabase) {
-    window.sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-    console.log("[sb] client ready");
-  } else {
-    console.error("Supabase SDK not loaded");
+// Singleton per Supabase v2
+(() => {
+  if (window.supabaseClient) return;
+  const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.APP_CFG || {};
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.warn("[sb-singleton] Config mancante");
+    return;
   }
+  window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false }
+  });
+  console.log("[sb-singleton] creato");
 })();
