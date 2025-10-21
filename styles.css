@@ -17,3 +17,5 @@
 
 .thumb{width:48px;height:48px;object-fit:cover;border-radius:.35rem;border:1px solid #e5e7eb;background:#f8f9fa}
 .thumb-cell{width:56px}
+
+.navbar img[alt='ELIP']{height:40px;width:auto}
