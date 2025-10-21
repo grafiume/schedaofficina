@@ -1,10 +1,9 @@
 
 /*!
- * filters-fix.v2.js — Note (match esatto) per Filtri tecnici (singoli)
- * Migliora l'estrazione della nota dalla riga tabellare:
- * - Normalizza l'intero testo cella (collassa \s) e cerca "Note: <valore>"
- * - Fallback: cerca elementi con [data-note], [data-field="note"], .note, .badge-note
- * - Fallback 2: scansiona tutte le <small>/<div> nella cella e prende la prima che inizia con "Note"
+ * filters-fix.v3.js — Note (match esatto) blindata
+ * - Aggiunge input "Note (match esatto)"
+ * - Quando attivo: nasconde TUTTE le righe e mostra solo quelle con nota esattamente uguale (case-insensitive)
+ * - Resiste ai refresh della tabella (observer) grazie ad una regola CSS persistente
  */
 (function(){
   const LOG = "[filters-fix]";
@@ -12,6 +11,18 @@
   const $$ = (s,ctx=document)=>Array.from(ctx.querySelectorAll(s));
   const safe = v => (v==null ? "" : String(v));
   const norm = v => safe(v).toLowerCase().trim().replace(/\s+/g, " ");
+
+  // CSS gate: tutto nascosto quando attivo, poi mostriamo solo .note-match
+  function ensureCSS(){
+    if (document.getElementById("noteFilterCSS")) return;
+    const st = document.createElement("style");
+    st.id = "noteFilterCSS";
+    st.textContent = `
+      #tableResults[data-note-active="1"] tbody tr { display: none !important; }
+      #tableResults[data-note-active="1"] tbody tr.note-match { display: table-row !important; }
+    `;
+    document.head.appendChild(st);
+  }
 
   function findFiltersBox(){
     const all = $$('div,section,form');
@@ -31,31 +42,25 @@
     wrap.className = 'col-md-3';
     wrap.innerHTML = `<input id="filterNoteExact" class="form-control" placeholder="Note (match esatto)">`;
 
-    const firstInputRow = box.querySelector('input.form-control, select.form-select');
-    if (firstInputRow && firstInputRow.parentElement) {
-      firstInputRow.parentElement.insertAdjacentElement('beforebegin', wrap);
-    } else {
-      btnApply.parentElement.insertAdjacentElement('beforebegin', wrap);
-    }
+    // inserisci prima del primo input dei filtri
+    const firstField = box.querySelector('input.form-control, select.form-select');
+    (firstField?.parentElement || btnApply.parentElement).insertAdjacentElement('beforebegin', wrap);
 
     $("#filterNoteExact").addEventListener('keydown', (e)=>{
       if (e.key === 'Enter') { e.preventDefault(); btnApply.click(); }
     });
 
     btnApply.addEventListener('click', () => {
-      const v = norm($("#filterNoteExact")?.value || "");
-      window.__FILTER_NOTE_EXACT__ = v;
-      setTimeout(applyNoteFilter, 0);
+      window.__FILTER_NOTE_EXACT__ = norm($("#filterNoteExact")?.value || "");
+      scheduleApply();
     });
-
     if (btnReset) {
       btnReset.addEventListener('click', () => {
         const ip = $("#filterNoteExact"); if (ip) ip.value = "";
         window.__FILTER_NOTE_EXACT__ = "";
-        setTimeout(applyNoteFilter, 0);
+        scheduleApply();
       });
     }
-
     console.log(LOG, "campo Note (match esatto) aggiunto");
     return true;
   }
@@ -63,52 +68,63 @@
   function extractNoteFromRow(tr){
     const cell = tr.children?.[1];
     if (!cell) return "";
-    // 1) dataset esplicito
+    // dataset espliciti
     const ds = cell.dataset?.note || tr.dataset?.note || "";
     if (ds) return norm(ds);
-    // 2) scorciatoie comuni
+    // classi/attributi comuni
     const el2 = cell.querySelector('[data-note], [data-field="note"], .note, .badge-note');
     if (el2) return norm(el2.textContent||"");
-    // 3) testo normalizzato della cella (collassa whitespace)
+    // testo normalizzato della cella (collassa whitespace)
     const raw = (cell.innerText || cell.textContent || "").replace(/\s+/g, " ").trim();
-    const m = raw.match(/note:\s*([^|•\n\r]+)/i); // fino a separatori comuni
+    const m = raw.match(/note:\s*([^|•\n\r]+)/i);
     if (m && m[1]) return norm(m[1]);
-    // 4) scan di piccoli elementi
-    const small = Array.from(cell.querySelectorAll('small,div,span')).map(x => x.textContent||"");
-    for (const t of small) {
+    // scan elementi piccoli
+    const smalls = Array.from(cell.querySelectorAll('small,div,span')).map(x => x.textContent||"");
+    for (const t of smalls) {
       const mm = t.match(/^\s*note[:]?\s*(.+)$/i);
       if (mm && mm[1]) return norm(mm[1]);
     }
     return "";
   }
 
-  function applyNoteFilter(){
+  function applyNoteFilterNow(){
     const table = $("#tableResults");
     const tbody = table?.querySelector("tbody");
     if (!tbody) return;
     const want = norm(window.__FILTER_NOTE_EXACT__ || "");
+
     if (!want) {
-      $$("#tableResults tbody tr").forEach(tr => tr.style.display = "");
+      table.removeAttribute('data-note-active');
+      $$("#tableResults tbody tr").forEach(tr => tr.classList.remove('note-match'));
       console.log(LOG, "filtro Note disattivato");
       return;
     }
+
+    table.setAttribute('data-note-active','1'); // attiva il gate CSS
     let shown = 0, hidden = 0;
     $$("#tableResults tbody tr").forEach(tr => {
       const note = extractNoteFromRow(tr);
       const ok = (note === want);
-      tr.style.display = ok ? "" : "none";
+      tr.classList.toggle('note-match', ok);
       ok ? shown++ : hidden++;
     });
     console.log(LOG, `filtro Note="${want}" → visibili ${shown}, nascosti ${hidden}`);
   }
 
+  let applyTimer = null;
+  function scheduleApply(){
+    if (applyTimer) cancelAnimationFrame(applyTimer);
+    applyTimer = requestAnimationFrame(applyNoteFilterNow);
+  }
+
   function init(){
+    ensureCSS();
     if (!ensureNoteInput()) return;
-    applyNoteFilter();
+    scheduleApply();
     const table = $("#tableResults");
     const target = table?.querySelector("tbody") || table;
     if (target) {
-      new MutationObserver(() => applyNoteFilter())
+      new MutationObserver(() => scheduleApply())
         .observe(target, { childList:true, subtree:true });
     }
   }
