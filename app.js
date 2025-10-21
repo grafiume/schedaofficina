@@ -87,6 +87,7 @@ function renderResults(rows){
 
   rows.forEach(r => {
     const tr = document.createElement("tr");
+    tr.addEventListener("click", ()=>{ if(r.id) showPreviewFor(r.id); });
     tr.innerHTML = `
       <td>${safe(r.descrizione)}</td>
       <td>${safe(r.cliente)}</td>
@@ -118,3 +119,27 @@ function resetAll(){
 $("#btnDoSearch").addEventListener("click", search);
 $("#btnReset").addEventListener("click", resetAll);
 document.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ search(); }});
+
+
+async function showPreviewFor(recordId){
+  try {
+    const { data, error } = await sb.from('photos').select('*').eq('record_id', recordId).order('created_at', {ascending:true}).limit(1);
+    const imgEl = document.getElementById('previewImg');
+    const empty = document.getElementById('previewEmpty');
+    if (error) throw error;
+    if (data && data.length && data[0].path){
+      const path = data[0].path;
+      const { data:pub } = sb.storage.from('photos').getPublicUrl(path);
+      imgEl.src = (pub && pub.publicUrl) ? pub.publicUrl : "";
+      if (imgEl.src){ imgEl.classList.remove('d-none'); empty.classList.add('d-none'); }
+      else { imgEl.classList.add('d-none'); empty.classList.remove('d-none'); }
+    } else {
+      imgEl.src = ""; imgEl.classList.add('d-none'); empty.classList.remove('d-none');
+    }
+  } catch(e){
+    console.warn("Anteprima non disponibile:", e?.message||e);
+    const imgEl = document.getElementById('previewImg');
+    const empty = document.getElementById('previewEmpty');
+    imgEl.src = ""; imgEl.classList.add('d-none'); empty.classList.remove('d-none');
+  }
+}
