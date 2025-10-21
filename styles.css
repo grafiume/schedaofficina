@@ -14,3 +14,6 @@
 .gallery-item{position:relative}
 .gallery-item img{width:100%; height:120px; object-fit:cover; border-radius:.5rem}
 .badge-chiusa{background:var(--brand-green);}
+
+.thumb{width:48px;height:48px;object-fit:cover;border-radius:.35rem;border:1px solid #e5e7eb;background:#f8f9fa}
+.thumb-cell{width:56px}

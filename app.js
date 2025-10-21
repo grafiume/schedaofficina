@@ -103,19 +103,36 @@ function renderHome(rows){
 
   const tb = document.getElementById('homeRows');
   tb.innerHTML = '';
-  rows.sort(byHomeOrder).forEach(r=>{
-    const closed = norm(r.statoPratica).includes('completata');
-    const badge = closed ? ' <span class="badge badge-chiusa">Chiusa</span>' : '';
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${fmtIT(r.dataApertura)}</td>
-      <td>${r.cliente??''}</td>
-      <td>${r.descrizione??''}</td>
-      <td>${r.modello??''}</td>
-      <td>${r.statoPratica??''}${badge}</td>
-      <td class="text-end"><button class="btn btn-sm btn-outline-primary" data-id="${r.id}">Apri</button></td>`;
-    tr.querySelector('button').addEventListener('click',()=>openEdit(r.id));
-    tb.appendChild(tr);
-  });
+  
+rows.sort(byHomeOrder).forEach(r=>{
+  const closed = norm(r.statoPratica).includes('completata');
+  const badge = closed ? ' <span class="badge badge-chiusa">Chiusa</span>' : '';
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="thumb-cell"><a class="thumb-link" target="_blank"><img class="thumb" /></a></td>
+    <td>${fmtIT(r.dataApertura)}</td>
+    <td>${r.cliente??''}</td>
+    <td>${r.descrizione??''}</td>
+    <td>${r.modello??''}</td>
+    <td>${r.statoPratica??''}${badge}</td>
+    <td class="text-end"><button class="btn btn-sm btn-outline-primary" data-id="${r.id}">Apri</button></td>`;
+  tr.querySelector('button').addEventListener('click',()=>openEdit(r.id));
+  tb.appendChild(tr);
+  // set preview asynchronously
+  (async ()=>{
+    const paths = await listPhotos(r.id);
+    const a = tr.querySelector('.thumb-link');
+    const img = tr.querySelector('.thumb');
+    if (paths.length){
+      const url = publicUrl(paths[0]);
+      a.href = url;
+      img.src = url;
+      img.alt = 'Anteprima';
+    } else {
+      a.removeAttribute('href');
+      img.alt = '—';
+    }
+  })();
+});
   if(!rows.length){
     tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Nessun record</td></tr>';
   }
