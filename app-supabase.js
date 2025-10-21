@@ -1,39 +1,44 @@
-// Bridge funzioni Supabase
-(function(){
-  const sb = window.getSB();
+// Data access for 'records' table
+window.AppSupabase = (function(){
+  const sb = window.__sb.get();
 
-  async function listRecords(q, exact) {
-    // Seleziona tutto, ordina per dataApertura desc (se presente)
-    let query = sb.from('records').select('*').order('dataApertura', {ascending:false}, { nullsFirst: false });
-    if (q && q.trim() !== '') {
-      const term = q.trim();
-      const cols = ['descrizione','cliente','telefono','ddt','modello','marca','battcoll','note','notes','notesk'];
-      if (exact) {
-        // ILIKE senza % => match esatto case-insensitive
-        const parts = cols.map(c => `${c}.ilike.${term}`);
-        query = query.or(parts.join(','));
-      } else {
-        const like = `%${term}%`;
-        const parts = cols.map(c => `${c}.ilike.${like}`);
-        query = query.or(parts.join(','));
+  // columns searched
+  const SEARCH_COLS = [
+    "descrizione","cliente","telefono","ddt","modello","marca","battcoll","note","notes","notesk","descrizionegenerale","descrizione_generale"
+  ];
+
+  function buildOrFilter(value, exact){
+    const enc = encodeURIComponent;
+    if (!value || !value.trim()) return null;
+    const v = value.trim();
+    // exact (case-insensitive): use ILIKE without wildcards (no %)
+    // contains: use ILIKE with %value%
+    const pattern = exact ? enc(v) : enc("%" + v + "%");
+    const op = exact ? "ilike" : "ilike"; // ilike without % behaves like case-insensitive equality
+    const parts = SEARCH_COLS.map(c => `${c}.${op}.${pattern}`);
+    return parts.join(",");
+  }
+
+  async function fetchRecords(opts){
+    const { q = "", exact = false } = opts || {};
+    let url = `${window.SUPABASE_URL}/rest/v1/records?select=*`;
+    const orFilter = buildOrFilter(q, exact);
+    if (orFilter) url += `&or=(${orFilter})`;
+    url += `&order=dataApertura.desc.nullslast`;
+    const res = await fetch(url, {
+      headers: {
+        apikey: window.SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${window.SUPABASE_ANON_KEY}`,
+        Accept: "application/json"
       }
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`HTTP ${res.status}: ${txt}`);
     }
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+    const rows = await res.json();
+    return rows;
   }
 
-  async function getRecord(id){
-    const { data, error } = await sb.from('records').select('*').eq('id', id).single();
-    if (error) throw error;
-    return data;
-  }
-
-  async function upsertRecord(payload){
-    const { data, error } = await sb.from('records').upsert(payload).select().single();
-    if (error) throw error;
-    return data;
-  }
-
-  window.api = { listRecords, getRecord, upsertRecord };
+  return { fetchRecords };
 })();

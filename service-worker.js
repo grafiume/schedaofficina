@@ -1,27 +1,8 @@
-const CACHE = 'schedaofficina-light-v1';
-const ASSETS = [
-  './',
-  './index.html',
-  './styles.css',
-  './supabase-singleton.js',
-  './app-supabase.js',
-  './app-core.js',
-  './config.js',
-  './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png'
-];
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+self.addEventListener('install', (e)=>{
+  e.waitUntil(caches.open('so-light-v1').then(c=>c.addAll([
+    './','./index.html','./styles.css','./app-core.js','./app-supabase.js','./supabase-singleton.js','./manifest.json'
+  ])));
 });
-self.addEventListener('activate', (e) => {
-  e.waitUntil(self.clients.claim());
-});
-self.addEventListener('fetch', (e) => {
-  const url = new URL(e.request.url);
-  if (url.origin === location.origin) {
-    e.respondWith(
-      caches.match(e.request).then(cached => cached || fetch(e.request))
-    );
-  }
+self.addEventListener('fetch', (e)=>{
+  e.respondWith(caches.match(e.request).then(r=>r || fetch(e.request)));
 });

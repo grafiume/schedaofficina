@@ -9,103 +9,56 @@
   <meta name="theme-color" content="#ffffff">
 </head>
 <body>
-  <header class="appbar">
-    <div class="row">
-      <div class="logo"><span class="mark"></span> Scheda Officina <span class="small">– Light</span></div>
-      <div class="tag">Stato: <span id="syncState" class="small">Offline-ready</span></div>
-      <div class="searchbar">
-        <input id="q" placeholder="Cerca per descrizione, cliente, DDT, modello, battuta collettore…">
-        <button id="btnSearch">Cerca</button>
-        <button id="btnReset" class="btn-outline">Reset</button>
-      </div>
-      <label class="tag"><input type="checkbox" id="chkExact" style="margin-right:6px"> Ricerca esatta</label>
+  <header class="app-header">
+    <div class="brand">
+      <div class="logo-dot"></div>
+      <h1>Scheda Officina</h1>
     </div>
+    <div class="accent-pill">Beta</div>
   </header>
 
   <main class="container">
-    <section id="page-home">
-      <div class="kpis">
-        <div class="kpi"><div class="label">Totali</div><div class="value" id="kpiTot">0</div></div>
-        <div class="kpi"><div class="label">In attesa</div><div class="value" id="kpiAttesa">0</div></div>
-        <div class="kpi"><div class="label">In lavorazione</div><div class="value" id="kpiLav">0</div></div>
-        <div class="kpi"><div class="label">Chiuse</div><div class="value" id="kpiChiuse">0</div></div>
+    <section class="toolbar card">
+      <div class="toolbar-top">
+        <input id="q" class="input" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT e dati tecnici…">
+        <label class="chk">
+          <input type="checkbox" id="chkExact">
+          <span>Ricerca esatta</span>
+        </label>
+        <button id="btnSearch" class="btn btn-primary">Cerca</button>
+        <button id="btnReset" class="btn btn-ghost">Reset</button>
       </div>
-
-      <div class="card">
-        <div class="card-header">
-          <strong>Archivio</strong>
-          <div class="toolbar">
-            <button class="btn" id="btnNew">Nuovo</button>
-            <button class="btn" id="btnReload">Ricarica</button>
-          </div>
-        </div>
-        <div class="card-body">
-          <table class="table" id="tbl">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Cliente</th>
-                <th>Descrizione</th>
-                <th>Stato</th>
-                <th>Azioni</th>
-              </tr>
-            </thead>
-            <tbody id="rows">
-              <tr><td class="small" colspan="5">Nessun record…</td></tr>
-            </tbody>
-          </table>
-        </div>
+      <div class="toolbar-bottom">
+        <button class="kpi" data-filter="totali">
+          <div class="kpi-label">Totali</div><div id="kpiTot" class="kpi-value">0</div>
+        </button>
+        <button class="kpi kpi-warn" data-filter="attesa">
+          <div class="kpi-label">In attesa</div><div id="kpiAttesa" class="kpi-value">0</div>
+        </button>
+        <button class="kpi kpi-info" data-filter="lavorazione">
+          <div class="kpi-label">In lavorazione</div><div id="kpiLav" class="kpi-value">0</div>
+        </button>
+        <button class="kpi kpi-ok" data-filter="completate">
+          <div class="kpi-label">Completate</div><div id="kpiChiuse" class="kpi-value">0</div>
+        </button>
       </div>
     </section>
 
-    <section id="page-edit" class="hidden">
-      <div class="card">
-        <div class="card-header">
-          <strong id="formTitle">Nuova scheda</strong>
-          <div class="toolbar">
-            <span id="closedStamp" class="stamp-closed hidden">CHIUSA</span>
-            <button class="btn" id="btnSave">Salva</button>
-            <button class="btn" id="btnBack">Torna all’archivio</button>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="form-grid">
-            <div class="input"><label>Cliente</label><input id="f_cliente"></div>
-            <div class="input"><label>Telefono</label><input id="f_telefono"></div>
-            <div class="input"><label>Descrizione</label><input id="f_descrizione"></div>
-            <div class="input"><label>DDT</label><input id="f_ddt"></div>
-            <div class="input"><label>Marca</label><input id="f_marca"></div>
-            <div class="input"><label>Modello</label><input id="f_modello"></div>
-            <div class="input"><label>Battuta collettore</label><input id="f_battcoll"></div>
-            <div class="input"><label>Stato</label>
-              <select id="f_stato">
-                <option value="In attesa">In attesa</option>
-                <option value="In lavorazione">In lavorazione</option>
-                <option value="Completata">Completata</option>
-              </select>
-            </div>
-            <div class="input"><label>Data apertura</label><input id="f_dataApertura" type="date"></div>
-            <div class="input"><label>Data accettazione</label><input id="f_dataAccettazione" type="date"></div>
-            <div class="input"><label>Data fine (chiusura)</label><input id="f_dataFine" type="date"></div>
-            <div class="input"><label>Note</label><textarea id="f_note" rows="3"></textarea></div>
-          </div>
-          <hr class="sep">
-          <div class="small">ID: <span id="recId">—</span></div>
-        </div>
-      </div>
+    <section class="card">
+      <div class="card-head"><h2>Archivio</h2></div>
+      <div id="list" class="list"></div>
     </section>
   </main>
 
-  <footer class="footer">© 2025 – Graziano Fiume — Tema chiaro su sfondo bianco</footer>
+  <footer class="app-footer">© 2025 — UI chiara su sfondo bianco • Colori: arancione/verde/grigio</footer>
 
-  <script src="config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-singleton.js"></script>
   <script src="app-supabase.js"></script>
   <script src="app-core.js"></script>
   <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js');
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("service-worker.js").catch(()=>{});
     }
   </script>
 </body>
