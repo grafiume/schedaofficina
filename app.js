@@ -4,16 +4,39 @@ const sb = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
 // === Storage helpers (bucket: photos) ===
 const bucket = 'photos';
-async function listPhotos(recordId){
-  const prefix = `records/${recordId}/`;
-  const { data, error } = await sb.storage.from(bucket).list(prefix, {limit:100, sortBy:{column:'name', order:'asc'}});
-  if (error) { console.warn('listPhotos', error.message); return []; }
-  return data.map(x => prefix + x.name);
+
+async function listPhotosFromPrefix(prefix){
+  const { data, error } = await sb.storage.from(bucket).list(prefix, {limit:200, sortBy:{column:'name', order:'asc'}});
+  if (error) { return []; }
+  return (data||[]).map(x => prefix + x.name);
 }
+
+// Try multiple locations and fallback to table 'public.photos'
+async function listPhotos(recordId){
+  // 1) new layout: records/{id}/...
+  let paths = await listPhotosFromPrefix(`records/${recordId}/`);
+  if (paths.length) return paths;
+  // 2) old layout: {id}/...
+  paths = await listPhotosFromPrefix(`${recordId}/`);
+  if (paths.length) return paths;
+  // 3) fallback: legacy table 'public.photos' with column 'path'
+  try{
+    const { data, error } = await sb.from('photos')
+      .select('path')
+      .eq('record_id', recordId)
+      .order('created_at', { ascending:true });
+    if (!error && data && data.length){
+      return data.map(r => r.path); // already bucket-relative paths (e.g., "{id}/file.jpg")
+    }
+  }catch(e){ /* ignore */ }
+  return [];
+}
+
 function publicUrl(path){
   const { data } = sb.storage.from(bucket).getPublicUrl(path);
   return data?.publicUrl;
 }
+
 async function uploadFiles(recordId, files){
   const prefix = `records/${recordId}/`;
   for (const f of files){
@@ -23,7 +46,27 @@ async function uploadFiles(recordId, files){
   }
   return true;
 }
+
 async function refreshGallery(recordId){
+  const gallery = document.getElementById('gallery');
+  gallery.innerHTML = '';
+  const paths = await listPhotos(recordId);
+  // preview first image
+  const prev = document.querySelector('.img-preview');
+  if (paths.length){
+    prev.innerHTML = `<img src="${publicUrl(paths[0])}" style="max-width:100%;max-height:220px;object-fit:contain" />`;
+  } else {
+    prev.textContent = 'Nessuna immagine disponibile';
+  }
+  // thumbs
+  paths.forEach(p=>{
+    const col = document.createElement('div');
+    col.className = 'col-4 gallery-item';
+    col.innerHTML = `<img src="${publicUrl(p)}" alt="">`;
+    gallery.appendChild(col);
+  });
+}
+
   const gallery = document.getElementById('gallery');
   gallery.innerHTML = '';
   const paths = await listPhotos(recordId);
