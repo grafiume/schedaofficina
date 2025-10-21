@@ -31,6 +31,8 @@ function getFilters(){
   return F;
 }
 
+function hasAnyFilter(F){ return Object.keys(F).some(k => F[k]); }
+
 async function search(){
   const F = getFilters();
   let q = sb.from("records").select("*").limit(500);
@@ -50,13 +52,17 @@ async function search(){
   if (F.q){
     const cols = ["descrizione","modello","cliente","telefono","email","note"];
     const ors = cols.map(c => `${c}.ilike.${F.q}`).join(",");
-    q = q.or(`(${ors})`);
+    q = q.or(ors);
   }
 
   // ordinamento (opzionale se presente la colonna)
   try { q = q.order("dataApertura", { ascending:false }); } catch(e){}
 
-  const { data, error } = await q;
+  let resp = await q;
+  if (!hasAnyFilter(F)) {
+    resp = await sb.from('records').select('*').order('dataApertura', {ascending:false}).limit(500);
+  }
+  const { data, error } = resp;
   if (error) {
     console.error(error);
     $("#resBody").innerHTML = `<tr><td colspan="5" class="text-danger">${error.message}</td></tr>`;
