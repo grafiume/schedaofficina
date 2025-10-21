@@ -1,97 +1,100 @@
-(function(){
-  "use strict";
+/* app-core.js v1.0.3 */
+(() => {
+  const els = {
+    q: document.querySelector("#q"),
+    chkExact: document.querySelector("#chkExact"),
+    btnSearch: document.querySelector("#btnDoSearch"),
+    btnReset: document.querySelector("#btnReset"),
+    list: document.querySelector("#listContainer"),
+    toast: document.querySelector("#appToast"),
+  };
 
-  function $(s, r){ return (r||document).querySelector(s); }
-  function el(tag, cls){ const x=document.createElement(tag); if(cls) x.className=cls; return x; }
-
-  function isClosed(r){
-    const stato = (r && (r.stato||"")).toString().toLowerCase();
-    if (stato.includes("complet")) return true;
-    if (stato.includes("chius")) return true;
-    if (r && r.dataFine) return true;
-    if (typeof r.percentuale === "number" && r.percentuale >= 100) return true;
-    return false;
+  function showMessage(msg) {
+    if (els.toast) {
+      els.toast.textContent = msg;
+      els.toast.classList.remove("d-none");
+    } else {
+      console.warn(msg);
+      try { alert(msg); } catch(e) {}
+    }
   }
 
-  function computeKPI(rows){
-    const tot = rows.length;
-    let attesa=0, lav=0, chiuse=0;
-    rows.forEach(r=>{
-      const s = ((r.stato||"")+"").toLowerCase();
-      if (isClosed(r)) chiuse++;
-      else if (s.includes("attesa")) attesa++;
-      else if (s.includes("lavor")) lav++;
-      else attesa++; // default
-    });
-    $("#kpiTot").textContent = String(tot);
-    $("#kpiAttesa").textContent = String(attesa);
-    $("#kpiLav").textContent = String(lav);
-    $("#kpiChiuse").textContent = String(chiuse);
+  function isClosed(r) {
+    const stato = String(r?.stato || "").toLowerCase();
+    const percent = Number(r?.percentuale || 0);
+    return /complet|chius/.test(stato) || !!r?.dataFine || percent >= 100;
   }
 
-  function renderList(rows){
-    const root = $("#list");
-    root.innerHTML = "";
-    rows.forEach(r=>{
-      const it = el("div","card-item");
-      if (isClosed(r)){
-        const b = el("div","badge-chiusa");
-        b.textContent = "CHIUSA";
-        it.appendChild(b);
-      }
-      const head = el("div","item-head");
-      const title = el("div","item-title");
-      title.textContent = (r.descrizione || r.modello || r.marca || "Senza descrizione");
-      const sub = el("div","item-sub");
-      const cliente = r.cliente ? String(r.cliente) : "";
-      const tel = r.telefono ? String(r.telefono) : "";
-      sub.textContent = [cliente, tel].filter(Boolean).join(" • ");
-      head.appendChild(title);
-      head.appendChild(sub);
-      const body = el("div","item-body");
-      const rowsInfo = [
-        ["Modello", r.modello],
-        ["Marca", r.marca],
-        ["DDT", r.ddt],
-        ["Batt. collettore", r.battcoll],
-        ["Note", r.note || r.notes || r.notesk || r.descrizionegenerale || r.descrizione_generale]
-      ];
-      rowsInfo.forEach(([k,v])=>{
-        if (v === undefined || v === null || v === "") return;
-        const p = el("div","");
-        p.textContent = k + ": " + String(v);
-        body.appendChild(p);
+  function safe(str) {
+    if (str == null) return "";
+    return String(str);
+  }
+
+  function renderList(rows) {
+    if (!els.list) return;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      els.list.innerHTML = '<div class="text-muted p-3">Nessun risultato.</div>';
+      return;
+    }
+
+    const html = rows.map(r => {
+      const badge = isClosed(r) ? '<span class="badge bg-success ms-2">CHIUSA</span>' : "";
+      const cliente = r?.cliente ? `<div class="small text-muted">${safe(r.cliente)}</div>` : "";
+      const descr = r?.descrizione ? `<div class="fw-semibold">${safe(r.descrizione)}</div>` : "";
+      const modello = r?.modello ? `<div class="small">${safe(r.modello)}</div>` : "";
+      const note = r?.notesk ? `<div class="small text-truncate">${safe(r.notesk)}</div>` : "";
+      const stato = r?.stato ? `<span class="badge text-bg-secondary">${safe(r.stato)}</span>` : "";
+
+      return [
+        '<div class="card mb-2 shadow-sm">',
+          '<div class="card-body py-2">',
+            '<div class="d-flex align-items-center justify-content-between">',
+              '<div>',
+                descr, cliente, modello, note,
+              '</div>',
+              '<div>',
+                stato, badge,
+              '</div>',
+            '</div>',
+          '</div>',
+        '</div>'
+      ].join("");
+    }).join("");
+
+    els.list.innerHTML = html;
+  }
+
+  async function doSearch() {
+    if (!window.Api || typeof Api.fetchRecords !== "function") {
+      showMessage("Impossibile cercare: Supabase non è pronto. Controlla l’ordine degli script in index.html.");
+      return;
+    }
+    const q = (els.q && typeof els.q.value === "string") ? els.q.value.trim() : "";
+    const exact = !!(els.chkExact && els.chkExact.checked);
+
+    const { data, error } = await Api.fetchRecords({ q, exact, limit: 1000 });
+    if (error) {
+      console.error(error);
+      showMessage("Errore durante la ricerca.");
+      return;
+    }
+    renderList(data);
+  }
+
+  function doReset() {
+    if (els.q) els.q.value = "";
+    if (els.chkExact) els.chkExact.checked = false;
+    doSearch();
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    if (els.btnSearch) els.btnSearch.addEventListener("click", doSearch);
+    if (els.btnReset) els.btnReset.addEventListener("click", doReset);
+    if (els.q) {
+      els.q.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") doSearch();
       });
-      it.appendChild(head);
-      it.appendChild(body);
-      root.appendChild(it);
-    });
-  }
-
-  async function doSearch(){
-    const q = $("#q").value || "";
-    const exact = $("#chkExact").checked;
-    const rows = await window.AppSupabase.fetchRecords({ q, exact });
-    computeKPI(rows);
-    renderList(rows);
-  }
-
-  async function doReset(){
-    $("#q").value = "";
-    $("#chkExact").checked = false;
-    await doSearch();
-  }
-
-  function bind(){
-    $("#btnSearch").addEventListener("click", ()=>{ doSearch().catch(console.error); });
-    $("#btnReset").addEventListener("click", ()=>{ doReset().catch(console.error); });
-    $("#q").addEventListener("keydown", (e)=>{
-      if (e.key === "Enter") { doSearch().catch(console.error); }
-    });
-  }
-
-  document.addEventListener("DOMContentLoaded", function(){
-    bind();
-    doSearch().catch(console.error);
+    }
+    doSearch();
   });
 })();

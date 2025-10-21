@@ -1,44 +1,57 @@
-// Data access for 'records' table
-window.AppSupabase = (function(){
-  const sb = window.__sb.get();
+/* app-supabase.js v1.0.2 */
+(() => {
+  const TABLE = "records";
 
-  // columns searched
-  const SEARCH_COLS = [
-    "descrizione","cliente","telefono","ddt","modello","marca","battcoll","note","notes","notesk","descrizionegenerale","descrizione_generale"
-  ];
-
-  function buildOrFilter(value, exact){
-    const enc = encodeURIComponent;
-    if (!value || !value.trim()) return null;
-    const v = value.trim();
-    // exact (case-insensitive): use ILIKE without wildcards (no %)
-    // contains: use ILIKE with %value%
-    const pattern = exact ? enc(v) : enc("%" + v + "%");
-    const op = exact ? "ilike" : "ilike"; // ilike without % behaves like case-insensitive equality
-    const parts = SEARCH_COLS.map(c => `${c}.${op}.${pattern}`);
-    return parts.join(",");
+  function _getClientOrNull() {
+    return (window.SB && typeof SB.get === "function") ? SB.get() : null;
   }
 
-  async function fetchRecords(opts){
-    const { q = "", exact = false } = opts || {};
-    let url = `${window.SUPABASE_URL}/rest/v1/records?select=*`;
-    const orFilter = buildOrFilter(q, exact);
-    if (orFilter) url += `&or=(${orFilter})`;
-    url += `&order=dataApertura.desc.nullslast`;
-    const res = await fetch(url, {
-      headers: {
-        apikey: window.SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${window.SUPABASE_ANON_KEY}`,
-        Accept: "application/json"
-      }
-    });
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`HTTP ${res.status}: ${txt}`);
+  /**
+   * fetchRecords
+   * @param {Object} opt
+   * @param {string} opt.q - valore ricerca
+   * @param {boolean} opt.exact - true = ricerca esatta (ILIKE senza %), false = contiene (%val%)
+   * @param {number} [opt.limit=500]
+   */
+  async function fetchRecords(opt = {}) {
+    const client = _getClientOrNull();
+    if (!client) {
+      return { data: [], error: new Error("Supabase non inizializzato (controlla config.js e CDN).") };
     }
-    const rows = await res.json();
-    return rows;
+
+    const raw = typeof opt.q === "string" ? opt.q : "";
+    const clean = raw.trim().replace(/,/g, " "); // evita conflitti con OR di supabase
+    const exact = !!opt.exact;
+    const limit = opt.limit ?? 500;
+
+    const cols = [
+      "descrizione",
+      "modello",
+      "cliente",
+      "telefono",
+      "ddt",
+      "notesk",
+      "battcollettore",
+      "marca"
+    ];
+
+    let query = client.from(TABLE).select("*").limit(limit);
+
+    if (clean) {
+      const val = exact ? clean : `%${clean}%`;
+      const operator = "ilike"; // ilike senza % ≈ uguaglianza case-insensitive
+
+      const orParts = cols.map((c) => `${c}.${operator}.${val}`);
+      query = query.or(orParts.join(","));
+    }
+
+    query = query.order("dataApertura", { ascending: false }).order("id", { ascending: false });
+
+    const { data, error } = await query;
+    return { data: data || [], error };
   }
 
-  return { fetchRecords };
+  window.Api = {
+    fetchRecords,
+  };
 })();
