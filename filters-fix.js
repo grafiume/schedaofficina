@@ -1,19 +1,18 @@
 /*!
- * filters-fix.js — v5 (Exact + UI originale + migliorie UX)
- * - Unifica "Applica filtri" + "Ricerca": un solo click su CERCA
- * - Reset pulisce TUTTI i campi della schermata Ricerca
- * - Banner verde "Chiusa" sotto i bottoni se statoPratica === "Completata"
- * - "Data scadenza" in rosso (lista + form, per id/nome comuni)
+ * filters-fix.js — v6 (Exact + UI originale + CERCA unificato + RESET totale + Home)
+ * - Unico flusso: sia "Cerca" che "Applica filtri" eseguono lista_v6()
+ * - Reset realmente TOTALE: input, select (anche multiple), textarea, checkbox, radio, risultati, badge, stato interno
+ * - Torna alla HOME dopo il reset
+ * - Banner "Chiusa" e "Scadenza" rossa preservati
  */
 (function(){
-  const LOG = "[filters-fix v5]";
+  const LOG = "[filters-fix v6]";
   const $  = (s,ctx=document)=>ctx.querySelector(s);
   const $$ = (s,ctx=document)=>Array.from(ctx.querySelectorAll(s));
   const norm = v => String(v ?? '').toLowerCase().trim().replace(/\s+/g,' ');
   const has  = v => (v!=null && String(v).trim()!=="");
   if (!window.sb) { console.warn(LOG, "Supabase client mancante"); return; }
 
-  // --- stile "data scadenza" rosso (form/modifica) ---
   (function injectScadenzaStyle(){
     const css = `
       #dataScadenza, input[name="dataScadenza"] { color:#dc3545 !important; border-color:#dc3545 !important; }
@@ -24,7 +23,6 @@
     document.head.appendChild(st);
   })();
 
-  // --- GET FILTERS dalla tua UI originale ---
   function getFilters(){
     const F = {};
     const map = {
@@ -46,19 +44,42 @@
     return F;
   }
 
-  // --- RESET COMPLETO schermata ricerca ---
+  function goHome(){
+    const tryClick = (sel)=>{ const b=$(sel); if (b){ b.click(); return true; } return false; };
+    if (tryClick("#kpiTotBtn")) return;
+    if (tryClick("#btnHome")) return;
+    if (tryClick('[data-target="home"]')) return;
+    const pages = ["#page-home","#page-search","#page-detail","#page-archive","#page-mod"];
+    const found = pages.map(s=>$(s)).filter(Boolean);
+    found.forEach(p=>p.classList.add("d-none"));
+    $("#page-home")?.classList.remove("d-none");
+    window.scrollTo(0,0);
+  }
+
   function doReset(){
-    $$("#page-search input, #page-search select").forEach(el => {
-      if (el.tagName === "SELECT") el.selectedIndex = 0;
+    $$("#page-search input, #page-search select, #page-search textarea").forEach(el => {
+      const t = el.type ? el.type.toLowerCase() : el.tagName.toLowerCase();
+      if (t === "checkbox" || t === "radio") el.checked = false;
+      else if (el.tagName === "SELECT" && el.multiple) el.selectedIndex = -1;
+      else if (el.tagName === "SELECT") el.selectedIndex = 0;
       else el.value = "";
     });
     $("#activeFilterBox")?.classList.add("d-none");
-    $("#activeFilterLabel")?.replaceChildren();
-    const tBody = $("#resBody, #listTableBody");
-    if (tBody) tBody.innerHTML = "";
+    if ($("#activeFilterLabel")) $("#activeFilterLabel").innerHTML = "";
+    ["#resBody","#listTableBody","#results","#resultsList"].forEach(sel=>{
+      const el = document.querySelector(sel);
+      if (!el) return;
+      if (el.tagName === "TBODY" || el.tagName === "THEAD" || el.tagName === "TABLE"){
+        el.innerHTML = "";
+      } else {
+        el.classList.add("d-none");
+      }
+    });
+    window.__SEARCH_ACTIVE__ = false;
+    if (window.__searchLock?.unlock) window.__searchLock.unlock();
+    goHome();
   }
 
-  // --- Query Supabase: ILIKE senza wildcard per case-insensitive exact; eq per numerici ---
   function buildQuery(F){
     let q = sb.from('records').select('*').limit(500);
     const textFields = ["note","battCollettore","punta"];
@@ -74,19 +95,18 @@
     return q;
   }
 
-  // --- Decorazione lista: badge Chiusa + scadenza rossa ---
   function decorateList(rows){
     try{
       const byId = new Map((rows||[]).map(r => [String(r.id||""), r]));
-      $$('button[data-open]').forEach(btn => {
+      document.querySelectorAll('button[data-open]').forEach(btn => {
         const id = String(btn.getAttribute('data-open') || "");
         const r = byId.get(id);
         if (r && (r.statoPratica||"") === "Completata"){
           const td = btn.closest('td');
-          if (td && !td.querySelector('.badge-chiusa-v5')){
+          if (td && !td.querySelector('.badge-chiusa-v6')){
             const wrap = document.createElement('div');
             wrap.className = 'mt-1';
-            wrap.innerHTML = '<span class="badge badge-chiusa-v5" style="background:#1e8b3d">Chiusa</span>';
+            wrap.innerHTML = '<span class="badge badge-chiusa-v6" style="background:#1e8b3d">Chiusa</span>';
             td.appendChild(wrap);
           }
         }
@@ -96,8 +116,7 @@
     }catch(e){ console.warn(LOG, "decorateList", e); }
   }
 
-  // --- Ricerca unificata (CERCA) ---
-  async function lista_v5(){
+  async function lista_v6(){
     try{
       if (window.__searchLock?.lock) window.__searchLock.lock();
       if (typeof pauseRealtime === "function") pauseRealtime();
@@ -131,18 +150,23 @@
     const cercaBtn = document.querySelector("#btnDoSearch");
     if (cercaBtn){
       cercaBtn.removeEventListener("click", window.lista, true);
-      cercaBtn.addEventListener("click", lista_v5, true);
+      cercaBtn.addEventListener("click", lista_v6, true);
+    }
+    const applyBtn = document.querySelector("#btnApplyFilters");
+    if (applyBtn){
+      applyBtn.removeEventListener("click", window.lista, true);
+      applyBtn.addEventListener("click", lista_v6, true);
     }
     document.addEventListener("keydown", e=>{
       if (e.key === "Enter" && document.activeElement && document.activeElement.closest("#page-search")) {
-        lista_v5();
+        lista_v6();
       }
     });
     const resetBtn = document.querySelector("#btnClearFilter") || document.querySelector("#btnReset");
     if (resetBtn) resetBtn.addEventListener("click", doReset);
 
-    window.lista = lista_v5;
-    console.log(LOG, "attivo con UI originale (CERCA unificato, reset completo, badge Chiusa, scadenza rossa)");
+    window.lista = lista_v6;
+    console.log(LOG, "attivo: CERCA/APPLICA unificati, reset totale con HOME, badge Chiusa, scadenza rossa");
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
