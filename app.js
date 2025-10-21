@@ -26,7 +26,7 @@ async function listPhotos(recordId){
       .eq('record_id', recordId)
       .order('created_at', { ascending:true });
     if (!error && data && data.length){
-      return data.map(r => r.path); // already bucket-relative paths (e.g., "{id}/file.jpg")
+      return data.map(r => r.path);
     }
   }catch(e){ /* ignore */ }
   return [];
@@ -54,7 +54,7 @@ async function refreshGallery(recordId){
   // preview first image
   const prev = document.querySelector('.img-preview');
   if (paths.length){
-    prev.innerHTML = `<img src="${publicUrl(paths[0])}" style="max-width:100%;max-height:220px;object-fit:contain" />`;
+    prev.innerHTML = `<img src="\${publicUrl(paths[0])}" style="max-width:100%;max-height:220px;object-fit:contain" />`;
   } else {
     prev.textContent = 'Nessuna immagine disponibile';
   }
@@ -62,30 +62,10 @@ async function refreshGallery(recordId){
   paths.forEach(p=>{
     const col = document.createElement('div');
     col.className = 'col-4 gallery-item';
-    col.innerHTML = `<img src="${publicUrl(p)}" alt="">`;
+    col.innerHTML = `<img src="\${publicUrl(p)}" alt="">`;
     gallery.appendChild(col);
   });
 }
-
-  const gallery = document.getElementById('gallery');
-  gallery.innerHTML = '';
-  const paths = await listPhotos(recordId);
-  // preview first image
-  const prev = document.querySelector('.img-preview');
-  if (paths.length){
-    prev.innerHTML = `<img src="${publicUrl(paths[0])}" style="max-width:100%;max-height:220px;object-fit:contain" />`;
-  } else {
-    prev.textContent = 'Nessuna immagine disponibile';
-  }
-  // thumbs
-  paths.forEach(p=>{
-    const col = document.createElement('div');
-    col.className = 'col-4 gallery-item';
-    col.innerHTML = `<img src="${publicUrl(p)}" alt="">`;
-    gallery.appendChild(col);
-  });
-}
-
 const state = {
   all: [],
   currentFilter: null,
