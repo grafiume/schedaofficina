@@ -161,8 +161,7 @@ rows.sort(byHomeOrder).forEach(r=>{
   tr.querySelector('button').addEventListener('click',()=>openEdit(r.id));
   tb.appendChild(tr);
   // set preview asynchronously
-  (async ()=>{
-    const paths = await listPhotos(r.id);
+  listPhotos(r.id).then(paths=>{
     const a = tr.querySelector('.thumb-link');
     const img = tr.querySelector('.thumb');
     if (paths.length){
@@ -174,7 +173,7 @@ rows.sort(byHomeOrder).forEach(r=>{
       a.removeAttribute('href');
       img.alt = '—';
     }
-  })();
+  }).catch(()=>{});
 });
   if(!rows.length){
     tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Nessun record</td></tr>';
