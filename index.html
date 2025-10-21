@@ -3,138 +3,96 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Scheda Officina · Nuova Grafica</title>
+  <title>Scheda Officina — Ricerca</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" href="icons/icon-192.png">
-  <meta name="theme-color" content="#ff7f00">
   <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="supabase-singleton.js"></script>
+  <script defer src="app-supabase.js"></script>
+  <script defer src="app-core.js"></script>
 </head>
 <body>
-  <!-- HEADER -->
-  <header class="app-header">
-    <div class="logo-row">
-      <img src="logo-elip.jpg" alt="Logo" class="logo">
-      <div class="brand">
+  <header class="topbar">
+    <div class="brand">
+      <img src="assets/logo-elip.jpg" alt="Logo" class="logo">
+      <div class="title">
         <h1>Scheda Officina</h1>
-        <small class="muted">Nuova UI · ricerca esatta · multi‑device</small>
-      </div>
-      <div class="actions">
-        <button id="btnHome" class="btn ghost">Home</button>
-        <button id="btnSearchPage" class="btn ghost">Ricerca</button>
-        <button id="btnNew" class="btn">Nuova scheda</button>
+        <p class="subtitle">Ricerca con match esatto • case-insensitive • senza accenti</p>
       </div>
     </div>
+    <nav class="kpis">
+      <div class="kpi"><span id="kpiTot">0</span><small>Totali</small></div>
+      <div class="kpi"><span id="kpiAttesa">0</span><small>In attesa</small></div>
+      <div class="kpi"><span id="kpiLavorazione">0</span><small>In lavorazione</small></div>
+      <div class="kpi"><span id="kpiCompletate">0</span><small>Completate</small></div>
+    </nav>
   </header>
 
-  <!-- KPI BAR -->
-  <section class="kpi-row" id="kpiRow">
-    <div class="kpi" id="kpiTotCard">
-      <div class="kpi-top">Totali</div>
-      <div class="kpi-num" id="kpiTot">0</div>
-    </div>
-    <div class="kpi kpi-green" id="kpiAttesaCard">
-      <div class="kpi-top">In attesa</div>
-      <div class="kpi-num" id="kpiAttesa">0</div>
-    </div>
-    <div class="kpi kpi-orange" id="kpiLavCard">
-      <div class="kpi-top">In lavorazione</div>
-      <div class="kpi-num" id="kpiLav">0</div>
-    </div>
-    <div class="kpi kpi-gray" id="kpiChiuseCard">
-      <div class="kpi-top">Completate/Chiuse</div>
-      <div class="kpi-num" id="kpiChiuse">0</div>
-    </div>
-  </section>
+  <main class="container">
+    <section class="search-panel card">
+      <div class="search-row">
+        <input id="q" type="text" placeholder="Ricerca generale (match esatto)" />
+        <button id="btnSearch" class="btn btn-primary">Ricerca</button>
+        <button id="btnReset" class="btn btn-ghost">Reset</button>
+      </div>
 
-  <!-- SEARCH PAGE -->
-  <main class="container d-none" id="page-search">
-    <h2>Ricerca</h2>
-    <p class="muted">Ricerca <b>esatta</b>: confronto perfetto (senza wildcard). Maiuscole/minuscole e accenti ignorati.</p>
+      <details class="filters">
+        <summary>Filtri tecnici (match esatto per campo)</summary>
+        <div class="grid">
+          <label>Cliente <input id="f_cliente" type="text"></label>
+          <label>Modello <input id="f_modello" type="text"></label>
+          <label>Descrizione <input id="f_descrizione" type="text"></label>
+          <label>Telefono <input id="f_telefono" type="text"></label>
+          <label>Email <input id="f_email" type="text"></label>
+          <label>Note <input id="f_note" type="text"></label>
 
-    <div class="search-row">
-      <input id="q" class="input" placeholder="Valore esatto da cercare (cliente, descrizione, note, telefono, DDT…)" />
-      <select id="qCol" class="input">
-        <option value="auto">Auto (colonne principali)</option>
-        <option value="cliente">Cliente</option>
-        <option value="descrizione">Descrizione</option>
-        <option value="note">Note</option>
-        <option value="telefono">Telefono</option>
-        <option value="ddt">DDT</option>
-        <option value="marca">Marca</option>
-        <option value="modello">Modello</option>
-      </select>
-      <button id="btnDoSearch" class="btn">Cerca</button>
-      <button id="btnClearFilter" class="btn ghost">Rimuovi filtro</button>
-    </div>
+          <label>Punta
+            <select id="f_punta">
+              <option value="">—</option>
+              <option>Sinistra</option>
+              <option>Destra</option>
+              <option>Dritta</option>
+            </select>
+          </label>
+          <label>Num Punte <input id="f_numPunte" type="number" step="1" min="0"></label>
+          <label>Batt. Collettore <input id="f_battCollettore" type="number" step="1" min="0"></label>
+          <label>Lungh. Asse <input id="f_lunghezzaAsse" type="number" step="1" min="0"></label>
+          <label>Lungh. Pacco <input id="f_lunghezzaPacco" type="number" step="1" min="0"></label>
+          <label>Larg. Pacco <input id="f_larghezzaPacco" type="number" step="1" min="0"></label>
+        </div>
+      </details>
+    </section>
 
-    <div id="activeFilterBox" class="pillbox d-none">
-      <span id="activeFilterLabel" class="pill"></span>
-      <span class="spacer"></span>
-      <button id="btnBackHome" class="link">Torna alla Home</button>
-    </div>
-
-    <div id="list" class="card-list"></div>
+    <section class="results" id="results"></section>
   </main>
 
-  <!-- HOME (LIST AUTO) -->
-  <main class="container" id="page-home">
-    <h2>Archivio</h2>
-    <div id="listHome" class="card-list"></div>
-  </main>
-
-  <!-- DETAIL PANEL -->
-  <aside id="detailPanel" class="detail-panel d-none">
-    <div class="detail-head">
-      <h3 id="detailTitle">Nuova scheda</h3>
-      <div id="statusBadge" class="status-badge d-none">CHIUSA</div>
-      <button class="btn ghost" id="btnCloseDetail">Chiudi</button>
-    </div>
-    <form id="frm" class="form">
-      <div class="grid">
-        <label>Cliente<input id="cliente" class="input"></label>
-        <label>Telefono<input id="telefono" class="input"></label>
-        <label>Marca<input id="marca" class="input"></label>
-        <label>Modello<input id="modello" class="input"></label>
-        <label>Descrizione<textarea id="descrizione" class="input" rows="2"></textarea></label>
-        <label>Note<textarea id="note" class="input" rows="2"></textarea></label>
-        <label>DDT<input id="ddt" class="input"></label>
-        <label>Stato
-          <select id="stato" class="input">
-            <option>In attesa</option>
-            <option>In lavorazione</option>
-            <option>Completata</option>
-          </select>
-        </label>
-        <label>Data apertura<input id="dataApertura" type="date" class="input"></label>
-        <label>Data accettazione<input id="dataAccettazione" type="date" class="input"></label>
-        <label>Data fine<input id="dataFine" type="date" class="input"></label>
-        <label>Avanzamento %<input id="avanzamento" type="number" min="0" max="100" step="1" class="input"></label>
+  <template id="cardTpl">
+    <article class="card item">
+      <div class="thumbwrap">
+        <img class="thumb" alt="anteprima"/>
       </div>
-
-      <div class="upload">
-        <input type="file" id="photo" accept="image/*">
-        <button type="button" id="btnUpload" class="btn ghost">Carica foto</button>
-        <div id="uploadMsg" class="muted"></div>
+      <div class="meta">
+        <h3 class="cliente"></h3>
+        <p class="descrizione"></p>
+        <div class="tags">
+          <span class="tag stato"></span>
+          <span class="tag modello"></span>
+          <span class="tag punte"></span>
+          <span class="tag ddt"></span>
+          <span class="tag scadenza"></span>
+        </div>
+        <div class="actions">
+          <button class="btn btn-outline">Apri</button>
+          <button class="btn btn-outline">Modifica</button>
+        </div>
+        <div class="closed-banner hidden">CHIUSA</div>
       </div>
+    </article>
+  </template>
 
-      <div class="form-actions">
-        <button type="button" id="btnSave" class="btn">Salva</button>
-        <button type="button" id="btnDelete" class="btn danger">Elimina</button>
-      </div>
-    </form>
-  </aside>
-
-  <footer class="app-footer">
-    <small class="muted">© 2025 — UI by Graziano • Palette originale (arancio/verde/grigio)</small>
+  <footer class="foot">
+    <small>© ELIP — UI chiara su fondo bianco • ricerca esatta</small>
   </footer>
-
-  <script src="config.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-singleton.js"></script>
-  <script src="app-supabase.js"></script>
-  <script src="app-core.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {{ navigator.serviceWorker.register('service-worker.js'); }}
-  </script>
 </body>
 </html>

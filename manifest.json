@@ -1,10 +1,10 @@
 {
   "name": "Scheda Officina",
   "short_name": "Officina",
-  "start_url": ".",
   "display": "standalone",
-  "background_color": "#0f0f0f",
-  "theme_color": "#ff7f00",
+  "start_url": "./index.html",
+  "background_color": "#ffffff",
+  "theme_color": "#f97316",
   "icons": [
     {
       "src": "icons/icon-192.png",

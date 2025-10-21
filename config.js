@@ -1,8 +1,7 @@
-// Supabase config (for Pedmdiljgjgswhfwedno project)
-window.APP_CFG = {
-  SUPABASE_URL: "https://pedmdiljgjgswhfwedno.supabase.co",
-  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNjgxNTIsImV4cCI6MjA3NTY0NDE1Mn0.4p2T8BJHGjVsj1Bx22Mk1mbYmfh7MX5WpCwxhwi4CmQ",
-  STORAGE_BUCKET: "photos",
-  TABLE_RECORDS: "records",
-  TABLE_PHOTOS:  "photos"
+// Inserisci qui le tue credenziali Supabase (pubbliche ANON KEY)
+window.APP_CONFIG = {
+  supabaseUrl: "https://pedmdiljgjgswhfwedno.supabase.co",
+  supabaseKey: "INSERISCI_QUI_LA_TUA_ANON_KEY", // <— sostituisci
+  table: "records",
+  storageBucket: "photos"
 };
