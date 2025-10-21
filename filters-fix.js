@@ -1,7 +1,9 @@
 /*!
- * filters-fix.js — v2 (sostituzione completa)
+ * filters-fix.js — v3 (reset & unlock)
  * - Aggiunge "Note (match esatto)" in Filtri tecnici
- * - Sovrascrive lista() per ricerca deterministica e match esatto via Supabase
+ * - Ricerca deterministica (match esatto) via Supabase
+ * - Sblocca sempre dopo la ricerca e permette ricerche successive
+ * - Aggiunge reset dei filtri (integra #btnClearFilter se esiste)
  */
 (function(){
   const LOG = "[filters-fix]";
@@ -25,15 +27,61 @@
     const btnApply = Array.from(box.querySelectorAll('button')).find(b => /applica\s*filtri/i.test(b.textContent||""));
     if (btnApply) btnApply.parentElement.insertAdjacentElement('beforebegin', wrap);
     else box.appendChild(wrap);
-    $("#filterNoteExact")?.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); $('#btnDoSearch')?.click(); }});
     console.log(LOG, "campo Note (match esatto) aggiunto");
     return true;
+  }
+
+  // Reset filtri (se esiste #btnClearFilter lo usiamo; altrimenti lo creiamo)
+  function attachReset(){
+    const doReset = () => {
+      try {
+        $("#q") && ($("#q").value = "");
+        $("#filterNoteExact") && ($("#filterNoteExact").value = "");
+
+        const ids = ["#f_battCollettore","#f_lunghezzaAsse","#f_lunghezzaPacco","#f_larghezzaPacco","#f_punta","#f_numPunte"];
+        ids.forEach(sel => { const el = $(sel); if (el) el.value = ""; });
+
+        window.__SEARCH_ACTIVE__ = false;
+        if (window.__searchLock?.unlock) window.__searchLock.unlock();
+
+        // ripristina pagina 1 e tabella vuota
+        window.searchRows = [];
+        window.page = 1;
+        if (typeof window.renderPager === 'function') window.renderPager(0);
+        if (typeof window.drawListPage === 'function') window.drawListPage();
+
+        console.log(LOG, "reset filtri");
+      } catch(e){ console.warn(LOG, "reset error", e); }
+    };
+
+    let btn = $("#btnClearFilter");
+    if (!btn) {
+      // crea un pulsante reset vicino al bottone Cerca
+      const row = $("#page-search .row") || $("#page-search");
+      if (row) {
+        btn = document.createElement("button");
+        btn.id = "btnClearFilter";
+        btn.type = "button";
+        btn.className = "btn btn-outline-secondary ms-2";
+        btn.textContent = "Rimuovi filtro";
+        const cercaBtn = $("#btnDoSearch");
+        if (cercaBtn && cercaBtn.parentElement) {
+          cercaBtn.parentElement.appendChild(btn);
+        } else if (row.appendChild) {
+          row.appendChild(btn);
+        }
+      }
+    }
+    if (btn) btn.addEventListener("click", doReset);
   }
 
   if (typeof window.refreshDashboard === 'function' && !window.__refreshDashboard_orig){
     window.__refreshDashboard_orig = window.refreshDashboard;
     window.refreshDashboard = function(){
-      if (window.__SEARCH_ACTIVE__) { console.log(LOG, "skip refreshDashboard"); return; }
+      if (window.__SEARCH_ACTIVE__) {
+        console.log(LOG, "skip refreshDashboard");
+        return;
+      }
       return window.__refreshDashboard_orig.apply(this, arguments);
     };
   }
@@ -99,12 +147,22 @@
     });
     return out;
   }
+
   async function lista_exact(){
+    // Se una ricerca precedente fosse rimasta "appesa", sblocco ora
+    window.__SEARCH_ACTIVE__ = false;
+    if (window.__searchLock?.unlock) window.__searchLock.unlock();
+
     try {
       window.__SEARCH_ACTIVE__ = true;
+      if (window.__searchLock?.lock) window.__searchLock.lock();
       pauseRealtime();
+
       const F = getFilters();
+      console.log(LOG, "filtri", F);
+
       const rows = await querySupabaseExact(F);
+
       const keys = Object.keys(F).filter(k => F[k] && k!=='q');
       const filtered = rows.filter(r => {
         for (const k of keys){ if (norm(r[k]) !== F[k]) return false; }
@@ -114,26 +172,51 @@
         }
         return true;
       });
+
       const clean = dedupeSort(filtered);
+
       window.searchRows = clean;
       window.page = 1;
       if (typeof window.renderPager === 'function') window.renderPager(clean.length);
       if (typeof window.drawListPage === 'function') await window.drawListPage();
+
       console.log(LOG, `OK: ${clean.length} risultati`);
     } catch (e){
       console.error(LOG, e);
       alert("Errore ricerca: " + (e.message||e));
     } finally {
+      // sblocca SEMPRE per permettere la ricerca successiva
       window.__SEARCH_ACTIVE__ = false;
+      if (window.__searchLock?.unlock) window.__searchLock.unlock();
     }
   }
+
   function init(){
     ensureNoteInput();
+    attachReset();
+
+    // Enter sui campi => nuova ricerca (e sblocca eventuale lock precedente)
+    ['#q','#filterNoteExact','#f_battCollettore','#f_lunghezzaAsse','#f_lunghezzaPacco','#f_larghezzaPacco','#f_punta','#f_numPunte']
+      .forEach(sel => {
+        const el = $(sel);
+        if (!el) return;
+        el.addEventListener('keydown', (e)=>{
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            window.__SEARCH_ACTIVE__ = false;
+            if (window.__searchLock?.unlock) window.__searchLock.unlock();
+            $('#btnDoSearch')?.click();
+          }
+        });
+      });
+
+    // Sovrascrivo lista()
     window.lista = lista_exact;
     const btn = $('#btnDoSearch');
     if (btn) btn.addEventListener('click', lista_exact, true);
-    console.log(LOG, "override lista() attivo");
+    console.log(LOG, "override lista() attivo (v3)");
   }
+
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 })();
