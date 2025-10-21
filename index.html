@@ -44,15 +44,15 @@
       <div class="table-responsive">
         <table class="table align-middle" id="tblHome">
           <thead>
-            <tr>
-              <th>Data apertura</th>
-              <th>Descrizione</th>
-              <th>Cliente</th>
-              <th>Modello</th>
-              <th>Stato</th>
-              <th class="text-end">Azioni</th>
-            </tr>
-          </thead>
+<tr>
+<th>Data</th>
+<th>Cliente</th>
+<th>Descrizione</th>
+<th>Modello</th>
+<th>Stato</th>
+<th class="text-end">Azioni</th>
+</tr>
+</thead>
           <tbody id="homeRows">
             <tr><td colspan="6" class="text-center py-4 text-muted">Caricamento…</td></tr>
           </tbody>
@@ -105,9 +105,16 @@
 
       <div class="table-responsive">
         <table class="table align-middle" id="tblSearch">
-          <thead><tr>
-            <th>Data</th><th>Descrizione</th><th>Cliente</th><th>Modello</th><th>Stato</th><th class="text-end">Azioni</th>
-          </tr></thead>
+          <thead>
+<tr>
+<th>Data</th>
+<th>Cliente</th>
+<th>Descrizione</th>
+<th>Modello</th>
+<th>Stato</th>
+<th class="text-end">Azioni</th>
+</tr>
+</thead>
           <tbody id="searchRows"></tbody>
         </table>
       </div>
@@ -177,6 +184,7 @@
           <div class="d-grid my-3 gap-2">
             <button class="btn btn-orange" id="btnSave">Salva scheda</button>
             <button class="btn btn-outline-secondary" id="btnCancel">Annulla</button>
+<button class="btn btn-outline-dark" id="btnPrint">Stampa scheda (PDF)</button>
           </div>
         </div>
 
@@ -186,6 +194,12 @@
             <div class="card-body">
               <div class="img-preview text-muted">Nessuna immagine disponibile</div>
               <div class="small text-muted mt-2">Suggerimento: la prima immagine caricata verrà mostrata qui sopra.</div>
+<div class="mt-3">
+  <label class="form-label">Carica immagini (multiplo)</label>
+  <input id="eFiles" class="form-control" type="file" multiple accept="image/*" capture="environment" />
+  <div class="d-grid mt-2"><button class="btn btn-outline-primary" id="btnUpload">Carica su cloud</button></div>
+  <div class="row g-2 mt-2" id="gallery"></div>
+</div>
             </div>
           </div>
         </div>
@@ -194,6 +208,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <script src="app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="app.js"></script>
   </body>
 </html>

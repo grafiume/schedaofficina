@@ -1,6 +1,48 @@
 // Minimal app with optimized search & exact-match note filter
 const sb = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
+
+// === Storage helpers (bucket: photos) ===
+const bucket = 'photos';
+async function listPhotos(recordId){
+  const prefix = `records/${recordId}/`;
+  const { data, error } = await sb.storage.from(bucket).list(prefix, {limit:100, sortBy:{column:'name', order:'asc'}});
+  if (error) { console.warn('listPhotos', error.message); return []; }
+  return data.map(x => prefix + x.name);
+}
+function publicUrl(path){
+  const { data } = sb.storage.from(bucket).getPublicUrl(path);
+  return data?.publicUrl;
+}
+async function uploadFiles(recordId, files){
+  const prefix = `records/${recordId}/`;
+  for (const f of files){
+    const name = Date.now() + '_' + f.name.replace(/[^a-z0-9_.-]+/gi,'_');
+    const { error } = await sb.storage.from(bucket).upload(prefix + name, f, { upsert: false });
+    if (error) { alert('Errore upload: '+error.message); return false; }
+  }
+  return true;
+}
+async function refreshGallery(recordId){
+  const gallery = document.getElementById('gallery');
+  gallery.innerHTML = '';
+  const paths = await listPhotos(recordId);
+  // preview first image
+  const prev = document.querySelector('.img-preview');
+  if (paths.length){
+    prev.innerHTML = `<img src="${publicUrl(paths[0])}" style="max-width:100%;max-height:220px;object-fit:contain" />`;
+  } else {
+    prev.textContent = 'Nessuna immagine disponibile';
+  }
+  // thumbs
+  paths.forEach(p=>{
+    const col = document.createElement('div');
+    col.className = 'col-4 gallery-item';
+    col.innerHTML = `<img src="${publicUrl(p)}" alt="">`;
+    gallery.appendChild(col);
+  });
+}
+
 const state = {
   all: [],
   currentFilter: null,
@@ -62,12 +104,14 @@ function renderHome(rows){
   const tb = document.getElementById('homeRows');
   tb.innerHTML = '';
   rows.sort(byHomeOrder).forEach(r=>{
+    const closed = norm(r.statoPratica).includes('completata');
+    const badge = closed ? ' <span class="badge badge-chiusa">Chiusa</span>' : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${fmtIT(r.dataApertura)}</td>
-      <td>${r.descrizione??''}</td>
       <td>${r.cliente??''}</td>
+      <td>${r.descrizione??''}</td>
       <td>${r.modello??''}</td>
-      <td>${r.statoPratica??''}</td>
+      <td>${r.statoPratica??''}${badge}</td>
       <td class="text-end"><button class="btn btn-sm btn-outline-primary" data-id="${r.id}">Apri</button></td>`;
     tr.querySelector('button').addEventListener('click',()=>openEdit(r.id));
     tb.appendChild(tr);
@@ -171,6 +215,13 @@ function openEdit(id){
   setV('eNote', r.note);
 
   show('page-edit');
+  refreshGallery(r.id);
+  document.getElementById('btnUpload').onclick = async ()=>{
+    const files = document.getElementById('eFiles').files;
+    if(!files || !files.length){ alert('Seleziona una o più immagini'); return; }
+    const ok = await uploadFiles(r.id, files);
+    if(ok){ await refreshGallery(r.id); document.getElementById('eFiles').value=''; }
+  };
 }
 
 function setV(id, v){
@@ -236,6 +287,47 @@ document.getElementById('kpiLavBtn').addEventListener('click', ()=>renderHome(st
 document.getElementById('kpiCompBtn').addEventListener('click', ()=>renderHome(state.all.filter(r=>norm(r.statoPratica).includes('completata'))));
 
 document.getElementById('btnSave').addEventListener('click', saveEdit);
+document.getElementById('btnPrint').addEventListener('click', ()=> state.editing && printPDF(state.editing));
 
 // bootstrap
 loadAll();
+
+
+function printPDF(r){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const L = (k,v)=>[k, String(v??'')];
+
+  doc.setFontSize(14);
+  doc.text('Scheda riparazione', 14, 16);
+  doc.setFontSize(10);
+
+  const rows = [
+    L('Data apertura', fmtIT(r.dataApertura)),
+    L('Cliente', r.cliente),
+    L('Telefono', r.telefono),
+    L('Email', r.email),
+    L('Modello', r.modello),
+    L('Stato', r.statoPratica),
+    L('Preventivo', r.preventivoStato),
+    L('DDT', r.docTrasporto),
+    L('Descrizione', r.descrizione),
+    L('Note', r.note),
+    L('Batt. collettore', r.battCollettore),
+    L('Lunghezza asse', r.lunghezzaAsse),
+    L('Lunghezza pacco', r.lunghezzaPacco),
+    L('Larghezza pacco', r.larghezzaPacco),
+    L('Punta', r.punta),
+    L('N. punte', r.numPunte),
+  ];
+
+  doc.autoTable({
+    head:[['Campo','Valore']],
+    body: rows,
+    startY: 22,
+    styles:{ fontSize:10 }
+  });
+
+  doc.save((r.cliente||'scheda') + '_riparazione.pdf');
+}
+
