@@ -1,20 +1,18 @@
 {
-  "name": "Scheda Officina — Light",
-  "short_name": "Officina",
-  "start_url": "./index.html",
+  "name": "Scheda Riparazioni",
+  "short_name": "Riparazioni",
+  "start_url": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
   "icons": [
     {
       "src": "icons/icon-192.png",
-      "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "type": "image/png"
     },
     {
       "src": "icons/icon-512.png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "type": "image/png"
     }
   ]
 }

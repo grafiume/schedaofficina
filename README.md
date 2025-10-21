@@ -1,9 +1,16 @@
-# Scheda Officina — UI chiara (bianco)
-- Ricerca **match esatto** (case/accents-insensitive), nessun wildcard.
-- Tasto **Ricerca** = applica filtri+ricerca; **Reset** pulisce TUTTO e torna alla home.
-- Banner **CHIUSA** in verde quando `statoPratica = Completata`.
-- **Data Scadenza** in rosso (se presente).
+# Scheda Riparazioni — versione ottimizzata (lite)
+App HTML/JS standalone pensata per GitHub Pages. Legge/scrive dalla tabella `records` su Supabase usando `config.js`.
 
-## Setup
-1. Apri `config.js` e inserisci la tua **ANON KEY** Supabase.
-2. Servi la cartella con un web server (anche `npx serve .`).
+## Ricerca ottimizzata
+- **Campo generale**: tokenizzazione case-insensitive e senza accenti su `descrizione`, `modello`, `cliente`, `telefono`, `docTrasporto`.
+- **Note (match esatto)**: confronto esatto *case-insensitive* e *spazi normalizzati* su `note`.
+- **Filtri tecnici (singoli)**: `battCollettore`, `lunghezzaAsse`, `lunghezzaPacco`, `larghezzaPacco`, `punta`, `numPunte` con *match esatto*.
+- **Reset**: pulisce ogni campo, compresa la ricerca generale.
+- **Ordinamento**: priorità per stato (`In attesa` → `In lavorazione` → `Completata`), poi `dataApertura` decrescente.
+
+## Banner “Chiusa”
+In modifica appare un banner verde **Chiusa** quando `statoPratica = Completata`.
+
+## Deploy
+1. Carica l’intera cartella su GitHub Pages o Netlify.
+2. Assicurati che `config.js` contenga `SUPABASE_URL` e `SUPABASE_ANON_KEY` validi.
