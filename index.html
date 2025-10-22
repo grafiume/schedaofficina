@@ -10,27 +10,11 @@
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="styles.css">
     <style>
-      /* Tabelle + miniature 144x144 */
       .table-app th, .table-app td { vertical-align: middle; padding: 0.75rem 0.75rem; }
       .table-app .thumb-cell { width: 156px; }
-      .table-app .thumb-home {
-        width: 144px;
-        height: 144px;
-        object-fit: cover;
-        border-radius: 8px;
-        cursor: pointer;
-        display: block;
-        background: #f6f6f6;
-      }
-      .table-app .col-azioni { width: 90px; }
+      .table-app .thumb-home { width: 144px; height: 144px; object-fit: cover; border-radius: 8px; cursor: pointer; display: block; background: #f6f6f6; }
       .table-app thead th { font-weight: 600; color: #555; }
       .badge-chiusa { background:#2e7d32; color:#fff; font-weight:600; }
-      @media (max-width: 1200px){
-        .table-app .thumb-cell { width: 132px; }
-        .table-app .thumb-home { width: 120px; height: 120px; }
-        .table-app th, .table-app td { padding: 0.6rem; }
-      }
-      /* Overlay immagine */
       #imgOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:1050;padding:2rem;}
       #imgOverlay.open{display:flex;}
       #imgOverlay .frame{position:relative;max-width:90vw;max-height:90vh;box-shadow:0 10px 30px rgba(0,0,0,.5);background:#111;border-radius:12px;overflow:hidden;}
@@ -54,70 +38,33 @@
       </div>
     </nav>
 
-    <!-- HOME -->
     <div class="container my-3" id="page-home">
-      <div class="d-flex gap-2 flex-wrap mb-3">
-        <button class="card kpi kpi-link border-top-orange text-start" type="button" id="kpiTotBtn">
-          <div class="card-body"><div class="small text-muted">Totali</div><div class="h4 mb-0" id="kpiTot">0</div></div>
-        </button>
-        <button class="card kpi kpi-link border-top-blue text-start" type="button" id="kpiAttesaBtn">
-          <div class="card-body"><div class="small text-muted">In attesa</div><div class="h4 mb-0" id="kpiAttesa">0</div></div>
-        </button>
-        <button class="card kpi kpi-link border-top-orange text-start" type="button" id="kpiLavBtn">
-          <div class="card-body"><div class="small text-muted">In lavorazione</div><div class="h4 mb-0" id="kpiLav">0</div></div>
-        </button>
-        <button class="card kpi kpi-link border-top-green text-start" type="button" id="kpiCompBtn">
-          <div class="card-body"><div class="small text-muted">Completate</div><div class="h4 mb-0" id="kpiComp">0</div></div>
-        </button>
-      </div>
-
-      <div id="errBanner" class="alert alert-warning d-none my-2"></div>
       <div class="table-responsive">
         <table class="table align-middle table-app" id="tblHome">
-          <thead>
-            <tr>
-              <th class="thumb-cell">Foto</th>
-              <th>Data</th>
-              <th>Cliente</th>
-              <th>Descrizione</th>
-              <th>Modello</th>
-              <th>Stato</th>
-              <th class="text-end">Azioni</th>
-            </tr>
-          </thead>
-          <tbody id="homeRows">
-            <tr><td colspan="7" class="text-center py-4 text-muted">Caricamento…</td></tr>
-          </tbody>
+          <thead><tr><th class="thumb-cell">Foto</th><th>Data</th><th>Cliente</th><th>Descrizione</th><th>Modello</th><th>Stato</th><th class="text-end">Azioni</th></tr></thead>
+          <tbody id="homeRows"><tr><td colspan="7" class="text-center py-4 text-muted">Caricamento…</td></tr></tbody>
         </table>
       </div>
     </div>
 
-    <!-- RICERCA -->
     <div class="container my-3 d-none" id="page-search">
       <h4>Ricerca</h4>
-
       <div class="row g-2 mb-2">
-        <div class="col-md-10"><input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT (token, no accenti)…"></div>
+        <div class="col-md-10"><input id="q" class="form-control" placeholder="Cerca…"></div>
         <div class="col-md-2 d-grid"><button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button></div>
       </div>
-
+      <div class="row g-2 mb-3">
+        <div class="col-md-6 col-lg-4"><input id="noteExact" class="form-control" placeholder="Note (match esatto)"></div>
+      </div>
       <div class="card mb-2">
         <div class="card-header py-2"><strong>Filtri</strong></div>
         <div class="card-body">
           <div class="row g-2">
-            <div class="col-md-6 col-lg-4"><input id="noteExact" class="form-control" placeholder="Note (match esatto)"></div>
             <div class="col-md-3"><input id="fBatt" class="form-control" placeholder="Batt. collettore"></div>
             <div class="col-md-3"><input id="fAsse" class="form-control" placeholder="Lunghezza asse"></div>
             <div class="col-md-3"><input id="fPacco" class="form-control" placeholder="Lunghezza pacco"></div>
             <div class="col-md-3"><input id="fLarg" class="form-control" placeholder="Larghezza pacco"></div>
-            <div class="col-md-3">
-              <select id="fPunta" class="form-select">
-                <option value="">Punta (tutte)</option>
-                <option>Sinistra</option>
-                <option>Destra</option>
-                <option>Dritta</option>
-              </select>
-            </div>
+            <div class="col-md-3"><select id="fPunta" class="form-select"><option value="">Punta (tutte)</option><option>Sinistra</option><option>Destra</option><option>Dritta</option></select></div>
             <div class="col-md-2"><input id="fNP" class="form-control" placeholder="N. punte"></div>
           </div>
           <div class="mt-3 d-flex gap-2">
@@ -126,123 +73,25 @@
           </div>
         </div>
       </div>
-
-      <div id="errBanner-search" class="alert alert-warning d-none my-2"></div>
       <div class="table-responsive">
         <table class="table align-middle table-app" id="tblSearch">
-          <thead>
-            <tr>
-              <th class="thumb-cell">Foto</th>
-              <th>Data</th>
-              <th>Cliente</th>
-              <th>Descrizione</th>
-              <th>Modello</th>
-              <th>Stato</th>
-              <th class="text-end">Azioni</th>
-            </tr>
-          </thead>
+          <thead><tr><th class="thumb-cell">Foto</th><th>Data</th><th>Cliente</th><th>Descrizione</th><th>Modello</th><th>Stato</th><th class="text-end">Azioni</th></tr></thead>
           <tbody id="searchRows"></tbody>
         </table>
       </div>
     </div>
 
-    <!-- MODIFICA -->
     <div class="container my-3 d-none" id="page-edit">
       <h4 id="editTitle">Modifica scheda</h4>
       <div id="closedBanner" class="alert alert-success d-none py-2 mb-2">Chiusa</div>
-
-      <div class="row g-3">
-        <div class="col-lg-7">
-          <div class="card">
-            <div class="card-header py-2"><strong>Dati scheda e cliente</strong></div>
-            <div class="card-body">
-              <div class="row g-2">
-                <div class="col-md-8"><label class="form-label">Descrizione</label><input id="eDescrizione" class="form-control"></div>
-                <div class="col-md-4"><label class="form-label">Modello</label><input id="eModello" class="form-control" placeholder="es. XYZ-123"></div>
-
-                <div class="col-md-4"><label class="form-label">Data apertura</label><input id="eApertura" type="date" class="form-control"></div>
-                <div class="col-md-4"><label class="form-label">Data accettazione</label><input id="eAcc" type="date" class="form-control"></div>
-                <div class="col-md-4"><label class="form-label">Data scadenza</label><input id="eScad" type="date" class="form-control"></div>
-
-                <div class="col-md-4">
-                  <label class="form-label">Stato</label>
-                  <select id="eStato" class="form-select">
-                    <option>In attesa</option>
-                    <option>In lavorazione</option>
-                    <option>Completata</option>
-                  </select>
-                  <div class="form-text" id="closedHint"></div>
-                </div>
-                <div class="col-md-4"><label class="form-label">Preventivo</label>
-                  <select id="ePrev" class="form-select">
-                    <option>Non inviato</option>
-                    <option>Inviato</option>
-                  </select>
-                </div>
-                <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="eDDT" class="form-control" placeholder="Numero / riferimento DDT"></div>
-
-                <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="eCliente" class="form-control"></div>
-                <div class="col-md-3"><label class="form-label">Telefono</label><input id="eTel" class="form-control"></div>
-                <div class="col-md-3"><label class="form-label">Email</label><input id="eEmail" class="form-control"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="card mt-3">
-            <div class="card-header py-2"><strong>Dati tecnici</strong></div>
-            <div class="card-body">
-              <div class="row g-2">
-                <div class="col-md-3"><label class="form-label">Batt. collettore</label><input id="eBatt" class="form-control"></div>
-                <div class="col-md-3"><label class="form-label">Lunghezza asse</label><input id="eAsse" class="form-control"></div>
-                <div class="col-md-3"><label class="form-label">Lunghezza pacco</label><input id="ePacco" class="form-control"></div>
-                <div class="col-md-3"><label class="form-label">Larghezza pacco</label><input id="eLarg" class="form-control"></div>
-                <div class="col-md-3"><label class="form-label">Punta</label>
-                  <select id="ePunta" class="form-select">
-                    <option></option><option>Sinistra</option><option>Destra</option><option>Dritta</option>
-                  </select>
-                </div>
-                <div class="col-md-3"><label class="form-label">N. punte</label><input id="eNP" class="form-control"></div>
-                <div class="col-md-6"><label class="form-label">Note</label><input id="eNote" class="form-control"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="d-grid my-3 gap-2">
-            <button class="btn btn-orange" id="btnSave">Salva scheda</button>
-            <button class="btn btn-outline-secondary" id="btnCancel">Annulla</button>
-            <button class="btn btn-outline-dark" id="btnPrint">Stampa scheda (PDF)</button>
-          </div>
-        </div>
-
-        <div class="col-lg-5">
-          <div class="card">
-            <div class="card-header py-2"><strong>Immagini</strong> <small class="text-muted">clic su miniatura per anteprima</small></div>
-            <div class="card-body">
-              <div class="img-preview text-muted">Nessuna immagine disponibile</div>
-              <div class="small text-muted mt-2" id="uploadHint">Prima salva la scheda per abilitare l’upload.</div>
-              <div class="mt-3">
-                <label class="form-label">Carica immagini (multiplo)</label>
-                <input id="eFiles" class="form-control" type="file" multiple accept="image/*" capture="environment" disabled />
-                <div class="d-grid mt-2"><button class="btn btn-outline-primary" id="btnUpload" disabled>Carica su cloud</button></div>
-                <div class="row g-2 mt-2" id="gallery"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <div class="img-preview text-muted">Nessuna immagine disponibile</div>
+      <div class="row g-2 mt-2" id="gallery"></div>
     </div>
 
-    <!-- Libs -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- App -->
     <script src="app.v25.js?v=25"></script>
 
-    <!-- Overlay (HTML presente, usato dall'app) -->
     <div id="imgOverlay" aria-hidden="true">
       <div class="frame">
         <button class="closeBtn" aria-label="Chiudi" title="Chiudi">&times;</button>
