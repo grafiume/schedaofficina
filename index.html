@@ -259,7 +259,15 @@
           </div>
 
           <hr class="my-3">
-
+          <div>
+  <label class="form-label">Immagini</label>
+  <!-- Preview 4:3 -->
+  <div class="img-preview mb-2" id="nPreview">Nessuna immagine</div>
+  <!-- Scatta/Carica -->
+  <input id="nFiles" class="form-control" type="file"
+         accept="image/*" capture="environment" multiple>
+  <div class="form-text">Puoi scattare una foto o scegliere dalla galleria. Verranno caricate al Salvataggio.</div>
+</div>
           <div class="row g-2">
             <div class="col-md-3"><label class="form-label">Batt. collettore</label><input id="nBatt" class="form-control" inputmode="decimal"></div>
             <div class="col-md-3"><label class="form-label">Lunghezza asse</label><input id="nAsse" class="form-control" inputmode="decimal"></div>
