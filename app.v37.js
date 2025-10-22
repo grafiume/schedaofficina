@@ -231,11 +231,11 @@ function matchRow(r, f){
 
 function doSearch(){
   const f = getSearchFilters();
-  const rows = state.all.filter(r=>matchRow(r,f)).sort(byHomeOrder);
+  const rows = state.all.filter(r => matchRow(r, f)).sort(byHomeOrder);
   const tb = document.getElementById('searchRows');
   tb.innerHTML = '';
 
-  rows.forEach(r=>{
+  rows.forEach(r => {
     const tr = document.createElement('tr');
 
     // Foto (thumb)
@@ -276,13 +276,50 @@ function doSearch(){
     const tdStato = document.createElement('td');
     const closed = norm(r.statoPratica).includes('completata');
     tdStato.textContent = r.statoPratica ?? '';
-    if (closed){
+    if (closed) {
       const span = document.createElement('span');
       span.className = 'badge badge-chiusa ms-2';
       span.textContent = 'Chiusa';
       tdStato.appendChild(span);
     }
     tr.appendChild(tdStato);
+
+    // Azioni
+    const tdAz = document.createElement('td');
+    tdAz.className = 'text-end';
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-sm btn-outline-primary';
+    btn.type = 'button';
+    btn.textContent = 'Apri';
+    btn.addEventListener('click', () => openEdit(r.id));
+    tdAz.appendChild(btn);
+    tr.appendChild(tdAz);
+
+    tb.appendChild(tr);
+
+    // Async thumb
+    try {
+      listPhotos(r.id).then(paths => {
+        if (paths && paths.length) {
+          const url = (typeof publicUrlCached === 'function') ? publicUrlCached(paths[0]) : publicUrl(paths[0]);
+          img.decoding = 'async';
+          img.loading = 'lazy';
+          img.fetchPriority = 'low';
+          img.src = url;
+          img.addEventListener('click', () => openLightbox(url));
+        } else {
+          img.alt = '—';
+        }
+      }).catch(() => {});
+    } catch (e) { /* ignore */ }
+  });
+
+  if (!rows.length) {
+    tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Nessun risultato</td></tr>';
+  }
+}
+
+tr.appendChild(tdStato);
 
     // Azioni
     const tdAz = document.createElement('td');
