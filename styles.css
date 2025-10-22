@@ -25,5 +25,5 @@
 .lightbox-toolbar .btn{padding:.25rem .5rem}
 .modal-body{position:relative}
 
-.lens{position:absolute; display:none; width:180px; height:180px; border:2px solid rgba(0,0,0,.25); border-radius:50%; box-shadow:0 10px 25px rgba(0,0,0,.2); pointer-events:none; background-repeat:no-repeat;}
+
 .modal-body{position:relative}
