@@ -9,7 +9,18 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="styles.css">
-  </head>
+  
+<style>
+/* Lightweight image overlay */
+#imgOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:1050;padding:2rem;}
+#imgOverlay.open{display:flex;}
+#imgOverlay .frame{position:relative;max-width:90vw;max-height:90vh;box-shadow:0 10px 30px rgba(0,0,0,.5);background:#111;border-radius:12px;overflow:hidden;}
+#imgOverlay img{display:block;max-width:90vw;max-height:90vh;width:auto;height:auto;object-fit:contain;background:#111;}
+#imgOverlay .closeBtn{position:absolute;top:.5rem;right:.5rem;border:0;background:rgba(0,0,0,.6);color:#fff;border-radius:999px;width:40px;height:40px;font-size:22px;line-height:40px;text-align:center;cursor:pointer;}
+#imgOverlay .closeBtn:hover{background:rgba(0,0,0,.8);}
+</style>
+
+</head>
   <body>
     <nav class="navbar navbar-light bg-light border-bottom sticky-top">
       <div class="container-fluid">
@@ -228,7 +239,16 @@
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="app.v31.js?v=31"></script>
+<script src="app.v32.js?v=32"></script>
   
+
+<!-- Image Overlay (no dependencies) -->
+<div id="imgOverlay" aria-hidden="true">
+  <div class="frame">
+    <button class="closeBtn" aria-label="Chiudi" title="Chiudi">&times;</button>
+    <img id="imgOverlayImg" alt="Anteprima immagine">
+  </div>
+</div>
+
 </body>
 </html>
