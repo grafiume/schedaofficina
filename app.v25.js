@@ -1,5 +1,6 @@
 // === ELIP TAGLIENTE • app.v25.js ===
-// Home e Ricerca allineate. Miniature 144x144, overlay in pagina, Supabase v2.
+// Home and Search aligned columns. Thumb preview 144x144, in-page overlay, exact filters, Supabase v2.
+// Columns (both tables): Foto, Data, Cliente, Descrizione, Modello, Stato, Azioni.
 
 // ----------------- Helpers -----------------
 (function(){
@@ -97,8 +98,8 @@ async function listPhotos(recordId){
   return [];
 }
 
-// ----------------- Overlay -----------------
-function initOverlay(){
+// ----------------- Overlay (single) -----------------
+(function initOverlay(){
   const overlay = document.getElementById('imgOverlay');
   const img = document.getElementById('imgOverlayImg');
   if (!overlay || !img) return;
@@ -107,14 +108,17 @@ function initOverlay(){
   if (btn) btn.addEventListener('click', close);
   overlay.addEventListener('click', (e)=>{ if (e.target === overlay) close(); });
   window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') close(); });
-  window.__openOverlay = function(url){ img.src = url; overlay.classList.add('open'); };
-}
+  window.__openOverlay = function(url){
+    img.src = url; overlay.classList.add('open');
+  };
+})();
+
 function openLightbox(url){
   if (typeof window.__openOverlay === 'function') window.__openOverlay(url);
-  else { initOverlay(); if (typeof window.__openOverlay === 'function') window.__openOverlay(url); }
+  else { try{ window.location.assign(url); } catch(e){ window.location.href = url; } }
 }
 
-// ----------------- Render KPIs -----------------
+// ----------------- Table renderers -----------------
 function renderKPIs(rows){
   try {
     const tot = rows.length;
@@ -126,7 +130,6 @@ function renderKPIs(rows){
   } catch(e){}
 }
 
-// ----------------- Render Home -----------------
 window.renderHome = function(rows){
   const tb = document.getElementById('homeRows');
   if (!tb) return;
@@ -135,7 +138,7 @@ window.renderHome = function(rows){
   (rows||[]).sort(byHomeOrder).forEach(r=>{
     const tr = document.createElement('tr');
 
-    // Foto
+    // Foto cell
     const tdFoto = document.createElement('td');
     tdFoto.className = 'thumb-cell';
     const img = document.createElement('img');
@@ -144,7 +147,7 @@ window.renderHome = function(rows){
     tdFoto.appendChild(img);
     tr.appendChild(tdFoto);
 
-    // Data
+    // Data (arrivo/apertura)
     const tdData = document.createElement('td');
     tdData.textContent = fmtIT(r.dataApertura);
     tr.appendChild(tdData);
@@ -164,7 +167,7 @@ window.renderHome = function(rows){
     tdMod.textContent = r.modello ?? '';
     tr.appendChild(tdMod);
 
-    // Stato (+ badge)
+    // Stato (+ badge chiusa)
     const tdStato = document.createElement('td');
     const closed = norm(r.statoPratica).includes('completata');
     tdStato.textContent = r.statoPratica ?? '';
@@ -187,9 +190,8 @@ window.renderHome = function(rows){
     tdAz.appendChild(btn);
     tr.appendChild(tdAz);
 
+    // Append & async thumb
     tb.appendChild(tr);
-
-    // Async thumb
     try{
       listPhotos(r.id).then(paths=>{
         if(paths && paths.length){
@@ -208,12 +210,12 @@ window.renderHome = function(rows){
   }
 };
 
-// ----------------- Search -----------------
+// ----------------- Filters (Search) -----------------
 function getSearchFilters(){
   return {
     q: document.getElementById('q').value.trim(),
     noteExact: document.getElementById('noteExact') ? document.getElementById('noteExact').value.trim() : '',
-    batt: document.getElementById('fBatt') ? document.getElementById('fBatt').value.trim() : '',
+    batt: document.getElementById('fBatt').value.trim(),
     asse: document.getElementById('fAsse') ? document.getElementById('fAsse').value.trim() : '',
     pacco: document.getElementById('fPacco') ? document.getElementById('fPacco').value.trim() : '',
     larg: document.getElementById('fLarg') ? document.getElementById('fLarg').value.trim() : '',
@@ -238,7 +240,7 @@ function isNumEq(filterVal, recordVal){
 function matchRow(r, f){
   if (f.q){
     const hay = [r.descrizione, r.modello, r.cliente, r.telefono, r.docTrasporto].map(norm).join(' ');
-    const tokens = norm(f.q).split(/\s+/).filter(Boolean);
+    const tokens = norm(f.q).split(/\\s+/).filter(Boolean);
     for (const t of tokens){ if(!hay.includes(t)) return false; }
   }
   if (f.noteExact){
@@ -334,62 +336,7 @@ function doSearch(){
   }
 }
 
-// ----------------- Gallery / Upload -----------------
-async function uploadFiles(recordId, files){
-  const prefix = `records/${recordId}/`;
-  for (const f of files){
-    const name = Date.now() + '_' + f.name.replace(/[^a-z0-9_.-]+/gi,'_');
-    const { error } = await sb.storage.from(bucket).upload(prefix + name, f, { upsert: false });
-    if (error) { alert('Errore upload: '+error.message); return false; }
-  }
-  return true;
-}
-
-async function refreshGallery(recordId){
-  const gallery = document.getElementById('gallery');
-  if (gallery) gallery.innerHTML = '';
-  const paths = await listPhotos(recordId);
-
-  // Preview (prima immagine)
-  const prev = document.querySelector('.img-preview');
-  if (prev){
-    prev.textContent = '';
-    if (paths.length){
-      const url0 = publicUrlCached(paths[0]);
-      const img0 = new Image();
-      img0.style.maxWidth = '100%';
-      img0.style.maxHeight = '420px';
-      img0.style.objectFit = 'contain';
-      img0.alt = 'Anteprima';
-      img0.decoding='async'; img0.loading='eager'; img0.fetchPriority='high'; img0.src = url0;
-      img0.addEventListener('click', ()=>openLightbox(url0));
-      prev.appendChild(img0);
-    } else {
-      prev.textContent = 'Nessuna immagine disponibile';
-    }
-  }
-
-  // Thumbs (galleria)
-  if (gallery){
-    paths.forEach(p=>{
-      const url = publicUrlCached(p);
-      const col = document.createElement('div');
-      col.className = 'col-4 gallery-item';
-      const img = new Image();
-      img.alt = '';
-      img.decoding='async'; img.loading='lazy'; img.fetchPriority='low'; img.src = url;
-      img.style.width = '100%';
-      img.style.height = '144px';
-      img.style.objectFit = 'cover';
-      img.style.borderRadius = '.5rem';
-      img.addEventListener('click', ()=>openLightbox(url));
-      col.appendChild(img);
-      gallery.appendChild(col);
-    });
-  }
-}
-
-// ----------------- Edit -----------------
+// ----------------- Edit page (bindings minimal) -----------------
 function setV(id, v){
   const el = document.getElementById(id);
   if (!el) return;
@@ -402,15 +349,6 @@ function setV(id, v){
   }
 }
 function val(id){ const el = document.getElementById(id); return el ? el.value.trim() : ''; }
-
-function enableUpload(enabled){
-  const f = document.getElementById('eFiles');
-  const b = document.getElementById('btnUpload');
-  const hint = document.getElementById('uploadHint');
-  if (f) f.disabled = !enabled;
-  if (b) b.disabled = !enabled;
-  if (hint) hint.textContent = enabled ? 'Carica immagini per questa scheda.' : 'Prima salva la scheda per abilitare l’upload.';
-}
 
 function openEdit(id){
   const r = window.state.all.find(x=>x.id===id);
@@ -439,19 +377,8 @@ function openEdit(id){
   setV('eNP', r.numPunte);
   setV('eNote', r.note);
 
-  enableUpload(!!r.id);
   show('page-edit');
-  refreshGallery(r.id);
-
-  const btnU = document.getElementById('btnUpload');
-  if (btnU){
-    btnU.onclick = async ()=>{
-      const files = document.getElementById('eFiles').files;
-      if(!files || !files.length){ alert('Seleziona una o più immagini'); return; }
-      const ok = await uploadFiles(r.id, files);
-      if(ok){ await refreshGallery(r.id); document.getElementById('eFiles').value=''; }
-    };
-  }
+  if (typeof refreshGallery === 'function') refreshGallery(r.id);
 }
 
 async function saveEdit(){
@@ -483,27 +410,37 @@ async function saveEdit(){
   alert('Salvato!');
 }
 
-// Nuova scheda
-async function openNew(){
-  if (!sb){ alert('Supabase non inizializzato'); return; }
-  const payload = {
-    descrizione: '',
-    modello: '',
-    dataApertura: new Date().toISOString().slice(0,10),
-    statoPratica: 'In attesa',
-    preventivoStato: 'Non inviato',
-    cliente: '',
-    telefono: '',
-    email: '',
-    note: ''
-  };
-  const { data, error } = await sb.from('records').insert(payload).select().single();
-  if (error){ alert('Errore creazione scheda: '+error.message); return; }
-  // aggiungi a cache locale
-  window.state.all.unshift(data);
-  document.getElementById('editTitle').textContent = 'Nuova scheda';
-  openEdit(data.id);
-  enableUpload(true);
+// ----------------- New record -----------------
+async function nuovaScheda(){
+  try{
+    const payload = {
+      descrizione: '',
+      modello: '',
+      cliente: '',
+      telefono: '',
+      statoPratica: 'In attesa',
+      preventivoStato: 'Non inviato',
+      note: '',
+      dataApertura: new Date().toISOString().slice(0,10),
+      dataAccettazione: null,
+      dataScadenza: null,
+      docTrasporto: '',
+      battCollettore: null,
+      lunghezzaAsse: null,
+      lunghezzaPacco: null,
+      larghezzaPacco: null,
+      punta: '',
+      numPunte: null,
+      email: ''
+    };
+    const { data, error } = await sb.from('records').insert(payload).select().single();
+    if (error) { alert('Errore creazione scheda: ' + error.message); return; }
+    window.state.all.unshift(data);
+    renderHome(window.state.all);
+    openEdit(data.id);
+  }catch(e){
+    alert('Errore creazione: ' + (e?.message||e));
+  }
 }
 
 // ----------------- Boot -----------------
@@ -534,11 +471,10 @@ window.loadAll = async function(){
 };
 
 document.addEventListener('DOMContentLoaded', ()=>{
-  initOverlay();
-
   const H = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
   H('btnHome', ()=>show('page-home'));
   H('btnRicerca', ()=>show('page-search'));
+  H('btnNuovo', nuovaScheda);
   H('btnApply', doSearch);
   H('btnDoSearch', doSearch);
   H('btnReset', ()=>{
@@ -546,13 +482,63 @@ document.addEventListener('DOMContentLoaded', ()=>{
     ids.forEach(id=>{ const el=document.getElementById(id); if(!el) return; if (el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; });
     const tb = document.getElementById('searchRows'); if (tb) tb.innerHTML='';
   });
+  H('btnClearFilter', ()=>{
+    const el = document.getElementById('q'); if (el) el.value='';
+    const tb = document.getElementById('searchRows'); if (tb) tb.innerHTML='';
+    show('page-home');
+  });
   H('kpiTotBtn', ()=>renderHome(window.state.all));
   H('kpiAttesaBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('attesa'))));
   H('kpiLavBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('lavorazione'))));
   H('kpiCompBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('completata'))));
   H('btnSave', saveEdit);
   H('btnCancel', ()=>show('page-home'));
-  H('btnNew', openNew);
 
   try{ window.loadAll(); } catch(e){ showError(e.message||String(e)); }
 });
+
+// ----------------- Optional gallery (only if DOM has #gallery) -----------------
+async function uploadFiles(recordId, files){
+  if (!files || !files.length) return false;
+  const prefix = `records/${recordId}/`;
+  for (const f of files){
+    const name = Date.now() + '_' + f.name.replace(/[^a-z0-9_.-]+/gi,'_');
+    const { error } = await sb.storage.from(bucket).upload(prefix + name, f, { upsert: false });
+    if (error){ alert('Errore upload: '+error.message); return false; }
+  }
+  return true;
+}
+async function refreshGallery(recordId){
+  const gallery = document.getElementById('gallery');
+  const prev = document.querySelector('.img-preview');
+  if (!gallery || !prev) return;
+
+  gallery.innerHTML = '';
+  prev.textContent = 'Nessuna immagine disponibile';
+  const paths = await listPhotos(recordId);
+  if (paths.length){
+    const url0 = publicUrlCached(paths[0]);
+    const img0 = new Image();
+    img0.style.maxWidth = '100%';
+    img0.style.maxHeight = '420px';
+    img0.style.objectFit = 'contain';
+    img0.alt = 'Anteprima';
+    img0.decoding='async'; img0.loading='eager'; img0.fetchPriority='high'; img0.src = url0;
+    img0.addEventListener('click', ()=>openLightbox(url0));
+    prev.textContent = '';
+    prev.appendChild(img0);
+  }
+
+  paths.forEach(p=>{
+    const url = publicUrlCached(p);
+    const col = document.createElement('div');
+    col.className = 'col-4';
+    const img = new Image();
+    img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
+    img.style.width='100%'; img.style.height='144px'; img.style.objectFit='cover'; img.style.borderRadius='.5rem';
+    img.src = url;
+    img.addEventListener('click', ()=>openLightbox(url));
+    col.appendChild(img);
+    gallery.appendChild(col);
+  });
+}
