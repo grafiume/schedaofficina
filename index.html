@@ -4,47 +4,22 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ELIP TAGLIENTE • Scheda Riparazioni</title>
-
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- PWA / Icons -->
     <link rel="icon" href="favicon.ico">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
-
-    <!-- Stili personalizzati -->
     <link rel="stylesheet" href="styles.css">
-
-    <style>
-      /* Overlay immagine (se non presente in styles.css) */
-      #imgOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:1050;padding:2rem;}
-      #imgOverlay.open{display:flex;}
-      #imgOverlay .frame{position:relative;max-width:90vw;max-height:90vh;box-shadow:0 10px 30px rgba(0,0,0,.5);background:#111;border-radius:12px;overflow:hidden;}
-      #imgOverlay img{display:block;max-width:90vw;max-height:90vh;width:auto;height:auto;object-fit:contain;background:#111;}
-      #imgOverlay .closeBtn{position:absolute;top:.5rem;right:.5rem;border:0;background:rgba(0,0,0,.6);color:#fff;border-radius:999px;width:40px;height:40px;font-size:22px;line-height:40px;text-align:center;cursor:pointer;}
-      #imgOverlay .closeBtn:hover{background:rgba(0,0,0,.85);}
-      /* Tabella: se non usi styles.css, questi aiutano l’allineamento */
-      .table-app th, .table-app td { vertical-align: middle; padding: .75rem; }
-      .thumb-cell { width: 132px; }
-      .thumb-home, .thumb-search { width: 144px; height: 144px; object-fit: cover; border-radius: 8px; cursor: zoom-in; }
-      .badge-chiusa { background:#2e7d32; color:#fff; font-weight:600; }
-      .col-azioni { width: 100px; }
-    </style>
   </head>
-
   <body>
-    <!-- NAVBAR -->
     <nav class="navbar navbar-light bg-light border-bottom sticky-top">
       <div class="container-fluid">
         <div class="d-flex align-items-center gap-2">
-          <img src="logo-elip.jpg" width="42" height="42" alt="ELIP" />
+          <img src="logo-elip.jpg" width="42" height="42" alt="ELIP">
           <span class="navbar-brand mb-0 h1">SCHEDA RIPARAZIONI</span>
         </div>
         <div class="d-flex gap-2">
-          <button class="btn btn-outline-secondary" id="btnHome" type="button">Home</button>
-          <button class="btn btn-primary" id="btnRicerca" type="button">Ricerca</button>
-          <button class="btn btn-success" id="btnNuovo" type="button">+ Nuova scheda</button>
+          <button class="btn btn-outline-secondary" id="btnHome">Home</button>
+          <button class="btn btn-primary" id="btnRicerca">Ricerca</button>
         </div>
       </div>
     </nav>
@@ -52,36 +27,23 @@
     <!-- HOME -->
     <div class="container my-3" id="page-home">
       <div class="d-flex gap-2 flex-wrap mb-3">
-        <button class="card kpi kpi-link border-top-orange text-start" type="button" id="kpiTotBtn">
-          <div class="card-body">
-            <div class="small text-muted">Totali</div>
-            <div class="h4 mb-0" id="kpiTot">0</div>
-          </div>
+        <button class="card kpi kpi-link border-top-orange text-start" type="button" data-filter="totali" id="kpiTotBtn">
+          <div class="card-body"><div class="small text-muted">Totali</div><div class="h4 mb-0" id="kpiTot">0</div></div>
         </button>
-        <button class="card kpi kpi-link border-top-blue text-start" type="button" id="kpiAttesaBtn">
-          <div class="card-body">
-            <div class="small text-muted">In attesa</div>
-            <div class="h4 mb-0" id="kpiAttesa">0</div>
-          </div>
+        <button class="card kpi kpi-link border-top-blue text-start" type="button" data-filter="attesa" id="kpiAttesaBtn">
+          <div class="card-body"><div class="small text-muted">In attesa</div><div class="h4 mb-0" id="kpiAttesa">0</div></div>
         </button>
-        <button class="card kpi kpi-link border-top-orange text-start" type="button" id="kpiLavBtn">
-          <div class="card-body">
-            <div class="small text-muted">In lavorazione</div>
-            <div class="h4 mb-0" id="kpiLav">0</div>
-          </div>
+        <button class="card kpi kpi-link border-top-orange text-start" type="button" data-filter="lavorazione" id="kpiLavBtn">
+          <div class="card-body"><div class="small text-muted">In lavorazione</div><div class="h4 mb-0" id="kpiLav">0</div></div>
         </button>
-        <button class="card kpi kpi-link border-top-green text-start" type="button" id="kpiCompBtn">
-          <div class="card-body">
-            <div class="small text-muted">Completate</div>
-            <div class="h4 mb-0" id="kpiComp">0</div>
-          </div>
+        <button class="card kpi kpi-link border-top-green text-start" type="button" data-filter="completata" id="kpiCompBtn">
+          <div class="card-body"><div class="small text-muted">Completate</div><div class="h4 mb-0" id="kpiComp">0</div></div>
         </button>
       </div>
 
       <div id="errBanner" class="alert alert-warning d-none my-2"></div>
-
       <div class="table-responsive">
-        <table class="table table-app align-middle" id="tblHome">
+        <table class="table align-middle table-app" id="tblHome">
           <thead>
             <tr>
               <th class="thumb-cell">Foto</th>
@@ -105,30 +67,20 @@
       <h4>Ricerca</h4>
 
       <div class="row g-2 mb-2">
-        <div class="col-md-10">
-          <input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT (token, no accenti)…" />
-        </div>
-        <div class="col-md-2 d-grid">
-          <button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button>
-        </div>
+        <div class="col-md-10"><input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT (token, no accenti)…"></div>
+        <div class="col-md-2 d-grid"><button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button></div>
       </div>
-
-      <!-- NOTE sotto alla ricerca generale (match esatto) -->
       <div class="row g-2 mb-3">
-        <div class="col-md-6 col-lg-4">
-          <input id="noteExact" class="form-control" placeholder="Note (match esatto)" />
-        </div>
+        <div class="col-md-6 col-lg-4"><input id="noteExact" class="form-control" placeholder="Note (match esatto)"></div>
       </div>
-
-      <!-- Filtri tecnici singoli -->
       <div class="card mb-2">
         <div class="card-header py-2"><strong>Filtri tecnici (singoli)</strong></div>
         <div class="card-body">
           <div class="row g-2">
-            <div class="col-md-6 col-lg-3"><input id="fBatt" class="form-control" placeholder="Batt. collettore" /></div>
-            <div class="col-md-6 col-lg-3"><input id="fAsse" class="form-control" placeholder="Lunghezza asse" /></div>
-            <div class="col-md-6 col-lg-3"><input id="fPacco" class="form-control" placeholder="Lunghezza pacco" /></div>
-            <div class="col-md-6 col-lg-3"><input id="fLarg" class="form-control" placeholder="Larghezza pacco" /></div>
+            <div class="col-md-6 col-lg-3"><input id="fBatt" class="form-control" placeholder="Batt. collettore"></div>
+            <div class="col-md-6 col-lg-3"><input id="fAsse" class="form-control" placeholder="Lunghezza asse"></div>
+            <div class="col-md-6 col-lg-3"><input id="fPacco" class="form-control" placeholder="Lunghezza pacco"></div>
+            <div class="col-md-6 col-lg-3"><input id="fLarg" class="form-control" placeholder="Larghezza pacco"></div>
             <div class="col-md-6 col-lg-3">
               <select id="fPunta" class="form-select">
                 <option value="">Punta (tutte)</option>
@@ -137,19 +89,18 @@
                 <option>Dritta</option>
               </select>
             </div>
-            <div class="col-md-6 col-lg-2"><input id="fNP" class="form-control" placeholder="N. punte" /></div>
+            <div class="col-md-6 col-lg-2"><input id="fNP" class="form-control" placeholder="N. punte"></div>
           </div>
           <div class="mt-3 d-flex gap-2">
-            <button class="btn btn-secondary" id="btnApply" type="button">Applica filtri</button>
-            <button class="btn btn-outline-secondary" id="btnReset" type="button">Reset</button>
+            <button class="btn btn-secondary" id="btnApply">Applica filtri</button>
+            <button class="btn btn-outline-secondary" id="btnReset">Reset</button>
           </div>
         </div>
       </div>
 
-      <div id="errBannerSearch" class="alert alert-warning d-none my-2"></div>
-
+      <div id="errBanner" class="alert alert-warning d-none my-2"></div>
       <div class="table-responsive">
-        <table class="table table-app align-middle" id="tblSearch">
+        <table class="table align-middle table-app" id="tblSearch">
           <thead>
             <tr>
               <th class="thumb-cell">Foto</th>
@@ -169,9 +120,7 @@
     <!-- MODIFICA -->
     <div class="container my-3 d-none" id="page-edit">
       <h4>Modifica scheda</h4>
-      <div id="closedBanner" class="alert alert-success d-none py-2 mb-2">
-        Chiusa <span id="closedHint" class="ms-2 small"></span>
-      </div>
+      <div id="closedBanner" class="alert alert-success d-none py-2 mb-2">Chiusa</div>
 
       <div class="row g-3">
         <div class="col-lg-7">
@@ -179,27 +128,12 @@
             <div class="card-header py-2"><strong>Dati scheda e cliente</strong></div>
             <div class="card-body">
               <div class="row g-2">
-                <div class="col-md-8">
-                  <label class="form-label">Descrizione</label>
-                  <input id="eDescrizione" class="form-control" />
-                </div>
-                <div class="col-md-4">
-                  <label class="form-label">Modello</label>
-                  <input id="eModello" class="form-control" placeholder="es. XYZ-123" />
-                </div>
+                <div class="col-md-8"><label class="form-label">Descrizione</label><input id="eDescrizione" class="form-control"></div>
+                <div class="col-md-4"><label class="form-label">Modello</label><input id="eModello" class="form-control" placeholder="es. XYZ-123"></div>
 
-                <div class="col-md-4">
-                  <label class="form-label">Data apertura</label>
-                  <input id="eApertura" type="date" class="form-control" />
-                </div>
-                <div class="col-md-4">
-                  <label class="form-label">Data accettazione</label>
-                  <input id="eAcc" type="date" class="form-control" />
-                </div>
-                <div class="col-md-4">
-                  <label class="form-label">Data scadenza</label>
-                  <input id="eScad" type="date" class="form-control" />
-                </div>
+                <div class="col-md-4"><label class="form-label">Data apertura</label><input id="eApertura" type="date" class="form-control"></div>
+                <div class="col-md-4"><label class="form-label">Data accettazione</label><input id="eAcc" type="date" class="form-control"></div>
+                <div class="col-md-4"><label class="form-label">Data scadenza</label><input id="eScad" type="date" class="form-control"></div>
 
                 <div class="col-md-4">
                   <label class="form-label">Stato</label>
@@ -210,31 +144,17 @@
                   </select>
                   <div class="form-text" id="closedHint"></div>
                 </div>
-
-                <div class="col-md-4">
-                  <label class="form-label">Preventivo</label>
+                <div class="col-md-4"><label class="form-label">Preventivo</label>
                   <select id="ePrev" class="form-select">
                     <option>Non inviato</option>
                     <option>Inviato</option>
                   </select>
                 </div>
-                <div class="col-md-4">
-                  <label class="form-label">Documento Trasporto</label>
-                  <input id="eDDT" class="form-control" placeholder="Numero / riferimento DDT" />
-                </div>
+                <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="eDDT" class="form-control" placeholder="Numero / riferimento DDT"></div>
 
-                <div class="col-md-6">
-                  <label class="form-label">Nome / Ragione sociale</label>
-                  <input id="eCliente" class="form-control" />
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label">Telefono</label>
-                  <input id="eTel" class="form-control" />
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label">Email</label>
-                  <input id="eEmail" class="form-control" />
-                </div>
+                <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="eCliente" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Telefono</label><input id="eTel" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Email</label><input id="eEmail" class="form-control"></div>
               </div>
             </div>
           </div>
@@ -243,70 +163,56 @@
             <div class="card-header py-2"><strong>Dati tecnici</strong></div>
             <div class="card-body">
               <div class="row g-2">
-                <div class="col-md-3"><label class="form-label">Batt. collettore</label><input id="eBatt" class="form-control" /></div>
-                <div class="col-md-3"><label class="form-label">Lunghezza asse</label><input id="eAsse" class="form-control" /></div>
-                <div class="col-md-3"><label class="form-label">Lunghezza pacco</label><input id="ePacco" class="form-control" /></div>
-                <div class="col-md-3"><label class="form-label">Larghezza pacco</label><input id="eLarg" class="form-control" /></div>
-                <div class="col-md-3">
-                  <label class="form-label">Punta</label>
+                <div class="col-md-3"><label class="form-label">Batt. collettore</label><input id="eBatt" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Lunghezza asse</label><input id="eAsse" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Lunghezza pacco</label><input id="ePacco" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Larghezza pacco</label><input id="eLarg" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Punta</label>
                   <select id="ePunta" class="form-select">
-                    <option></option>
-                    <option>Sinistra</option>
-                    <option>Destra</option>
-                    <option>Dritta</option>
+                    <option></option><option>Sinistra</option><option>Destra</option><option>Dritta</option>
                   </select>
                 </div>
-                <div class="col-md-3"><label class="form-label">N. punte</label><input id="eNP" class="form-control" /></div>
-                <div class="col-md-6"><label class="form-label">Note</label><input id="eNote" class="form-control" /></div>
+                <div class="col-md-3"><label class="form-label">N. punte</label><input id="eNP" class="form-control"></div>
+                <div class="col-md-6"><label class="form-label">Note</label><input id="eNote" class="form-control"></div>
               </div>
             </div>
           </div>
 
           <div class="d-grid my-3 gap-2">
-            <button class="btn btn-primary" id="btnSave" type="button">Salva scheda</button>
-            <button class="btn btn-outline-secondary" id="btnCancel" type="button">Annulla</button>
-            <button class="btn btn-outline-dark" id="btnPrint" type="button">Stampa scheda (PDF)</button>
+            <button class="btn btn-success" id="btnSave">Salva scheda</button>
+            <button class="btn btn-outline-secondary" id="btnCancel">Annulla</button>
+            <button class="btn btn-outline-dark" id="btnPrint">Stampa scheda (PDF)</button>
           </div>
         </div>
 
         <div class="col-lg-5">
           <div class="card">
-            <div class="card-header py-2">
-              <strong>Anteprima immagine</strong> <small class="text-muted">4:3 • adattata</small>
-            </div>
+            <div class="card-header py-2"><strong>Anteprima immagine</strong> <small class="text-muted">4:3 • adattata</small></div>
             <div class="card-body">
-              <div class="img-preview text-muted">Nessuna immagine disponibile</div>
-              <div class="small text-muted mt-2">
-                Suggerimento: la prima immagine caricata verrà mostrata qui sopra.
-              </div>
+              <div class="img-preview text-muted"><div>Anteprima non disponibile</div></div>
+              <div class="small text-muted mt-2">Suggerimento: la prima immagine caricata verrà mostrata qui sopra.</div>
 
-              <div class="mt-3">
-                <label class="form-label">Carica immagini</label>
-
-                <!-- input file nascosto, riutilizzato dai bottoni -->
-                <input id="eFiles" class="form-control d-none" type="file" multiple accept="image/*" />
-
-                <div class="d-grid d-sm-flex gap-2">
-                  <button class="btn btn-outline-success" id="btnSnap" type="button">📷 Scatta foto</button>
-                  <button class="btn btn-outline-secondary" id="btnPick" type="button">🖼️ Scegli da galleria</button>
-                  <button class="btn btn-outline-primary ms-sm-auto" id="btnUpload" type="button">⬆️ Carica su cloud</button>
+              <div class="mt-3 d-grid gap-2">
+                <div class="btn-group" role="group">
+                  <button class="btn btn-primary" id="btnSnap" type="button">Scatta foto</button>
+                  <button class="btn btn-outline-primary" id="btnPick" type="button">Carica da galleria</button>
                 </div>
-
-                <div class="small mt-2" id="upMsg"></div>
-
-                <div class="row g-2 mt-2" id="gallery"></div>
+                <button class="btn btn-outline-secondary d-none" id="btnUpload" type="button">Carica su cloud</button>
               </div>
+
+              <input id="eSnap" class="d-none" type="file" accept="image/*" capture="environment" multiple>
+              <input id="ePick" class="d-none" type="file" accept="image/*" multiple>
+
+              <div class="row g-2 mt-2" id="gallery"></div>
             </div>
           </div>
         </div>
-      </div> <!-- /row -->
-    </div> <!-- /page-edit -->
+      </div>
+    </div>
 
-    <!-- Librerie -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script>
-      /* Preconnect a Supabase per velocizzare */
       (function addSupabasePreconnect(){
         try{
           if(!window.SUPABASE_URL) return;
@@ -320,15 +226,14 @@
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- App -->
+    <!-- app.v25.js NON incluso nello zip come richiesto -->
     <script src="app.v25.js?v=25"></script>
 
-    <!-- Overlay immagine in pagina -->
+    <!-- Image Overlay -->
     <div id="imgOverlay" aria-hidden="true">
       <div class="frame">
         <button class="closeBtn" aria-label="Chiudi" title="Chiudi">&times;</button>
-        <img id="imgOverlayImg" alt="Anteprima immagine" />
+        <img id="imgOverlayImg" alt="Anteprima immagine">
       </div>
     </div>
   </body>
