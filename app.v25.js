@@ -1,4 +1,4 @@
-// === ELIP TAGLIENTE • app.v26.js ===
+// === ELIP TAGLIENTE • app.v25.js ===
 // Home and Search aligned columns. Thumb preview, in-page overlay, exact filters, Supabase v2.
 // Columns (both tables): Foto, Data, Cliente, Descrizione, Modello, Stato, Azioni.
 
