@@ -27,36 +27,36 @@
     <!-- HOME -->
     <div class="container my-3" id="page-home">
       <div class="d-flex gap-2 flex-wrap mb-3">
-        <button class="card kpi kpi-link border-top-orange text-start" type="button" data-filter="totali" id="kpiTotBtn">
+        <button class="card kpi kpi-link border-top-orange text-start" type="button" id="kpiTotBtn">
           <div class="card-body"><div class="small text-muted">Totali</div><div class="h4 mb-0" id="kpiTot">0</div></div>
         </button>
-        <button class="card kpi kpi-link border-top-blue text-start" type="button" data-filter="attesa" id="kpiAttesaBtn">
+        <button class="card kpi kpi-link border-top-blue text-start" type="button" id="kpiAttesaBtn">
           <div class="card-body"><div class="small text-muted">In attesa</div><div class="h4 mb-0" id="kpiAttesa">0</div></div>
         </button>
-        <button class="card kpi kpi-link border-top-orange text-start" type="button" data-filter="lavorazione" id="kpiLavBtn">
+        <button class="card kpi kpi-link border-top-orange text-start" type="button" id="kpiLavBtn">
           <div class="card-body"><div class="small text-muted">In lavorazione</div><div class="h4 mb-0" id="kpiLav">0</div></div>
         </button>
-        <button class="card kpi kpi-link border-top-green text-start" type="button" data-filter="completata" id="kpiCompBtn">
+        <button class="card kpi kpi-link border-top-green text-start" type="button" id="kpiCompBtn">
           <div class="card-body"><div class="small text-muted">Completate</div><div class="h4 mb-0" id="kpiComp">0</div></div>
         </button>
       </div>
 
       <div id="errBanner" class="alert alert-warning d-none my-2"></div>
       <div class="table-responsive">
-        <table class="table align-middle" id="tblHome">
+        <table class="table table-app align-middle" id="tblHome">
           <thead>
-<tr>
-<th class="thumb-cell">Foto</th>
-<th>Data</th>
-<th>Cliente</th>
-<th>Descrizione</th>
-<th>Modello</th>
-<th>Stato</th>
-<th class="text-end">Azioni</th>
-</tr>
-</thead>
+            <tr>
+              <th class="thumb-cell">Foto</th>
+              <th>Data</th>
+              <th>Cliente</th>
+              <th>Descrizione</th>
+              <th>Modello</th>
+              <th>Stato</th>
+              <th class="text-end col-azioni">Azioni</th>
+            </tr>
+          </thead>
           <tbody id="homeRows">
-            <tr><td colspan="6" class="text-center py-4 text-muted">Caricamento…</td></tr>
+            <tr><td colspan="7" class="text-center py-4 text-muted">Caricamento…</td></tr>
           </tbody>
         </table>
       </div>
@@ -65,11 +65,6 @@
     <!-- RICERCA -->
     <div class="container my-3 d-none" id="page-search">
       <h4>Ricerca</h4>
-
-      <div id="activeFilterBox" class="mb-2 d-none">
-        <span class="badge text-bg-info badge-filter" id="activeFilterLabel"></span>
-        <button class="btn btn-sm btn-outline-secondary ms-2" id="btnClearFilter" type="button">Rimuovi filtro</button>
-      </div>
 
       <div class="row g-2 mb-2">
         <div class="col-md-10"><input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT (token, no accenti)…"></div>
@@ -107,18 +102,18 @@
 
       <div id="errBanner" class="alert alert-warning d-none my-2"></div>
       <div class="table-responsive">
-        <table class="table align-middle" id="tblSearch">
+        <table class="table table-app align-middle" id="tblSearch">
           <thead>
-<tr>
-<th class="thumb-cell">Foto</th>
-<th>Data</th>
-<th>Cliente</th>
-<th>Descrizione</th>
-<th>Modello</th>
-<th>Stato</th>
-<th class="text-end">Azioni</th>
-</tr>
-</thead>
+            <tr>
+              <th class="thumb-cell">Foto</th>
+              <th>Data</th>
+              <th>Cliente</th>
+              <th>Descrizione</th>
+              <th>Modello</th>
+              <th>Stato</th>
+              <th class="text-end col-azioni">Azioni</th>
+            </tr>
+          </thead>
           <tbody id="searchRows"></tbody>
         </table>
       </div>

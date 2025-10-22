@@ -1,8 +1,10 @@
 {
-  "name": "Scheda Riparazioni",
-  "short_name": "Riparazioni",
-  "start_url": "./",
+  "name": "ELIP Tagliente - Scheda Riparazioni",
+  "short_name": "ELIP Schede",
+  "start_url": ".",
   "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ff8a00",
   "icons": [
     {
       "src": "icons/icon-192.png",
