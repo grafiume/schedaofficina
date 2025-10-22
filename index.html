@@ -10,17 +10,27 @@
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="styles.css">
     <style>
+      /* Tabelle + miniature 144x144 */
       .table-app th, .table-app td { vertical-align: middle; padding: 0.75rem 0.75rem; }
-      .table-app .thumb-cell { width: 110px; }
-      .table-app .thumb-home { width: 96px; height: 96px; object-fit: cover; border-radius: 8px; cursor:pointer; }
+      .table-app .thumb-cell { width: 156px; }
+      .table-app .thumb-home {
+        width: 144px;
+        height: 144px;
+        object-fit: cover;
+        border-radius: 8px;
+        cursor: pointer;
+        display: block;
+        background: #f6f6f6;
+      }
       .table-app .col-azioni { width: 90px; }
       .table-app thead th { font-weight: 600; color: #555; }
       .badge-chiusa { background:#2e7d32; color:#fff; font-weight:600; }
       @media (max-width: 1200px){
-        .table-app .thumb-home { width: 80px; height: 80px; }
+        .table-app .thumb-cell { width: 132px; }
+        .table-app .thumb-home { width: 120px; height: 120px; }
         .table-app th, .table-app td { padding: 0.6rem; }
       }
-      /* Overlay */
+      /* Overlay immagine */
       #imgOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:1050;padding:2rem;}
       #imgOverlay.open{display:flex;}
       #imgOverlay .frame{position:relative;max-width:90vw;max-height:90vh;box-shadow:0 10px 30px rgba(0,0,0,.5);background:#111;border-radius:12px;overflow:hidden;}
@@ -63,7 +73,7 @@
 
       <div id="errBanner" class="alert alert-warning d-none my-2"></div>
       <div class="table-responsive">
-        <table class="table align-middle" id="tblHome">
+        <table class="table align-middle table-app" id="tblHome">
           <thead>
             <tr>
               <th class="thumb-cell">Foto</th>
@@ -119,7 +129,7 @@
 
       <div id="errBanner-search" class="alert alert-warning d-none my-2"></div>
       <div class="table-responsive">
-        <table class="table align-middle" id="tblSearch">
+        <table class="table align-middle table-app" id="tblSearch">
           <thead>
             <tr>
               <th class="thumb-cell">Foto</th>
@@ -178,7 +188,6 @@
             </div>
           </div>
 
-          <!-- RIENTRA: Dati tecnici -->
           <div class="card mt-3">
             <div class="card-header py-2"><strong>Dati tecnici</strong></div>
             <div class="card-body">
@@ -233,7 +242,7 @@
     <!-- App -->
     <script src="app.v25.js?v=25"></script>
 
-    <!-- Image Overlay (HTML presente PRIMA dell’inizializzazione in app.js) -->
+    <!-- Overlay (HTML presente, usato dall'app) -->
     <div id="imgOverlay" aria-hidden="true">
       <div class="frame">
         <button class="closeBtn" aria-label="Chiudi" title="Chiudi">&times;</button>
