@@ -1,7 +1,8 @@
 // === ELIP TAGLIENTE • app.v25.js ===
-// Home & Ricerca allineate: Foto, Data, Cliente, Descrizione, Modello, Stato, Azioni
-// Thumb 144x144, overlay in pagina, filtri esatti, Supabase v2, camera upload mobile
+// Home e Ricerca allineate. Thumb 144x144, overlay in-page, filtri esatti, Supabase v2.
+// Colonne: Foto, Data, Cliente, Descrizione, Modello, Stato, Azioni.
 
+//
 // ----------------- Helpers -----------------
 (function(){
   if (typeof window.fmtIT !== 'function') {
@@ -38,7 +39,6 @@
   }
 })();
 
-// ----------------- Global state + navigation -----------------
 function show(id){
   const pages = ['page-home','page-search','page-edit'];
   pages.forEach(pid => {
@@ -54,6 +54,15 @@ if (typeof window.state !== 'object'){
   window.state = { all: [], currentView: 'home', editing: null };
 }
 
+function showError(msg){
+  try{
+    const el=document.getElementById('errBanner');
+    if(el){ el.textContent=msg; el.classList.remove('d-none'); }
+  }catch(e){}
+  console.error(msg);
+}
+
+//
 // ----------------- Supabase -----------------
 if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){
   console.warn('config.js mancante o variabili non definite');
@@ -62,6 +71,7 @@ const sb = (typeof supabase !== 'undefined')
   ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
   : null;
 
+//
 // ----------------- Storage helpers -----------------
 const bucket = 'photos';
 const _pubUrlCache = new Map();
@@ -83,12 +93,15 @@ async function listPhotosFromPrefix(prefix){
     return (data||[]).map(x => prefix + x.name);
   }catch(e){ return []; }
 }
-// Layout multipli + fallback tabella
+// Prova layout multipli + fallback tabella
 async function listPhotos(recordId){
+  // 1) new layout: records/{id}/...
   let paths = await listPhotosFromPrefix(`records/${recordId}/`);
   if (paths.length) return paths;
+  // 2) old layout: {id}/...
   paths = await listPhotosFromPrefix(`${recordId}/`);
   if (paths.length) return paths;
+  // 3) table fallback
   try{
     const { data, error } = await sb.from('photos').select('path').eq('record_id', recordId).order('created_at', {ascending:true});
     if (!error && data && data.length) return data.map(r=>r.path);
@@ -96,22 +109,27 @@ async function listPhotos(recordId){
   return [];
 }
 
-async function uploadFiles(recordId, files){
+async function uploadFiles(recordId, fileList){
+  if (!fileList || !fileList.length) return true; // niente da caricare
   const prefix = `records/${recordId}/`;
-  for (const f of files){
-    const safe = Date.now() + '_' + f.name.replace(/[^a-z0-9_.-]+/gi,'_');
-    const opts = { upsert: false, contentType: f.type || 'image/jpeg', cacheControl: '3600' };
-    const { error } = await sb.storage.from(bucket).upload(prefix + safe, f, opts);
-    if (error){
-      showMsg('upMsg', 'Errore upload: ' + error.message + ' (verifica permessi bucket/policy)', 'text-danger');
-      return false;
-    }
+  for (const f of fileList){
+    const name = Date.now() + '_' + f.name.replace(/[^a-z0-9_.-]+/gi,'_');
+    const { error } = await sb.storage.from(bucket).upload(prefix + name, f, { upsert: false });
+    if (error) { alert('Errore upload: ' + error.message); return false; }
   }
-  showMsg('upMsg', 'Immagine/i caricate con successo ✅', 'text-success');
   return true;
 }
 
-// ----------------- Overlay (single) -----------------
+async function deletePhoto(path){
+  try{
+    const { error } = await sb.storage.from(bucket).remove([path]);
+    if (error) { alert('Errore eliminazione: ' + error.message); return false; }
+    return true;
+  }catch(e){ return false; }
+}
+
+//
+// ----------------- Overlay (singolo) -----------------
 (function initOverlay(){
   const overlay = document.getElementById('imgOverlay');
   const img = document.getElementById('imgOverlayImg');
@@ -131,7 +149,8 @@ function openLightbox(url){
   else { try{ window.location.assign(url); } catch(e){ window.location.href = url; } }
 }
 
-// ----------------- KPIs -----------------
+//
+// ----------------- Render KPIs -----------------
 function renderKPIs(rows){
   try {
     const tot = rows.length;
@@ -143,7 +162,8 @@ function renderKPIs(rows){
   } catch(e){}
 }
 
-// ----------------- Table renderers -----------------
+//
+// ----------------- HOME: renderer -----------------
 window.renderHome = function(rows){
   const tb = document.getElementById('homeRows');
   if (!tb) return;
@@ -152,12 +172,16 @@ window.renderHome = function(rows){
   (rows||[]).sort(byHomeOrder).forEach(r=>{
     const tr = document.createElement('tr');
 
-    // Foto
+    // Foto 144
     const tdFoto = document.createElement('td');
     tdFoto.className = 'thumb-cell';
     const img = document.createElement('img');
-    img.className = 'thumb-home';
+    img.className = 'thumb thumb-home';
     img.alt = '';
+    img.style.width = '144px';
+    img.style.height = '144px';
+    img.style.objectFit = 'cover';
+    img.style.borderRadius = '8px';
     tdFoto.appendChild(img);
     tr.appendChild(tdFoto);
 
@@ -224,17 +248,18 @@ window.renderHome = function(rows){
   }
 };
 
-// ----------------- Search -----------------
+//
+// ----------------- SEARCH: filtri + renderer -----------------
 function getSearchFilters(){
   return {
-    q: (document.getElementById('q')||{value:''}).value.trim(),
-    noteExact: (document.getElementById('noteExact')||{value:''}).value.trim(),
-    batt: (document.getElementById('fBatt')||{value:''}).value.trim(),
-    asse: (document.getElementById('fAsse')||{value:''}).value.trim(),
-    pacco: (document.getElementById('fPacco')||{value:''}).value.trim(),
-    larg: (document.getElementById('fLarg')||{value:''}).value.trim(),
-    punta: (document.getElementById('fPunta')||{value:''}).value.trim(),
-    np: (document.getElementById('fNP')||{value:''}).value.trim(),
+    q: document.getElementById('q').value.trim(),
+    noteExact: document.getElementById('noteExact') ? document.getElementById('noteExact').value.trim() : '',
+    batt: document.getElementById('fBatt').value.trim(),
+    asse: document.getElementById('fAsse') ? document.getElementById('fAsse').value.trim() : '',
+    pacco: document.getElementById('fPacco') ? document.getElementById('fPacco').value.trim() : '',
+    larg: document.getElementById('fLarg') ? document.getElementById('fLarg').value.trim() : '',
+    punta: document.getElementById('fPunta') ? document.getElementById('fPunta').value.trim() : '',
+    np: document.getElementById('fNP') ? document.getElementById('fNP').value.trim() : '',
   };
 }
 function toNum(val){
@@ -277,12 +302,16 @@ function doSearch(){
   rows.forEach(r=>{
     const tr = document.createElement('tr');
 
-    // Foto
+    // Foto 144
     const tdFoto = document.createElement('td');
     tdFoto.className = 'thumb-cell';
     const img = document.createElement('img');
-    img.className = 'thumb-search';
+    img.className = 'thumb thumb-home';
     img.alt = '';
+    img.style.width = '144px';
+    img.style.height = '144px';
+    img.style.objectFit = 'cover';
+    img.style.borderRadius = '8px';
     tdFoto.appendChild(img);
     tr.appendChild(tdFoto);
 
@@ -331,7 +360,7 @@ function doSearch(){
 
     tb.appendChild(tr);
 
-    // Async thumb loading
+    // Async thumb
     try{
       listPhotos(r.id).then(paths=>{
         if(paths && paths.length){
@@ -350,6 +379,7 @@ function doSearch(){
   }
 }
 
+//
 // ----------------- Edit page -----------------
 function setV(id, v){
   const el = document.getElementById(id);
@@ -364,35 +394,102 @@ function setV(id, v){
 }
 function val(id){ const el = document.getElementById(id); return el ? el.value.trim() : ''; }
 
-function showMsg(id, text, cls){
-  const el = document.getElementById(id);
-  if(!el) return;
-  el.className = 'small mt-2 ' + (cls||'');
-  el.textContent = text || '';
-}
+// Galleria/anteprima in Edit (4:3 + thumbs con X)
+async function refreshGallery(recordId){
+  const gallery = document.getElementById('gallery');
+  const prevWrap = document.querySelector('.img-preview');
+  if (gallery) gallery.innerHTML = '';
+  if (prevWrap) prevWrap.innerHTML = '';
 
-async function uploadAndRefresh(recordId, files){
-  if(!files || !files.length) return;
-  showMsg('upMsg', 'Caricamento in corso…', 'text-muted');
-  const ok = await uploadFiles(recordId, files);
-  if (ok){
-    await refreshGallery(recordId);
-    const input = document.getElementById('eFiles');
-    if (input) input.value = '';
+  const paths = await listPhotos(recordId);
+
+  // Anteprima 4:3
+  if (prevWrap){
+    const frame = document.createElement('div');
+    frame.style.width = '100%';
+    frame.style.aspectRatio = '4 / 3';
+    frame.style.background = '#f6f6f6';
+    frame.style.borderRadius = '8px';
+    frame.style.display = 'flex';
+    frame.style.alignItems = 'center';
+    frame.style.justifyContent = 'center';
+    frame.style.overflow = 'hidden';
+
+    if (paths.length){
+      const url0 = publicUrlCached(paths[0]);
+      const img0 = new Image();
+      img0.alt = 'Anteprima';
+      img0.style.width = '100%';
+      img0.style.height = '100%';
+      img0.style.objectFit = 'contain';
+      img0.decoding = 'async';
+      img0.loading = 'eager';
+      img0.fetchPriority = 'high';
+      img0.src = url0;
+      img0.addEventListener('click', ()=>openLightbox(url0));
+      frame.appendChild(img0);
+    } else {
+      frame.textContent = 'Nessuna immagine disponibile';
+      frame.style.color = '#888';
+      frame.style.fontSize = '14px';
+    }
+    prevWrap.appendChild(frame);
+  }
+
+  // Thumbs grid con pulsante X
+  if (gallery){
+    paths.forEach(p=>{
+      const url = publicUrlCached(p);
+
+      const col = document.createElement('div');
+      col.className = 'col-4 position-relative';
+
+      const img = new Image();
+      img.alt = '';
+      img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
+      img.src = url;
+      img.style.width = '100%';
+      img.style.height = '144px';
+      img.style.objectFit = 'cover';
+      img.style.borderRadius = '.5rem';
+      img.addEventListener('click', ()=>openLightbox(url));
+
+      // tasto X
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.textContent = '×';
+      del.title = 'Elimina immagine';
+      del.className = 'btn btn-sm btn-danger';
+      del.style.position = 'absolute';
+      del.style.top = '6px';
+      del.style.right = '10px';
+      del.style.borderRadius = '999px';
+      del.style.lineHeight = '1';
+      del.style.width = '28px';
+      del.style.height = '28px';
+      del.addEventListener('click', async (ev)=>{
+        ev.stopPropagation();
+        if (!confirm('Sei sicuro di voler eliminare questa immagine?')) return;
+        const ok = await deletePhoto(p);
+        if (ok) refreshGallery(recordId);
+      });
+
+      col.appendChild(img);
+      col.appendChild(del);
+      gallery.appendChild(col);
+    });
   }
 }
 
+// Apri Edit
 function openEdit(id){
   const r = window.state.all.find(x=>x.id===id);
   if (!r) return;
   window.state.editing = r;
+
   const closed = norm(r.statoPratica).includes('completata');
   const cb = document.getElementById('closedBanner');
-  if (cb){
-    cb.classList.toggle('d-none', !closed);
-    const hint = document.getElementById('closedHint');
-    if (hint) hint.textContent = closed ? ('Chiusa il ' + fmtIT(r.dataAccettazione||r.dataScadenza||'')) : '';
-  }
+  if (cb) cb.classList.toggle('d-none', !closed);
 
   setV('eDescrizione', r.descrizione);
   setV('eModello', r.modello);
@@ -415,105 +512,31 @@ function openEdit(id){
 
   show('page-edit');
 
-  // Bottoni foto
-  const inputFiles = document.getElementById('eFiles');
-  const btnSnap = document.getElementById('btnSnap');
-  const btnPick = document.getElementById('btnPick');
-  const btnUp   = document.getElementById('btnUpload');
+  // evidenzia "Salva"
+  const saveBtn = document.getElementById('btnSave');
+  if (saveBtn) { saveBtn.classList.add('btn-success'); saveBtn.classList.remove('btn-orange'); }
 
-  if (inputFiles){
-    // cambio -> anteprima locale + upload automatico
-    inputFiles.onchange = async (e)=>{
-      const files = e.target.files;
-      if (files && files.length){
-        showLocalPreviews(files);
-        nudgeSave();
-        await uploadAndRefresh(r.id, files);
-      }
-    };
-  }
-  if (btnSnap){
-    btnSnap.onclick = ()=>{
-      if (!inputFiles) return;
-      inputFiles.setAttribute('capture','environment'); // forza fotocamera se supportato
-      inputFiles.setAttribute('accept','image/*');
-      inputFiles.click();
-    };
-  }
-  if (btnPick){
-    btnPick.onclick = ()=>{
-      if (!inputFiles) return;
-      inputFiles.removeAttribute('capture');           // apre galleria
-      inputFiles.setAttribute('accept','image/*');
-      inputFiles.click();
-    };
-  }
-  if (btnUp){
-    btnUp.onclick = async ()=>{
-      if (!inputFiles){ alert('Input file non trovato'); return; }
-      const files = inputFiles.files;
-      if(!files || !files.length){
-        // se nessun file selezionato, apri selettore
-        inputFiles.click();
-        return;
-      }
-      await uploadAndRefresh(r.id, files);
-    };
-  }
+  // nascondi eventuale pulsante vecchio "Carica su cloud"
+  const btnUpload = document.getElementById('btnUpload');
+  if (btnUpload) btnUpload.classList.add('d-none');
 
-  // Galleria remota iniziale
+  // refresh galleria
   refreshGallery(r.id);
-}
-
-// Anteprime locali + nudge salva
-function showLocalPreviews(files){
-  const prev = document.querySelector('.img-preview');
-  const gal  = document.getElementById('gallery');
-  if (!prev || !gal) return;
-
-  prev.textContent = '';
-  gal.innerHTML = '';
-
-  const arr = Array.from(files || []);
-  if (!arr.length){
-    prev.textContent = 'Nessuna immagine disponibile';
-    return;
-  }
-
-  const big = new Image();
-  big.alt = 'Anteprima locale';
-  big.decoding = 'async';
-  big.loading  = 'eager';
-  big.fetchPriority = 'high';
-  big.src = URL.createObjectURL(arr[0]);
-  big.addEventListener('load', ()=> URL.revokeObjectURL(big.src), { once:true });
-  big.addEventListener('click', ()=> openLightbox(big.src));
-  prev.appendChild(big);
-
-  arr.forEach(file=>{
-    const col = document.createElement('div');
-    col.className = 'col-4 gallery-item';
-    const img = new Image();
-    img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
-    img.src = URL.createObjectURL(file);
-    img.addEventListener('load', ()=> URL.revokeObjectURL(img.src), { once:true });
-    img.addEventListener('click', ()=> openLightbox(img.src));
-    col.appendChild(img);
-    gal.appendChild(col);
-  });
-}
-
-function nudgeSave(){
-  const btn = document.getElementById('btnSave');
-  if (!btn) return;
-  btn.classList.add('btn-save-cta');
-  btn.style.transform = 'scale(1.03)';
-  setTimeout(()=>{ btn.style.transform = ''; }, 180);
 }
 
 async function saveEdit(){
   const r = window.state.editing;
   if(!r) return;
+
+  // 1) carico eventuali foto
+  const fileInput = document.getElementById('eFiles');
+  const files = fileInput && fileInput.files ? fileInput.files : null;
+  if (files && files.length){
+    const okUp = await uploadFiles(r.id, files);
+    if (!okUp) return;
+  }
+
+  // 2) salvo dati scheda
   const payload = {
     descrizione: val('eDescrizione'),
     modello: val('eModello'),
@@ -534,29 +557,29 @@ async function saveEdit(){
     numPunte: val('eNP')||null,
     note: val('eNote'),
   };
+
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if (error){ alert('Errore salvataggio: '+error.message); return; }
+
+  // aggiorno cache locale
   Object.assign(r, data);
+
+  // pulizia input file e refresh galleria
+  if (fileInput) fileInput.value = '';
+  await refreshGallery(r.id);
+
   alert('Salvato!');
+  // torna alla home aggiornata
+  renderHome(window.state.all);
+  show('page-home');
 }
 
+//
 // ----------------- Boot -----------------
-function showError(msg){
-  try{
-    const el=document.getElementById('errBanner');
-    if(el){ el.textContent=msg; el.classList.remove('d-none'); }
-    const el2=document.getElementById('errBannerSearch');
-    if(el2){ el2.textContent=msg; el2.classList.remove('d-none'); }
-  }catch(e){}
-  console.error(msg);
-}
-
 window.loadAll = async function(){
   try {
     if (!sb){ showError('Supabase non inizializzato'); return; }
-    let q = sb.from('records')
-      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
-      .order('dataApertura', { ascending: false, nullsFirst: false });
+    let q = sb.from('records').select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email');
     let { data, error } = await q;
     if (error){
       const fb = await sb.from('records_view').select('*').limit(1000);
@@ -588,41 +611,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   H('kpiCompBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('completata'))));
   H('btnSave', saveEdit);
   H('btnCancel', ()=>show('page-home'));
-  H('btnNuovo', async ()=>{
-    try{
-      if(!sb){ alert('Supabase non inizializzato'); return; }
-      const d = new Date();
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth()+1).padStart(2,'0');
-      const dd = String(d.getDate()).padStart(2,'0');
-      const iso = `${yyyy}-${mm}-${dd}`;
-      const payload = {
-        descrizione: '',
-        modello: '',
-        cliente: '',
-        telefono: '',
-        statoPratica: 'In attesa',
-        preventivoStato: 'Non inviato',
-        note: '',
-        dataApertura: iso,
-        dataAccettazione: null,
-        dataScadenza: null,
-        docTrasporto: '',
-        battCollettore: null,
-        lunghezzaAsse: null,
-        lunghezzaPacco: null,
-        larghezzaPacco: null,
-        punta: '',
-        numPunte: null,
-        email: ''
-      };
-      const { data, error } = await sb.from('records').insert(payload).select().single();
-      if (error){ alert('Errore creazione: '+error.message); return; }
-      window.state.all.unshift(data);
-      openEdit(data.id);
-    }catch(e){ alert('Errore creazione scheda: '+(e?.message||e)); }
-  });
 
   try{ window.loadAll(); } catch(e){ showError(e.message||String(e)); }
 });
-
