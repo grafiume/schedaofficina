@@ -2,8 +2,6 @@
 // Home e Ricerca allineate. Thumb 144x144, overlay in-page, filtri esatti, Supabase v2.
 // Colonne: Foto, Data, Cliente, Descrizione, Modello, Stato, Azioni.
 
-//
-// ----------------- Helpers -----------------
 (function(){
   if (typeof window.fmtIT !== 'function') {
     window.fmtIT = function(d){
@@ -62,7 +60,6 @@ function showError(msg){
   console.error(msg);
 }
 
-//
 // ----------------- Supabase -----------------
 if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){
   console.warn('config.js mancante o variabili non definite');
@@ -71,7 +68,6 @@ const sb = (typeof supabase !== 'undefined')
   ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
   : null;
 
-//
 // ----------------- Storage helpers -----------------
 const bucket = 'photos';
 const _pubUrlCache = new Map();
@@ -95,13 +91,10 @@ async function listPhotosFromPrefix(prefix){
 }
 // Prova layout multipli + fallback tabella
 async function listPhotos(recordId){
-  // 1) new layout: records/{id}/...
   let paths = await listPhotosFromPrefix(`records/${recordId}/`);
   if (paths.length) return paths;
-  // 2) old layout: {id}/...
   paths = await listPhotosFromPrefix(`${recordId}/`);
   if (paths.length) return paths;
-  // 3) table fallback
   try{
     const { data, error } = await sb.from('photos').select('path').eq('record_id', recordId).order('created_at', {ascending:true});
     if (!error && data && data.length) return data.map(r=>r.path);
@@ -110,7 +103,7 @@ async function listPhotos(recordId){
 }
 
 async function uploadFiles(recordId, fileList){
-  if (!fileList || !fileList.length) return true; // niente da caricare
+  if (!fileList || !fileList.length) return true;
   const prefix = `records/${recordId}/`;
   for (const f of fileList){
     const name = Date.now() + '_' + f.name.replace(/[^a-z0-9_.-]+/gi,'_');
@@ -128,7 +121,6 @@ async function deletePhoto(path){
   }catch(e){ return false; }
 }
 
-//
 // ----------------- Overlay (singolo) -----------------
 (function initOverlay(){
   const overlay = document.getElementById('imgOverlay');
@@ -143,14 +135,12 @@ async function deletePhoto(path){
     img.src = url; overlay.classList.add('open');
   };
 })();
-
 function openLightbox(url){
   if (typeof window.__openOverlay === 'function') window.__openOverlay(url);
   else { try{ window.location.assign(url); } catch(e){ window.location.href = url; } }
 }
 
-//
-// ----------------- Render KPIs -----------------
+// ----------------- KPIs -----------------
 function renderKPIs(rows){
   try {
     const tot = rows.length;
@@ -162,8 +152,7 @@ function renderKPIs(rows){
   } catch(e){}
 }
 
-//
-// ----------------- HOME: renderer -----------------
+// ----------------- HOME -----------------
 window.renderHome = function(rows){
   const tb = document.getElementById('homeRows');
   if (!tb) return;
@@ -178,10 +167,7 @@ window.renderHome = function(rows){
     const img = document.createElement('img');
     img.className = 'thumb thumb-home';
     img.alt = '';
-    img.style.width = '144px';
-    img.style.height = '144px';
-    img.style.objectFit = 'cover';
-    img.style.borderRadius = '8px';
+    Object.assign(img.style, { width:'144px', height:'144px', objectFit:'cover', borderRadius:'8px' });
     tdFoto.appendChild(img);
     tr.appendChild(tdFoto);
 
@@ -228,7 +214,7 @@ window.renderHome = function(rows){
     tdAz.appendChild(btn);
     tr.appendChild(tdAz);
 
-    // Append & async thumb
+    // thumb async
     tb.appendChild(tr);
     try{
       listPhotos(r.id).then(paths=>{
@@ -237,9 +223,7 @@ window.renderHome = function(rows){
           img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
           img.src = url;
           img.addEventListener('click', ()=>openLightbox(url));
-        } else {
-          img.alt = '—';
-        }
+        } else { img.alt = '—'; }
       }).catch(()=>{});
     }catch(e){}
   });
@@ -248,8 +232,7 @@ window.renderHome = function(rows){
   }
 };
 
-//
-// ----------------- SEARCH: filtri + renderer -----------------
+// ----------------- SEARCH -----------------
 function getSearchFilters(){
   return {
     q: document.getElementById('q').value.trim(),
@@ -271,8 +254,7 @@ function toNum(val){
 }
 function isNumEq(filterVal, recordVal){
   if (filterVal === null || filterVal === undefined || String(filterVal).trim() === '') return true;
-  const f = toNum(filterVal);
-  const r = toNum(recordVal);
+  const f = toNum(filterVal); const r = toNum(recordVal);
   if (f === null || r === null) return false;
   return f === r;
 }
@@ -282,9 +264,7 @@ function matchRow(r, f){
     const tokens = norm(f.q).split(/\s+/).filter(Boolean);
     for (const t of tokens){ if(!hay.includes(t)) return false; }
   }
-  if (f.noteExact){
-    if (norm(r.note) !== norm(f.noteExact)) return false;
-  }
+  if (f.noteExact){ if (norm(r.note) !== norm(f.noteExact)) return false; }
   if (!isNumEq(f.batt, r.battCollettore)) return false;
   if (!isNumEq(f.asse, r.lunghezzaAsse)) return false;
   if (!isNumEq(f.pacco, r.lunghezzaPacco)) return false;
@@ -293,7 +273,6 @@ function matchRow(r, f){
   if (!isNumEq(f.np, r.numPunte)) return false;
   return true;
 }
-
 function doSearch(){
   const f = getSearchFilters();
   const rows = (window.state.all||[]).filter(r=>matchRow(r,f)).sort(byHomeOrder);
@@ -308,10 +287,7 @@ function doSearch(){
     const img = document.createElement('img');
     img.className = 'thumb thumb-home';
     img.alt = '';
-    img.style.width = '144px';
-    img.style.height = '144px';
-    img.style.objectFit = 'cover';
-    img.style.borderRadius = '8px';
+    Object.assign(img.style, { width:'144px', height:'144px', objectFit:'cover', borderRadius:'8px' });
     tdFoto.appendChild(img);
     tr.appendChild(tdFoto);
 
@@ -360,7 +336,7 @@ function doSearch(){
 
     tb.appendChild(tr);
 
-    // Async thumb
+    // thumb async
     try{
       listPhotos(r.id).then(paths=>{
         if(paths && paths.length){
@@ -368,9 +344,7 @@ function doSearch(){
           img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
           img.src = url;
           img.addEventListener('click', ()=>openLightbox(url));
-        } else {
-          img.alt = '—';
-        }
+        } else { img.alt = '—'; }
       }).catch(()=>{});
     }catch(e){}
   });
@@ -379,7 +353,6 @@ function doSearch(){
   }
 }
 
-//
 // ----------------- Edit page -----------------
 function setV(id, v){
   const el = document.getElementById(id);
@@ -394,79 +367,115 @@ function setV(id, v){
 }
 function val(id){ const el = document.getElementById(id); return el ? el.value.trim() : ''; }
 
-// Galleria/anteprima in Edit (4:3 + thumbs con X)
+// Coda locale di foto in attesa di upload (scatta/carica)
+let pendingFiles = [];
+
+// Anteprima locale immediata (senza upload)
+function previewLocal(files){
+  if (!files || !files.length) return;
+  const gallery = document.getElementById('gallery');
+  const prevWrap = document.querySelector('.img-preview');
+
+  // se non c'è ancora una preview principale, mostra la prima immagine selezionata
+  if (prevWrap && !prevWrap.querySelector('img')){
+    const frame = document.createElement('div');
+    Object.assign(frame.style, { width:'100%', aspectRatio:'4 / 3', background:'#f6f6f6', borderRadius:'8px',
+      display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden' });
+    const img0 = new Image();
+    img0.alt = 'Anteprima';
+    Object.assign(img0.style, { width:'100%', height:'100%', objectFit:'contain' });
+    img0.src = URL.createObjectURL(files[0]);
+    img0.addEventListener('click', ()=>openLightbox(img0.src));
+    frame.appendChild(img0);
+    prevWrap.innerHTML = '';
+    prevWrap.appendChild(frame);
+  }
+
+  // miniature locali (senza X di delete perché non ancora in cloud)
+  if (gallery){
+    Array.from(files).forEach(f=>{
+      const col = document.createElement('div');
+      col.className = 'col-4';
+      const img = new Image();
+      Object.assign(img.style, { width:'100%', height:'144px', objectFit:'cover', borderRadius:'.5rem' });
+      img.src = URL.createObjectURL(f);
+      col.appendChild(img);
+      gallery.appendChild(col);
+    });
+  }
+}
+
+// Galleria/anteprima (cloud + pending)
 async function refreshGallery(recordId){
   const gallery = document.getElementById('gallery');
   const prevWrap = document.querySelector('.img-preview');
   if (gallery) gallery.innerHTML = '';
   if (prevWrap) prevWrap.innerHTML = '';
 
-  const paths = await listPhotos(recordId);
+  // 1) anteprima principale from cloud se esiste, altrimenti da pending
+  const cloud = await listPhotos(recordId);
+  let previewSet = false;
 
-  // Anteprima 4:3
   if (prevWrap){
     const frame = document.createElement('div');
-    frame.style.width = '100%';
-    frame.style.aspectRatio = '4 / 3';
-    frame.style.background = '#f6f6f6';
-    frame.style.borderRadius = '8px';
-    frame.style.display = 'flex';
-    frame.style.alignItems = 'center';
-    frame.style.justifyContent = 'center';
-    frame.style.overflow = 'hidden';
+    Object.assign(frame.style, { width:'100%', aspectRatio:'4 / 3', background:'#f6f6f6', borderRadius:'8px',
+      display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden' });
 
-    if (paths.length){
-      const url0 = publicUrlCached(paths[0]);
+    if (cloud.length){
+      const url0 = publicUrlCached(cloud[0]);
       const img0 = new Image();
+      Object.assign(img0.style, { width:'100%', height:'100%', objectFit:'contain' });
       img0.alt = 'Anteprima';
-      img0.style.width = '100%';
-      img0.style.height = '100%';
-      img0.style.objectFit = 'contain';
-      img0.decoding = 'async';
-      img0.loading = 'eager';
-      img0.fetchPriority = 'high';
+      img0.decoding = 'async'; img0.loading = 'eager'; img0.fetchPriority = 'high';
       img0.src = url0;
       img0.addEventListener('click', ()=>openLightbox(url0));
       frame.appendChild(img0);
+      previewSet = true;
+    } else if (pendingFiles.length){
+      const img0 = new Image();
+      Object.assign(img0.style, { width:'100%', height:'100%', objectFit:'contain' });
+      img0.alt = 'Anteprima';
+      img0.src = URL.createObjectURL(pendingFiles[0]);
+      img0.addEventListener('click', ()=>openLightbox(img0.src));
+      frame.appendChild(img0);
+      previewSet = true;
     } else {
       frame.textContent = 'Nessuna immagine disponibile';
-      frame.style.color = '#888';
-      frame.style.fontSize = '14px';
+      frame.style.color = '#888'; frame.style.fontSize = '14px';
     }
     prevWrap.appendChild(frame);
   }
 
-  // Thumbs grid con pulsante X
-  if (gallery){
-    paths.forEach(p=>{
-      const url = publicUrlCached(p);
+  // 2) pending thumbnails (locali)
+  if (gallery && pendingFiles.length){
+    pendingFiles.forEach(f=>{
+      const col = document.createElement('div');
+      col.className = 'col-4';
+      const img = new Image();
+      Object.assign(img.style, { width:'100%', height:'144px', objectFit:'cover', borderRadius:'.5rem' });
+      img.src = URL.createObjectURL(f);
+      col.appendChild(img);
+      gallery.appendChild(col);
+    });
+  }
 
+  // 3) cloud thumbnails (con X)
+  if (gallery){
+    cloud.forEach(p=>{
+      const url = publicUrlCached(p);
       const col = document.createElement('div');
       col.className = 'col-4 position-relative';
-
       const img = new Image();
-      img.alt = '';
-      img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
+      Object.assign(img.style, { width:'100%', height:'144px', objectFit:'cover', borderRadius:'.5rem' });
       img.src = url;
-      img.style.width = '100%';
-      img.style.height = '144px';
-      img.style.objectFit = 'cover';
-      img.style.borderRadius = '.5rem';
       img.addEventListener('click', ()=>openLightbox(url));
 
-      // tasto X
       const del = document.createElement('button');
       del.type = 'button';
       del.textContent = '×';
       del.title = 'Elimina immagine';
       del.className = 'btn btn-sm btn-danger';
-      del.style.position = 'absolute';
-      del.style.top = '6px';
-      del.style.right = '10px';
-      del.style.borderRadius = '999px';
-      del.style.lineHeight = '1';
-      del.style.width = '28px';
-      del.style.height = '28px';
+      Object.assign(del.style, { position:'absolute', top:'6px', right:'10px', borderRadius:'999px', lineHeight:'1', width:'28px', height:'28px' });
       del.addEventListener('click', async (ev)=>{
         ev.stopPropagation();
         if (!confirm('Sei sicuro di voler eliminare questa immagine?')) return;
@@ -486,6 +495,9 @@ function openEdit(id){
   const r = window.state.all.find(x=>x.id===id);
   if (!r) return;
   window.state.editing = r;
+
+  // reset coda locale
+  pendingFiles = [];
 
   const closed = norm(r.statoPratica).includes('completata');
   const cb = document.getElementById('closedBanner');
@@ -516,24 +528,49 @@ function openEdit(id){
   const saveBtn = document.getElementById('btnSave');
   if (saveBtn) { saveBtn.classList.add('btn-success'); saveBtn.classList.remove('btn-orange'); }
 
-  // nascondi eventuale pulsante vecchio "Carica su cloud"
+  // nascondi vecchio "Carica su cloud"
   const btnUpload = document.getElementById('btnUpload');
   if (btnUpload) btnUpload.classList.add('d-none');
 
+  // collega scatta/carica
+  bindMediaButtons();
+
   // refresh galleria
   refreshGallery(r.id);
+}
+
+// Collega pulsanti Scatta/Carica
+function bindMediaButtons(){
+  const snapBtn = document.getElementById('btnSnap');
+  const pickBtn = document.getElementById('btnPick');
+  const snapInp = document.getElementById('eSnap');
+  const pickInp = document.getElementById('ePick');
+
+  if (snapBtn && snapInp){
+    snapBtn.onclick = ()=> snapInp.click();
+    snapInp.onchange = (e)=>{
+      const files = Array.from(e.target.files||[]);
+      if (files.length){ pendingFiles.push(...files); previewLocal(files); }
+    };
+  }
+  if (pickBtn && pickInp){
+    pickBtn.onclick = ()=> pickInp.click();
+    pickInp.onchange = (e)=>{
+      const files = Array.from(e.target.files||[]);
+      if (files.length){ pendingFiles.push(...files); previewLocal(files); }
+    };
+  }
 }
 
 async function saveEdit(){
   const r = window.state.editing;
   if(!r) return;
 
-  // 1) carico eventuali foto
-  const fileInput = document.getElementById('eFiles');
-  const files = fileInput && fileInput.files ? fileInput.files : null;
-  if (files && files.length){
-    const okUp = await uploadFiles(r.id, files);
+  // 1) carico eventuali foto in coda (scattate/scelte)
+  if (pendingFiles.length){
+    const okUp = await uploadFiles(r.id, pendingFiles);
     if (!okUp) return;
+    pendingFiles = []; // svuota dopo upload
   }
 
   // 2) salvo dati scheda
@@ -560,27 +597,22 @@ async function saveEdit(){
 
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if (error){ alert('Errore salvataggio: '+error.message); return; }
-
-  // aggiorno cache locale
   Object.assign(r, data);
 
-  // pulizia input file e refresh galleria
-  if (fileInput) fileInput.value = '';
   await refreshGallery(r.id);
 
   alert('Salvato!');
-  // torna alla home aggiornata
   renderHome(window.state.all);
   show('page-home');
 }
 
-//
 // ----------------- Boot -----------------
 window.loadAll = async function(){
   try {
     if (!sb){ showError('Supabase non inizializzato'); return; }
-    let q = sb.from('records').select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email');
-    let { data, error } = await q;
+    let { data, error } = await sb
+      .from('records')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email');
     if (error){
       const fb = await sb.from('records_view').select('*').limit(1000);
       if (fb.error){ showError('Errore lettura records: '+error.message+' / '+fb.error.message); renderHome([]); return; }
