@@ -36,21 +36,10 @@ const sb = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 // === Storage helpers (bucket: photos) ===
 const bucket = 'photos';
 
-async function listPhotosFromPrefix(prefix){
-  const { data, error } = await sb.storage.from(bucket).list(prefix, {limit:200, sortBy:{column:'name', order:'asc'}});
-  if (error) { return []; }
-  return (data||[]).map(x => prefix + x.name);
-}
 
 // Try multiple locations and fallback to table 'public.photos'
+
 async function listPhotos(recordId){
-  // 1) new layout: records/{id}/...
-  let paths = await listPhotosFromPrefix(`records/${recordId}/`);
-  if (paths.length) return paths;
-  // 2) old layout: {id}/...
-  paths = await listPhotosFromPrefix(`${recordId}/`);
-  if (paths.length) return paths;
-  // 3) fallback: legacy table 'public.photos' with column 'path'
   try{
     const { data, error } = await sb.from('photos')
       .select('path')
@@ -62,6 +51,7 @@ async function listPhotos(recordId){
   }catch(e){ /* ignore */ }
   return [];
 }
+
 
 // --- Image perf: memoize publicUrl + Cache API prefetch ---
 const _pubUrlCache = new Map();
@@ -237,24 +227,131 @@ function matchRow(r, f){
   return true;
 }
 
+
+
 function doSearch(){
   const f = getSearchFilters();
   const rows = state.all.filter(r=>matchRow(r,f)).sort(byHomeOrder);
   const tb = document.getElementById('searchRows');
   tb.innerHTML = '';
+
   rows.forEach(r=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${fmtIT(r.dataApertura)}</td>
-      <td>${r.descrizione??''}</td>
-      <td>${r.cliente??''}</td>
-      <td>${r.modello??''}</td>
-      <td>${r.statoPratica??''}</td>
-      <td class="text-end"><button class="btn btn-sm btn-outline-primary" data-id="${r.id}">Apri</button></td>`;
-    tr.querySelector('button').addEventListener('click',()=>openEdit(r.id));
+
+    // Foto (thumb)
+    const tdFoto = document.createElement('td');
+    tdFoto.className = 'thumb-cell';
+    const img = document.createElement('img');
+    img.className = 'thumb thumb-home';
+    img.setAttribute('role','button');
+    tdFoto.appendChild(img);
+    tr.appendChild(tdFoto);
+
+    // Cliente
+    const tdCliente = document.createElement('td');
+    tdCliente.textContent = r.cliente ?? '';
+    tr.appendChild(tdCliente);
+
+    // Descrizione
+    const tdDesc = document.createElement('td');
+    tdDesc.textContent = r.descrizione ?? '';
+    tr.appendChild(tdDesc);
+
+    // Modello
+    const tdMod = document.createElement('td');
+    tdMod.textContent = r.modello ?? '';
+    tr.appendChild(tdMod);
+
+    // Data arrivo
+    const tdArr = document.createElement('td');
+    tdArr.textContent = fmtIT(r.dataApertura);
+    tr.appendChild(tdArr);
+
+    // Data accettazione
+    const tdAcc = document.createElement('td');
+    tdAcc.textContent = fmtIT(r.dataAccettazione);
+    tr.appendChild(tdAcc);
+
+    // Stato (+ Chiusa)
+    const tdStato = document.createElement('td');
+    const closed = norm(r.statoPratica).includes('completata');
+    tdStato.textContent = r.statoPratica ?? '';
+    if (closed){
+      const span = document.createElement('span');
+      span.className = 'badge badge-chiusa ms-2';
+      span.textContent = 'Chiusa';
+      tdStato.appendChild(span);
+    }
+    tr.appendChild(tdStato);
+
+    // Azioni
+    const tdAz = document.createElement('td');
+    tdAz.className = 'text-end';
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-sm btn-outline-primary';
+    btn.type = 'button';
+    btn.textContent = 'Apri';
+    btn.addEventListener('click', ()=>openEdit(r.id));
+    tdAz.appendChild(btn);
+    tr.appendChild(tdAz);
+
     tb.appendChild(tr);
+
+    // Async thumb loading
+    try{
+      listPhotos(r.id).then(paths=>{
+        if(paths && paths.length){
+          const url = (typeof publicUrlCached === 'function') ? publicUrlCached(paths[0]) : publicUrl(paths[0]);
+          img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
+          img.src = url;
+          img.addEventListener('click', ()=>openLightbox(url));
+        } else {
+          img.alt = '—';
+        }
+      }).catch(()=>{});
+    }catch(e){ /* ignore */ }
   });
-  if(!rows.length) tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Nessun risultato</td></tr>';
+
+  if(!rows.length){
+    tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Nessun risultato</td></tr>';
+  }
 }
+
+    tr.appendChild(tdStato);
+
+    // Azioni
+    const tdAz = document.createElement('td');
+    tdAz.className = 'text-end col-azioni';
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-sm btn-outline-primary';
+    btn.type = 'button';
+    btn.textContent = 'Apri';
+    btn.addEventListener('click', ()=>openEdit(r.id));
+    tdAz.appendChild(btn);
+    tr.appendChild(tdAz);
+
+    tb.appendChild(tr);
+
+    // Async thumb
+    try{
+      listPhotos(r.id).then(paths=>{
+        if(paths && paths.length){
+          const url = (typeof publicUrlCached === 'function') ? publicUrlCached(paths[0]) : publicUrl(paths[0]);
+          img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
+          img.src = url;
+          img.addEventListener('click', ()=>openLightbox(url));
+        } else {
+          img.alt = '—';
+        }
+      }).catch(()=>{});
+    }catch(e){ /* ignore */ }
+  });
+
+  if(!rows.length){
+    tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Nessun risultato</td></tr>';
+  }
+}
+
 
 function clearSearchUI(){
   document.getElementById('q').value = '';
@@ -474,37 +571,87 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
 
 // In-page overlay image viewer (no external deps)
-(function initOverlay(){
-  const overlay = document.getElementById('imgOverlay');
-  const img = document.getElementById('imgOverlayImg');
-  const btn = overlay ? overlay.querySelector('.closeBtn') : null;
-  function close(){
-    if (!overlay) return;
-    overlay.classList.remove('open');
-    if (img){
-      img.removeAttribute('src');
-      img.removeAttribute('decoding');
-      img.removeAttribute('loading');
-      img.removeAttribute('fetchPriority');
-    }
-  }
-  if (btn) btn.addEventListener('click', close);
-  if (overlay){
-    overlay.addEventListener('click', (e)=>{ if(e.target === overlay) close(); });
-    document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && overlay.classList.contains('open')) close(); });
-  }
-  window.__overlayClose = close;
-})();
 
+
+// Simple in-page image viewer (dynamic overlay)
+// - Creates overlay on the fly
+// - Close with: X button, ESC, or click on backdrop (outside image)
 function openLightbox(url){
-  const overlay = document.getElementById('imgOverlay');
-  const img = document.getElementById('imgOverlayImg');
-  if (!overlay || !img){
-    try { window.location.assign(url); } catch(e){ window.location.href = url; }
-    return;
-  }
-  img.decoding='async'; img.loading='eager'; img.fetchPriority='high';
+  // build overlay
+  const overlay = document.createElement('div');
+  overlay.setAttribute('role','dialog');
+  overlay.setAttribute('aria-modal','true');
+  overlay.style.position = 'fixed';
+  overlay.style.inset = '0';
+  overlay.style.background = 'rgba(0,0,0,.75)';
+  overlay.style.display = 'flex';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+  overlay.style.zIndex = '1050';
+  overlay.style.padding = '2rem';
+  overlay.style.cursor = 'zoom-out';
+
+  // frame to stop backdrop clicks when inside
+  const frame = document.createElement('div');
+  frame.style.position = 'relative';
+  frame.style.maxWidth = '92vw';
+  frame.style.maxHeight = '92vh';
+  frame.style.borderRadius = '12px';
+  frame.style.overflow = 'hidden';
+  frame.style.boxShadow = '0 10px 30px rgba(0,0,0,.5)';
+  frame.style.background = '#111';
+
+  // image
+  const img = new Image();
+  img.alt = 'Anteprima immagine';
+  img.decoding = 'async';
+  img.loading = 'eager';
+  img.fetchPriority = 'high';
+  img.style.display = 'block';
+  img.style.maxWidth = '92vw';
+  img.style.maxHeight = '92vh';
+  img.style.width = 'auto';
+  img.style.height = 'auto';
+  img.style.objectFit = 'contain';
   img.src = url;
-  overlay.classList.add('open');
+
+  // close button
+  const btn = document.createElement('button');
+  btn.setAttribute('aria-label','Chiudi');
+  btn.title = 'Chiudi (ESC)';
+  btn.textContent = '×';
+  btn.style.position = 'absolute';
+  btn.style.top = '.5rem';
+  btn.style.right = '.5rem';
+  btn.style.width = '40px';
+  btn.style.height = '40px';
+  btn.style.border = '0';
+  btn.style.borderRadius = '999px';
+  btn.style.background = 'rgba(0,0,0,.65)';
+  btn.style.color = '#fff';
+  btn.style.fontSize = '22px';
+  btn.style.lineHeight = '40px';
+  btn.style.cursor = 'pointer';
+
+  // assemble
+  frame.appendChild(img);
+  frame.appendChild(btn);
+  overlay.appendChild(frame);
+  document.body.appendChild(overlay);
+
+  // close logic
+  function close(){
+    document.removeEventListener('keydown', onKey);
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
+  function onKey(e){ if (e.key === 'Escape') close(); }
+
+  // events
+  document.addEventListener('keydown', onKey);
+  btn.addEventListener('click', (e)=>{ e.stopPropagation(); close(); });
+  // click outside image closes (backdrop only)
+  overlay.addEventListener('click', (e)=>{ if (e.target === overlay) close(); });
+  // prevent closing when clicking inside frame or image
+  frame.addEventListener('click', (e)=> e.stopPropagation());
 }
 
