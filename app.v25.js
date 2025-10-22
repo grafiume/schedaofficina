@@ -1,8 +1,4 @@
-// === ELIP TAGLIENTE • app.v26.js ===
-// Home and Search aligned columns. Thumb preview, in-page overlay, exact filters, Supabase v2.
-// Columns (both tables): Foto, Data, Cliente, Descrizione, Modello, Stato, Azioni.
-
-// ----------------- Helpers -----------------
+// === ELIP TAGLIENTE • app.v25.js (Nuova scheda) ===
 (function(){
   if (typeof window.fmtIT !== 'function') {
     window.fmtIT = function(d){
@@ -46,6 +42,7 @@ function show(id){
   });
   const tgt = document.getElementById(id);
   if (tgt) tgt.classList.remove('d-none');
+  if (!window.state) window.state = {};
   window.state.currentView = id.replace('page-','');
 }
 
@@ -53,7 +50,7 @@ if (typeof window.state !== 'object'){
   window.state = { all: [], currentView: 'home', editing: null };
 }
 
-// ----------------- Supabase -----------------
+// Supabase
 if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){
   console.warn('config.js mancante o variabili non definite');
 }
@@ -61,10 +58,9 @@ const sb = (typeof supabase !== 'undefined')
   ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
   : null;
 
-// ----------------- Storage helpers -----------------
+// Storage helpers
 const bucket = 'photos';
 const _pubUrlCache = new Map();
-
 function publicUrl(path){
   const { data } = sb.storage.from(bucket).getPublicUrl(path);
   return data?.publicUrl || '';
@@ -82,23 +78,30 @@ async function listPhotosFromPrefix(prefix){
     return (data||[]).map(x => prefix + x.name);
   }catch(e){ return []; }
 }
-// Try multiple layouts + table fallback
 async function listPhotos(recordId){
-  // 1) new layout: records/{id}/...
+  if (!recordId) return [];
   let paths = await listPhotosFromPrefix(`records/${recordId}/`);
   if (paths.length) return paths;
-  // 2) old layout: {id}/...
   paths = await listPhotosFromPrefix(`${recordId}/`);
   if (paths.length) return paths;
-  // 3) table fallback
   try{
     const { data, error } = await sb.from('photos').select('path').eq('record_id', recordId).order('created_at', {ascending:true});
     if (!error && data && data.length) return data.map(r=>r.path);
   }catch(e){}
   return [];
 }
+async function uploadFiles(recordId, files){
+  if (!recordId){ alert('Salva prima la scheda per caricare immagini.'); return false; }
+  const prefix = `records/${recordId}/`;
+  for (const f of files){
+    const name = Date.now() + '_' + f.name.replace(/[^a-z0-9_.-]+/gi,'_');
+    const { error } = await sb.storage.from(bucket).upload(prefix + name, f, { upsert: false });
+    if (error) { alert('Errore upload: '+error.message); return false; }
+  }
+  return true;
+}
 
-// ----------------- Overlay (single) -----------------
+// Overlay
 (function initOverlay(){
   const overlay = document.getElementById('imgOverlay');
   const img = document.getElementById('imgOverlayImg');
@@ -108,17 +111,14 @@ async function listPhotos(recordId){
   if (btn) btn.addEventListener('click', close);
   overlay.addEventListener('click', (e)=>{ if (e.target === overlay) close(); });
   window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') close(); });
-  window.__openOverlay = function(url){
-    img.src = url; overlay.classList.add('open');
-  };
+  window.__openOverlay = function(url){ img.src = url; overlay.classList.add('open'); };
 })();
-
 function openLightbox(url){
   if (typeof window.__openOverlay === 'function') window.__openOverlay(url);
   else { try{ window.location.assign(url); } catch(e){ window.location.href = url; } }
 }
 
-// ----------------- Table renderers -----------------
+// KPIs
 function renderKPIs(rows){
   try {
     const tot = rows.length;
@@ -130,6 +130,7 @@ function renderKPIs(rows){
   } catch(e){}
 }
 
+// Render Home
 window.renderHome = function(rows){
   const tb = document.getElementById('homeRows');
   if (!tb) return;
@@ -138,7 +139,6 @@ window.renderHome = function(rows){
   (rows||[]).sort(byHomeOrder).forEach(r=>{
     const tr = document.createElement('tr');
 
-    // Foto cell
     const tdFoto = document.createElement('td');
     tdFoto.className = 'thumb-cell';
     const img = document.createElement('img');
@@ -147,27 +147,22 @@ window.renderHome = function(rows){
     tdFoto.appendChild(img);
     tr.appendChild(tdFoto);
 
-    // Data (arrivo/apertura)
     const tdData = document.createElement('td');
     tdData.textContent = fmtIT(r.dataApertura);
     tr.appendChild(tdData);
 
-    // Cliente
     const tdCliente = document.createElement('td');
     tdCliente.textContent = r.cliente ?? '';
     tr.appendChild(tdCliente);
 
-    // Descrizione
     const tdDesc = document.createElement('td');
     tdDesc.textContent = r.descrizione ?? '';
     tr.appendChild(tdDesc);
 
-    // Modello
     const tdMod = document.createElement('td');
     tdMod.textContent = r.modello ?? '';
     tr.appendChild(tdMod);
 
-    // Stato (+ badge chiusa)
     const tdStato = document.createElement('td');
     const closed = norm(r.statoPratica).includes('completata');
     tdStato.textContent = r.statoPratica ?? '';
@@ -179,7 +174,6 @@ window.renderHome = function(rows){
     }
     tr.appendChild(tdStato);
 
-    // Azioni
     const tdAz = document.createElement('td');
     tdAz.className = 'text-end';
     const btn = document.createElement('button');
@@ -190,8 +184,9 @@ window.renderHome = function(rows){
     tdAz.appendChild(btn);
     tr.appendChild(tdAz);
 
-    // Append & async thumb
     tb.appendChild(tr);
+
+    // thumb async
     try{
       listPhotos(r.id).then(paths=>{
         if(paths && paths.length){
@@ -210,17 +205,18 @@ window.renderHome = function(rows){
   }
 };
 
-// ----------------- Filters (Search) -----------------
+// Search
 function getSearchFilters(){
+  const g = (id)=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
   return {
-    q: document.getElementById('q').value.trim(),
-    noteExact: document.getElementById('noteExact') ? document.getElementById('noteExact').value.trim() : '',
-    batt: document.getElementById('fBatt').value.trim(),
-    asse: document.getElementById('fAsse') ? document.getElementById('fAsse').value.trim() : '',
-    pacco: document.getElementById('fPacco') ? document.getElementById('fPacco').value.trim() : '',
-    larg: document.getElementById('fLarg') ? document.getElementById('fLarg').value.trim() : '',
-    punta: document.getElementById('fPunta') ? document.getElementById('fPunta').value.trim() : '',
-    np: document.getElementById('fNP') ? document.getElementById('fNP').value.trim() : '',
+    q: g('q'),
+    noteExact: g('noteExact'),
+    batt: g('fBatt'),
+    asse: g('fAsse'),
+    pacco: g('fPacco'),
+    larg: g('fLarg'),
+    punta: g('fPunta'),
+    np: g('fNP'),
   };
 }
 function toNum(val){
@@ -254,7 +250,6 @@ function matchRow(r, f){
   if (!isNumEq(f.np, r.numPunte)) return false;
   return true;
 }
-
 function doSearch(){
   const f = getSearchFilters();
   const rows = (window.state.all||[]).filter(r=>matchRow(r,f)).sort(byHomeOrder);
@@ -263,7 +258,6 @@ function doSearch(){
   rows.forEach(r=>{
     const tr = document.createElement('tr');
 
-    // Foto
     const tdFoto = document.createElement('td');
     tdFoto.className = 'thumb-cell';
     const img = document.createElement('img');
@@ -272,27 +266,22 @@ function doSearch(){
     tdFoto.appendChild(img);
     tr.appendChild(tdFoto);
 
-    // Data
     const tdData = document.createElement('td');
     tdData.textContent = fmtIT(r.dataApertura);
     tr.appendChild(tdData);
 
-    // Cliente
     const tdCliente = document.createElement('td');
     tdCliente.textContent = r.cliente ?? '';
     tr.appendChild(tdCliente);
 
-    // Descrizione
     const tdDesc = document.createElement('td');
     tdDesc.textContent = r.descrizione ?? '';
     tr.appendChild(tdDesc);
 
-    // Modello
     const tdMod = document.createElement('td');
     tdMod.textContent = r.modello ?? '';
     tr.appendChild(tdMod);
 
-    // Stato + badge
     const tdStato = document.createElement('td');
     const closed = norm(r.statoPratica).includes('completata');
     tdStato.textContent = r.statoPratica ?? '';
@@ -304,7 +293,6 @@ function doSearch(){
     }
     tr.appendChild(tdStato);
 
-    // Azioni
     const tdAz = document.createElement('td');
     tdAz.className = 'text-end';
     const btn = document.createElement('button');
@@ -317,7 +305,6 @@ function doSearch(){
 
     tb.appendChild(tr);
 
-    // Async thumb loading
     try{
       listPhotos(r.id).then(paths=>{
         if(paths && paths.length){
@@ -325,9 +312,7 @@ function doSearch(){
           img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
           img.src = url;
           img.addEventListener('click', ()=>openLightbox(url));
-        } else {
-          img.alt = '—';
-        }
+        } else { img.alt = '—'; }
       }).catch(()=>{});
     }catch(e){}
   });
@@ -336,7 +321,7 @@ function doSearch(){
   }
 }
 
-// ----------------- Edit page (bindings minimal) -----------------
+// ----------------- Edit helpers -----------------
 function setV(id, v){
   const el = document.getElementById(id);
   if (!el) return;
@@ -349,15 +334,83 @@ function setV(id, v){
   }
 }
 function val(id){ const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function enableUpload(enabled){
+  const f = document.getElementById('eFiles');
+  const b = document.getElementById('btnUpload');
+  const hint = document.getElementById('uploadHint');
+  if (f) f.disabled = !enabled;
+  if (b) b.disabled = !enabled;
+  if (hint) hint.textContent = enabled ? 'Carica o tocca una miniatura per aprire l’anteprima.' : 'Prima salva la scheda per abilitare l’upload.';
+}
+
+// ----------------- Nuovo record -----------------
+function newRecordTemplate(){
+  const pad = (n)=> String(n).padStart(2,'0');
+  const d = new Date();
+  const today = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  return {
+    id: null,
+    descrizione: '',
+    modello: '',
+    cliente: '',
+    telefono: '',
+    email: '',
+    statoPratica: 'In attesa',
+    preventivoStato: 'Non inviato',
+    note: '',
+    dataApertura: today,
+    dataAccettazione: null,
+    dataScadenza: null,
+    docTrasporto: '',
+    battCollettore: null,
+    lunghezzaAsse: null,
+    lunghezzaPacco: null,
+    larghezzaPacco: null,
+    punta: '',
+    numPunte: null
+  };
+}
+
+function openNew(){
+  const r = newRecordTemplate();
+  window.state.editing = r;
+  const title = document.getElementById('editTitle');
+  if (title) title.textContent = 'Nuova scheda';
+  const cb = document.getElementById('closedBanner');
+  if (cb) cb.classList.add('d-none');
+  setV('eDescrizione', r.descrizione);
+  setV('eModello', r.modello);
+  setV('eApertura', r.dataApertura);
+  setV('eAcc', r.dataAccettazione);
+  setV('eScad', r.dataScadenza);
+  setV('eStato', r.statoPratica);
+  setV('ePrev', r.preventivoStato);
+  setV('eDDT', r.docTrasporto);
+  setV('eCliente', r.cliente);
+  setV('eTel', r.telefono);
+  setV('eEmail', r.email);
+  setV('eBatt', r.battCollettore);
+  setV('eAsse', r.lunghezzaAsse);
+  setV('ePacco', r.lunghezzaPacco);
+  setV('eLarg', r.larghezzaPacco);
+  setV('ePunta', r.punta);
+  setV('eNP', r.numPunte);
+  setV('eNote', r.note);
+  enableUpload(false);
+  show('page-edit');
+  const prev = document.querySelector('.img-preview');
+  if (prev) prev.textContent = 'Nessuna immagine disponibile';
+}
 
 function openEdit(id){
   const r = window.state.all.find(x=>x.id===id);
   if (!r) return;
   window.state.editing = r;
+  const title = document.getElementById('editTitle');
+  if (title) title.textContent = 'Modifica scheda';
   const closed = norm(r.statoPratica).includes('completata');
   const cb = document.getElementById('closedBanner');
   if (cb) cb.classList.toggle('d-none', !closed);
-
   setV('eDescrizione', r.descrizione);
   setV('eModello', r.modello);
   setV('eApertura', r.dataApertura);
@@ -376,23 +429,65 @@ function openEdit(id){
   setV('ePunta', r.punta);
   setV('eNP', r.numPunte);
   setV('eNote', r.note);
-
   show('page-edit');
-  // refresh gallery if available in the page
-  if (typeof refreshGallery === 'function') refreshGallery(r.id);
+  enableUpload(!!r.id);
+  refreshGallery(r.id);
+  const btnUpload = document.getElementById('btnUpload');
+  if (btnUpload){
+    btnUpload.onclick = async ()=>{
+      const files = document.getElementById('eFiles').files;
+      if(!files || !files.length){ alert('Seleziona una o più immagini'); return; }
+      const ok = await uploadFiles(r.id, files);
+      if(ok){ await refreshGallery(r.id); document.getElementById('eFiles').value=''; }
+    };
+  }
+}
+
+async function refreshGallery(recordId){
+  const gallery = document.getElementById('gallery');
+  if (!gallery) return;
+  gallery.innerHTML = '';
+  if (!recordId) return;
+  const paths = await listPhotos(recordId);
+  const prev = document.querySelector('.img-preview');
+  if (prev) prev.textContent = '';
+  if (paths.length && prev){
+    const url0 = publicUrlCached(paths[0]);
+    const img0 = new Image();
+    img0.style.maxWidth = '100%';
+    img0.style.maxHeight = '420px';
+    img0.style.objectFit = 'contain';
+    img0.alt = 'Anteprima';
+    img0.decoding='async'; img0.loading='eager'; img0.fetchPriority='high'; img0.src = url0;
+    img0.addEventListener('click', ()=>openLightbox(url0));
+    prev.appendChild(img0);
+  } else if (prev){
+    prev.textContent = 'Nessuna immagine disponibile';
+  }
+  paths.forEach(p=>{
+    const url = publicUrlCached(p);
+    const col = document.createElement('div');
+    col.className = 'col-4';
+    const img = new Image();
+    img.alt = '';
+    img.decoding='async'; img.loading='lazy'; img.fetchPriority='low'; img.src = url;
+    img.style.width = '100%'; img.style.height = '144px'; img.style.objectFit = 'cover'; img.style.borderRadius = '.5rem';
+    img.addEventListener('click', ()=>openLightbox(url));
+    col.appendChild(img);
+    gallery.appendChild(col);
+  });
 }
 
 async function saveEdit(){
-  const r = window.state.editing;
-  if(!r) return;
+  const r = window.state.editing || {};
   const payload = {
     descrizione: val('eDescrizione'),
     modello: val('eModello'),
     dataApertura: val('eApertura') || null,
     dataAccettazione: val('eAcc') || null,
     dataScadenza: val('eScad') || null,
-    statoPratica: val('eStato'),
-    preventivoStato: val('ePrev'),
+    statoPratica: val('eStato') || 'In attesa',
+    preventivoStato: val('ePrev') || 'Non inviato',
     docTrasporto: val('eDDT'),
     cliente: val('eCliente'),
     telefono: val('eTel'),
@@ -405,13 +500,25 @@ async function saveEdit(){
     numPunte: val('eNP')||null,
     note: val('eNote'),
   };
-  const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
+  let data, error;
+  if (r.id){
+    ({ data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single());
+  } else {
+    ({ data, error } = await sb.from('records').insert(payload).select().single());
+  }
   if (error){ alert('Errore salvataggio: '+error.message); return; }
-  Object.assign(r, data);
+  if (r.id){
+    Object.assign(r, data);
+  } else {
+    window.state.editing = data;
+    window.state.all.push(data);
+    enableUpload(true);
+  }
+  renderHome(window.state.all);
   alert('Salvato!');
 }
 
-// ----------------- Boot -----------------
+// Boot
 function showError(msg){
   try{
     const el=document.getElementById('errBanner');
@@ -419,14 +526,12 @@ function showError(msg){
   }catch(e){}
   console.error(msg);
 }
-
 window.loadAll = async function(){
   try {
     if (!sb){ showError('Supabase non inizializzato'); return; }
     let q = sb.from('records').select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email');
     let { data, error } = await q;
     if (error){
-      // fallback a view
       const fb = await sb.from('records_view').select('*').limit(1000);
       if (fb.error){ showError('Errore lettura records: '+error.message+' / '+fb.error.message); renderHome([]); return; }
       data = fb.data;
@@ -448,7 +553,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   H('btnReset', ()=>{
     const ids = ['q','noteExact','fBatt','fAsse','fPacco','fLarg','fPunta','fNP'];
     ids.forEach(id=>{ const el=document.getElementById(id); if(!el) return; if (el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; });
-    document.getElementById('searchRows').innerHTML='';
+    const tb = document.getElementById('searchRows'); if (tb) tb.innerHTML='';
   });
   H('kpiTotBtn', ()=>renderHome(window.state.all));
   H('kpiAttesaBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('attesa'))));
@@ -456,6 +561,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   H('kpiCompBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('completata'))));
   H('btnSave', saveEdit);
   H('btnCancel', ()=>show('page-home'));
-
+  H('btnNew', openNew);
   try{ window.loadAll(); } catch(e){ showError(e.message||String(e)); }
 });
