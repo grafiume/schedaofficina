@@ -1,20 +1,16 @@
+/* Logo armonico */
+.brand-logo{ height:40px; width:auto; object-fit:contain; }
+@media (max-width: 576px){ .brand-logo{ height:34px; } }
 
-/* --- Layout tabelle --- */
+/* Tabella elegante e coerente */
 .table-app th, .table-app td { vertical-align: middle; padding: 0.75rem 0.75rem; }
-.table-app .thumb-cell { width: 110px; }
-.table-app .thumb-home { width: 144px; height: 144px; object-fit: cover; border-radius: 8px; }
+.table-app .thumb-cell { width: 132px; }
+.table-app .thumb-home { width: 144px; height: 144px; object-fit: cover; border-radius: 8px; cursor: pointer; }
 .table-app .col-azioni { width: 90px; }
 .table-app thead th { font-weight: 600; color: #555; }
 .badge-chiusa { background:#2e7d32; color:#fff; font-weight:600; }
 
-/* KPI cards */
-.kpi { min-width: 160px; cursor: pointer; }
-.kpi-link { text-decoration: none; }
-.border-top-orange { border-top: 4px solid #f57c00 !important; }
-.border-top-blue   { border-top: 4px solid #1976d2 !important; }
-.border-top-green  { border-top: 4px solid #2e7d32 !important; }
-
-/* Image overlay (in-page viewer) */
+/* Overlay immagine */
 #imgOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:1050;padding:2rem;}
 #imgOverlay.open{display:flex;}
 #imgOverlay .frame{position:relative;max-width:90vw;max-height:90vh;box-shadow:0 10px 30px rgba(0,0,0,.5);background:#111;border-radius:12px;overflow:hidden;}
@@ -22,7 +18,6 @@
 #imgOverlay .closeBtn{position:absolute;top:.5rem;right:.5rem;border:0;background:rgba(0,0,0,.6);color:#fff;border-radius:999px;width:40px;height:40px;font-size:22px;line-height:40px;text-align:center;cursor:pointer;}
 #imgOverlay .closeBtn:hover{background:rgba(0,0,0,.8);}
 
-/* Edit preview 4:3 */
-.img-preview > div { width:100%; aspect-ratio: 4 / 3; background:#f6f6f6; border-radius:8px;
-  display:flex; align-items:center; justify-content:center; overflow:hidden; }
+/* Anteprima 4:3 nell’edit */
+.img-preview { width:100%; aspect-ratio:4/3; background:#f6f6f6; border:1px dashed #ddd; border-radius:8px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
 .img-preview img { width:100%; height:100%; object-fit:contain; }
