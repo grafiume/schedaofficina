@@ -45,7 +45,7 @@
       query = query.or(orParts.join(","));
     }
 
-    query = query.order("dataApertura", { ascending: false }).order("id", { ascending: false });
+    query = query.order("dataArrivo", { ascending: false }).order("dataApertura", { ascending: false }).order("id", { ascending: false });
 
     const { data, error } = await query;
     return { data: data || [], error };
