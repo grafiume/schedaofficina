@@ -1,23 +1,14 @@
-/* Logo armonico */
-.brand-logo{ height:40px; width:auto; object-fit:contain; }
-@media (max-width: 576px){ .brand-logo{ height:34px; } }
-
-/* Tabella elegante e coerente */
-.table-app th, .table-app td { vertical-align: middle; padding: 0.75rem 0.75rem; }
-.table-app .thumb-cell { width: 132px; }
-.table-app .thumb-home { width: 144px; height: 144px; object-fit: cover; border-radius: 8px; cursor: pointer; }
-.table-app .col-azioni { width: 90px; }
-.table-app thead th { font-weight: 600; color: #555; }
-.badge-chiusa { background:#2e7d32; color:#fff; font-weight:600; }
-
-/* Overlay immagine */
-#imgOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:1050;padding:2rem;}
-#imgOverlay.open{display:flex;}
-#imgOverlay .frame{position:relative;max-width:90vw;max-height:90vh;box-shadow:0 10px 30px rgba(0,0,0,.5);background:#111;border-radius:12px;overflow:hidden;}
+/* Branding */ .brand-logo{ height:36px; width:auto; }
+/* KPI */ .kpi{ min-width:160px; cursor:pointer; border:1px solid #eee; border-top-width:3px; border-radius:12px; }
+.kpi:hover{ box-shadow:0 6px 18px rgba(0,0,0,.06); transform: translateY(-1px); }
+.border-top-orange{ border-top-color:#ff7a00 !important; } .border-top-blue{ border-top-color:#2b7cff !important; } .border-top-green{ border-top-color:#2e7d32 !important; }
+/* Buttons */ .btn-orange{ background:#ff7a00; color:#fff; border:0; } .btn-orange:hover{ background:#e56d00; color:#fff; }
+/* Tables */ .table-app th,.table-app td{ vertical-align:middle; padding:.75rem .75rem; } .table-app .thumb-cell{ width:110px; }
+.thumb.thumb-home{ width:144px; height:144px; object-fit:cover; border-radius:10px; display:block; } .badge-chiusa{ background:#2e7d32; color:#fff; font-weight:600; }
+/* Preview 4:3 */ .img-preview{ position:relative; width:100%; padding-top:75%; background:#f7f7f7; border:1px dashed #ddd; border-radius:10px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.img-preview img{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#111; }
+/* Overlay */ #imgOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.72);z-index:1050;padding:2rem;}
+#imgOverlay.open{display:flex;} #imgOverlay .frame{position:relative;max-width:90vw;max-height:90vh;box-shadow:0 10px 30px rgba(0,0,0,.5);background:#111;border-radius:12px;overflow:hidden;}
 #imgOverlay img{display:block;max-width:90vw;max-height:90vh;width:auto;height:auto;object-fit:contain;background:#111;}
 #imgOverlay .closeBtn{position:absolute;top:.5rem;right:.5rem;border:0;background:rgba(0,0,0,.6);color:#fff;border-radius:999px;width:40px;height:40px;font-size:22px;line-height:40px;text-align:center;cursor:pointer;}
 #imgOverlay .closeBtn:hover{background:rgba(0,0,0,.8);}
-
-/* Anteprima 4:3 nell’edit */
-.img-preview { width:100%; aspect-ratio:4/3; background:#f6f6f6; border:1px dashed #ddd; border-radius:8px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
-.img-preview img { width:100%; height:100%; object-fit:contain; }
