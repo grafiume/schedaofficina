@@ -1,6 +1,6 @@
 // === ELIP TAGLIENTE • app.v25.js ===
-// Home and Search aligned columns. Thumb preview 144x144, in-page overlay, exact filters, Supabase v2.
-// Columns (both tables): Foto, Data, Cliente, Descrizione, Modello, Stato, Azioni.
+// Home & Ricerca allineate: Foto, Data, Cliente, Descrizione, Modello, Stato, Azioni
+// Thumb 144x144, overlay in pagina, filtri esatti, Supabase v2, camera upload mobile
 
 // ----------------- Helpers -----------------
 (function(){
@@ -38,6 +38,7 @@
   }
 })();
 
+// ----------------- Global state + navigation -----------------
 function show(id){
   const pages = ['page-home','page-search','page-edit'];
   pages.forEach(pid => {
@@ -82,20 +83,32 @@ async function listPhotosFromPrefix(prefix){
     return (data||[]).map(x => prefix + x.name);
   }catch(e){ return []; }
 }
-// Try multiple layouts + table fallback
+// Layout multipli + fallback tabella
 async function listPhotos(recordId){
-  // 1) new layout: records/{id}/...
   let paths = await listPhotosFromPrefix(`records/${recordId}/`);
   if (paths.length) return paths;
-  // 2) old layout: {id}/...
   paths = await listPhotosFromPrefix(`${recordId}/`);
   if (paths.length) return paths;
-  // 3) table fallback
   try{
     const { data, error } = await sb.from('photos').select('path').eq('record_id', recordId).order('created_at', {ascending:true});
     if (!error && data && data.length) return data.map(r=>r.path);
   }catch(e){}
   return [];
+}
+
+async function uploadFiles(recordId, files){
+  const prefix = `records/${recordId}/`;
+  for (const f of files){
+    const safe = Date.now() + '_' + f.name.replace(/[^a-z0-9_.-]+/gi,'_');
+    const opts = { upsert: false, contentType: f.type || 'image/jpeg', cacheControl: '3600' };
+    const { error } = await sb.storage.from(bucket).upload(prefix + safe, f, opts);
+    if (error){
+      showMsg('upMsg', 'Errore upload: ' + error.message + ' (verifica permessi bucket/policy)', 'text-danger');
+      return false;
+    }
+  }
+  showMsg('upMsg', 'Immagine/i caricate con successo ✅', 'text-success');
+  return true;
 }
 
 // ----------------- Overlay (single) -----------------
@@ -118,7 +131,7 @@ function openLightbox(url){
   else { try{ window.location.assign(url); } catch(e){ window.location.href = url; } }
 }
 
-// ----------------- Table renderers -----------------
+// ----------------- KPIs -----------------
 function renderKPIs(rows){
   try {
     const tot = rows.length;
@@ -130,6 +143,7 @@ function renderKPIs(rows){
   } catch(e){}
 }
 
+// ----------------- Table renderers -----------------
 window.renderHome = function(rows){
   const tb = document.getElementById('homeRows');
   if (!tb) return;
@@ -138,16 +152,16 @@ window.renderHome = function(rows){
   (rows||[]).sort(byHomeOrder).forEach(r=>{
     const tr = document.createElement('tr');
 
-    // Foto cell
+    // Foto
     const tdFoto = document.createElement('td');
     tdFoto.className = 'thumb-cell';
     const img = document.createElement('img');
-    img.className = 'thumb thumb-home';
+    img.className = 'thumb-home';
     img.alt = '';
     tdFoto.appendChild(img);
     tr.appendChild(tdFoto);
 
-    // Data (arrivo/apertura)
+    // Data
     const tdData = document.createElement('td');
     tdData.textContent = fmtIT(r.dataApertura);
     tr.appendChild(tdData);
@@ -210,17 +224,17 @@ window.renderHome = function(rows){
   }
 };
 
-// ----------------- Filters (Search) -----------------
+// ----------------- Search -----------------
 function getSearchFilters(){
   return {
-    q: document.getElementById('q').value.trim(),
-    noteExact: document.getElementById('noteExact') ? document.getElementById('noteExact').value.trim() : '',
-    batt: document.getElementById('fBatt').value.trim(),
-    asse: document.getElementById('fAsse') ? document.getElementById('fAsse').value.trim() : '',
-    pacco: document.getElementById('fPacco') ? document.getElementById('fPacco').value.trim() : '',
-    larg: document.getElementById('fLarg') ? document.getElementById('fLarg').value.trim() : '',
-    punta: document.getElementById('fPunta') ? document.getElementById('fPunta').value.trim() : '',
-    np: document.getElementById('fNP') ? document.getElementById('fNP').value.trim() : '',
+    q: (document.getElementById('q')||{value:''}).value.trim(),
+    noteExact: (document.getElementById('noteExact')||{value:''}).value.trim(),
+    batt: (document.getElementById('fBatt')||{value:''}).value.trim(),
+    asse: (document.getElementById('fAsse')||{value:''}).value.trim(),
+    pacco: (document.getElementById('fPacco')||{value:''}).value.trim(),
+    larg: (document.getElementById('fLarg')||{value:''}).value.trim(),
+    punta: (document.getElementById('fPunta')||{value:''}).value.trim(),
+    np: (document.getElementById('fNP')||{value:''}).value.trim(),
   };
 }
 function toNum(val){
@@ -240,7 +254,7 @@ function isNumEq(filterVal, recordVal){
 function matchRow(r, f){
   if (f.q){
     const hay = [r.descrizione, r.modello, r.cliente, r.telefono, r.docTrasporto].map(norm).join(' ');
-    const tokens = norm(f.q).split(/\\s+/).filter(Boolean);
+    const tokens = norm(f.q).split(/\s+/).filter(Boolean);
     for (const t of tokens){ if(!hay.includes(t)) return false; }
   }
   if (f.noteExact){
@@ -267,7 +281,7 @@ function doSearch(){
     const tdFoto = document.createElement('td');
     tdFoto.className = 'thumb-cell';
     const img = document.createElement('img');
-    img.className = 'thumb thumb-home';
+    img.className = 'thumb-search';
     img.alt = '';
     tdFoto.appendChild(img);
     tr.appendChild(tdFoto);
@@ -336,7 +350,7 @@ function doSearch(){
   }
 }
 
-// ----------------- Edit page (bindings minimal) -----------------
+// ----------------- Edit page -----------------
 function setV(id, v){
   const el = document.getElementById(id);
   if (!el) return;
@@ -350,13 +364,35 @@ function setV(id, v){
 }
 function val(id){ const el = document.getElementById(id); return el ? el.value.trim() : ''; }
 
+function showMsg(id, text, cls){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.className = 'small mt-2 ' + (cls||'');
+  el.textContent = text || '';
+}
+
+async function uploadAndRefresh(recordId, files){
+  if(!files || !files.length) return;
+  showMsg('upMsg', 'Caricamento in corso…', 'text-muted');
+  const ok = await uploadFiles(recordId, files);
+  if (ok){
+    await refreshGallery(recordId);
+    const input = document.getElementById('eFiles');
+    if (input) input.value = '';
+  }
+}
+
 function openEdit(id){
   const r = window.state.all.find(x=>x.id===id);
   if (!r) return;
   window.state.editing = r;
   const closed = norm(r.statoPratica).includes('completata');
   const cb = document.getElementById('closedBanner');
-  if (cb) cb.classList.toggle('d-none', !closed);
+  if (cb){
+    cb.classList.toggle('d-none', !closed);
+    const hint = document.getElementById('closedHint');
+    if (hint) hint.textContent = closed ? ('Chiusa il ' + fmtIT(r.dataAccettazione||r.dataScadenza||'')) : '';
+  }
 
   setV('eDescrizione', r.descrizione);
   setV('eModello', r.modello);
@@ -378,7 +414,101 @@ function openEdit(id){
   setV('eNote', r.note);
 
   show('page-edit');
-  if (typeof refreshGallery === 'function') refreshGallery(r.id);
+
+  // Bottoni foto
+  const inputFiles = document.getElementById('eFiles');
+  const btnSnap = document.getElementById('btnSnap');
+  const btnPick = document.getElementById('btnPick');
+  const btnUp   = document.getElementById('btnUpload');
+
+  if (inputFiles){
+    // cambio -> anteprima locale + upload automatico
+    inputFiles.onchange = async (e)=>{
+      const files = e.target.files;
+      if (files && files.length){
+        showLocalPreviews(files);
+        nudgeSave();
+        await uploadAndRefresh(r.id, files);
+      }
+    };
+  }
+  if (btnSnap){
+    btnSnap.onclick = ()=>{
+      if (!inputFiles) return;
+      inputFiles.setAttribute('capture','environment'); // forza fotocamera se supportato
+      inputFiles.setAttribute('accept','image/*');
+      inputFiles.click();
+    };
+  }
+  if (btnPick){
+    btnPick.onclick = ()=>{
+      if (!inputFiles) return;
+      inputFiles.removeAttribute('capture');           // apre galleria
+      inputFiles.setAttribute('accept','image/*');
+      inputFiles.click();
+    };
+  }
+  if (btnUp){
+    btnUp.onclick = async ()=>{
+      if (!inputFiles){ alert('Input file non trovato'); return; }
+      const files = inputFiles.files;
+      if(!files || !files.length){
+        // se nessun file selezionato, apri selettore
+        inputFiles.click();
+        return;
+      }
+      await uploadAndRefresh(r.id, files);
+    };
+  }
+
+  // Galleria remota iniziale
+  refreshGallery(r.id);
+}
+
+// Anteprime locali + nudge salva
+function showLocalPreviews(files){
+  const prev = document.querySelector('.img-preview');
+  const gal  = document.getElementById('gallery');
+  if (!prev || !gal) return;
+
+  prev.textContent = '';
+  gal.innerHTML = '';
+
+  const arr = Array.from(files || []);
+  if (!arr.length){
+    prev.textContent = 'Nessuna immagine disponibile';
+    return;
+  }
+
+  const big = new Image();
+  big.alt = 'Anteprima locale';
+  big.decoding = 'async';
+  big.loading  = 'eager';
+  big.fetchPriority = 'high';
+  big.src = URL.createObjectURL(arr[0]);
+  big.addEventListener('load', ()=> URL.revokeObjectURL(big.src), { once:true });
+  big.addEventListener('click', ()=> openLightbox(big.src));
+  prev.appendChild(big);
+
+  arr.forEach(file=>{
+    const col = document.createElement('div');
+    col.className = 'col-4 gallery-item';
+    const img = new Image();
+    img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
+    img.src = URL.createObjectURL(file);
+    img.addEventListener('load', ()=> URL.revokeObjectURL(img.src), { once:true });
+    img.addEventListener('click', ()=> openLightbox(img.src));
+    col.appendChild(img);
+    gal.appendChild(col);
+  });
+}
+
+function nudgeSave(){
+  const btn = document.getElementById('btnSave');
+  if (!btn) return;
+  btn.classList.add('btn-save-cta');
+  btn.style.transform = 'scale(1.03)';
+  setTimeout(()=>{ btn.style.transform = ''; }, 180);
 }
 
 async function saveEdit(){
@@ -410,44 +540,13 @@ async function saveEdit(){
   alert('Salvato!');
 }
 
-// ----------------- New record -----------------
-async function nuovaScheda(){
-  try{
-    const payload = {
-      descrizione: '',
-      modello: '',
-      cliente: '',
-      telefono: '',
-      statoPratica: 'In attesa',
-      preventivoStato: 'Non inviato',
-      note: '',
-      dataApertura: new Date().toISOString().slice(0,10),
-      dataAccettazione: null,
-      dataScadenza: null,
-      docTrasporto: '',
-      battCollettore: null,
-      lunghezzaAsse: null,
-      lunghezzaPacco: null,
-      larghezzaPacco: null,
-      punta: '',
-      numPunte: null,
-      email: ''
-    };
-    const { data, error } = await sb.from('records').insert(payload).select().single();
-    if (error) { alert('Errore creazione scheda: ' + error.message); return; }
-    window.state.all.unshift(data);
-    renderHome(window.state.all);
-    openEdit(data.id);
-  }catch(e){
-    alert('Errore creazione: ' + (e?.message||e));
-  }
-}
-
 // ----------------- Boot -----------------
 function showError(msg){
   try{
     const el=document.getElementById('errBanner');
     if(el){ el.textContent=msg; el.classList.remove('d-none'); }
+    const el2=document.getElementById('errBannerSearch');
+    if(el2){ el2.textContent=msg; el2.classList.remove('d-none'); }
   }catch(e){}
   console.error(msg);
 }
@@ -455,7 +554,9 @@ function showError(msg){
 window.loadAll = async function(){
   try {
     if (!sb){ showError('Supabase non inizializzato'); return; }
-    let q = sb.from('records').select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email');
+    let q = sb.from('records')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
+      .order('dataApertura', { ascending: false, nullsFirst: false });
     let { data, error } = await q;
     if (error){
       const fb = await sb.from('records_view').select('*').limit(1000);
@@ -474,7 +575,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const H = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
   H('btnHome', ()=>show('page-home'));
   H('btnRicerca', ()=>show('page-search'));
-  H('btnNuovo', nuovaScheda);
   H('btnApply', doSearch);
   H('btnDoSearch', doSearch);
   H('btnReset', ()=>{
@@ -482,63 +582,47 @@ document.addEventListener('DOMContentLoaded', ()=>{
     ids.forEach(id=>{ const el=document.getElementById(id); if(!el) return; if (el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; });
     const tb = document.getElementById('searchRows'); if (tb) tb.innerHTML='';
   });
-  H('btnClearFilter', ()=>{
-    const el = document.getElementById('q'); if (el) el.value='';
-    const tb = document.getElementById('searchRows'); if (tb) tb.innerHTML='';
-    show('page-home');
-  });
   H('kpiTotBtn', ()=>renderHome(window.state.all));
   H('kpiAttesaBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('attesa'))));
   H('kpiLavBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('lavorazione'))));
   H('kpiCompBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('completata'))));
   H('btnSave', saveEdit);
   H('btnCancel', ()=>show('page-home'));
+  H('btnNuovo', async ()=>{
+    try{
+      if(!sb){ alert('Supabase non inizializzato'); return; }
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      const iso = `${yyyy}-${mm}-${dd}`;
+      const payload = {
+        descrizione: '',
+        modello: '',
+        cliente: '',
+        telefono: '',
+        statoPratica: 'In attesa',
+        preventivoStato: 'Non inviato',
+        note: '',
+        dataApertura: iso,
+        dataAccettazione: null,
+        dataScadenza: null,
+        docTrasporto: '',
+        battCollettore: null,
+        lunghezzaAsse: null,
+        lunghezzaPacco: null,
+        larghezzaPacco: null,
+        punta: '',
+        numPunte: null,
+        email: ''
+      };
+      const { data, error } = await sb.from('records').insert(payload).select().single();
+      if (error){ alert('Errore creazione: '+error.message); return; }
+      window.state.all.unshift(data);
+      openEdit(data.id);
+    }catch(e){ alert('Errore creazione scheda: '+(e?.message||e)); }
+  });
 
   try{ window.loadAll(); } catch(e){ showError(e.message||String(e)); }
 });
 
-// ----------------- Optional gallery (only if DOM has #gallery) -----------------
-async function uploadFiles(recordId, files){
-  if (!files || !files.length) return false;
-  const prefix = `records/${recordId}/`;
-  for (const f of files){
-    const name = Date.now() + '_' + f.name.replace(/[^a-z0-9_.-]+/gi,'_');
-    const { error } = await sb.storage.from(bucket).upload(prefix + name, f, { upsert: false });
-    if (error){ alert('Errore upload: '+error.message); return false; }
-  }
-  return true;
-}
-async function refreshGallery(recordId){
-  const gallery = document.getElementById('gallery');
-  const prev = document.querySelector('.img-preview');
-  if (!gallery || !prev) return;
-
-  gallery.innerHTML = '';
-  prev.textContent = 'Nessuna immagine disponibile';
-  const paths = await listPhotos(recordId);
-  if (paths.length){
-    const url0 = publicUrlCached(paths[0]);
-    const img0 = new Image();
-    img0.style.maxWidth = '100%';
-    img0.style.maxHeight = '420px';
-    img0.style.objectFit = 'contain';
-    img0.alt = 'Anteprima';
-    img0.decoding='async'; img0.loading='eager'; img0.fetchPriority='high'; img0.src = url0;
-    img0.addEventListener('click', ()=>openLightbox(url0));
-    prev.textContent = '';
-    prev.appendChild(img0);
-  }
-
-  paths.forEach(p=>{
-    const url = publicUrlCached(p);
-    const col = document.createElement('div');
-    col.className = 'col-4';
-    const img = new Image();
-    img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
-    img.style.width='100%'; img.style.height='144px'; img.style.objectFit='cover'; img.style.borderRadius='.5rem';
-    img.src = url;
-    img.addEventListener('click', ()=>openLightbox(url));
-    col.appendChild(img);
-    gallery.appendChild(col);
-  });
-}
