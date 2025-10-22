@@ -564,3 +564,57 @@ document.addEventListener('DOMContentLoaded', ()=>{
   H('btnNew', openNew);
   try{ window.loadAll(); } catch(e){ showError(e.message||String(e)); }
 });
+// (…tutto invariato in alto…)
+
+// ---------- Overlay (inizializzazione DOPO che il DOM è pronto) ----------
+function initOverlay(){
+  const overlay = document.getElementById('imgOverlay');
+  const img = document.getElementById('imgOverlayImg');
+  if (!overlay || !img) return;
+  const btn = overlay.querySelector('.closeBtn');
+  function close(){ overlay.classList.remove('open'); img.removeAttribute('src'); }
+  if (btn) btn.addEventListener('click', close);
+  overlay.addEventListener('click', (e)=>{ if (e.target === overlay) close(); });
+  window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') close(); });
+  // espongo la funzione globale SOLO adesso che l’overlay esiste
+  window.__openOverlay = function(url){ img.src = url; overlay.classList.add('open'); };
+}
+
+// Usa sempre l’overlay; se per qualche motivo non è inizializzato, non navighiamo più via URL
+function openLightbox(url){
+  if (typeof window.__openOverlay === 'function') {
+    window.__openOverlay(url);
+  } else {
+    // ultima difesa: proviamo a inizializzarlo al volo e ripetere
+    initOverlay();
+    if (typeof window.__openOverlay === 'function') window.__openOverlay(url);
+  }
+}
+
+// (…renderer Home/Search invariati: le miniature hanno addEventListener('click', ()=>openLightbox(url)) …)
+
+// ---------- Boot ----------
+document.addEventListener('DOMContentLoaded', ()=>{
+  // Inizializzo l’overlay QUI, quando l’HTML del div è presente
+  initOverlay();
+
+  const H = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  H('btnHome', ()=>show('page-home'));
+  H('btnRicerca', ()=>show('page-search'));
+  H('btnApply', doSearch);
+  H('btnDoSearch', doSearch);
+  H('btnReset', ()=>{
+    const ids = ['q','noteExact','fBatt','fAsse','fPacco','fLarg','fPunta','fNP'];
+    ids.forEach(id=>{ const el=document.getElementById(id); if(!el) return; if (el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; });
+    const tb = document.getElementById('searchRows'); if (tb) tb.innerHTML='';
+  });
+  H('kpiTotBtn', ()=>renderHome(window.state.all));
+  H('kpiAttesaBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('attesa'))));
+  H('kpiLavBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('lavorazione'))));
+  H('kpiCompBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('completata'))));
+  H('btnSave', saveEdit);
+  H('btnCancel', ()=>show('page-home'));
+  H('btnNew', openNew);
+
+  try{ window.loadAll(); } catch(e){ showError(e.message||String(e)); }
+});
