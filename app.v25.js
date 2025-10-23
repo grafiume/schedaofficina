@@ -1,7 +1,9 @@
 // === ELIP TAGLIENTE • app.v25.js ===
-// Home/Ricerca allineate, thumb 144x144, overlay, ricerca, upload immagini,
-// anteprima 4:3, NUOVA SCHEDA con tutti i campi + preview & upload foto (mobile OK).
+// Thumb 144x144 con lazy-load + throttling & backoff (anti 429), overlay in pagina,
+// Ricerca con filtri esatti, Nuova scheda con upload immagini (mobile OK),
+// Salva scheda => ritorno automatico alla Home.
 
+// ----------------- Helpers -----------------
 (function(){
   if (typeof window.fmtIT !== 'function') {
     window.fmtIT = function(d){
@@ -22,8 +24,10 @@
   }
   if (typeof window.byHomeOrder !== 'function') {
     window.byHomeOrder = (a,b)=>{
+      // Ordine principale: dataApertura desc
       const da = String(b.dataApertura||'').localeCompare(String(a.dataApertura||''));
       if (da !== 0) return da;
+      // Secondario: stato
       return window.statusOrder(a.statoPratica) - window.statusOrder(b.statoPratica);
     };
   }
@@ -38,40 +42,155 @@ function show(id){
 }
 if (typeof window.state !== 'object'){ window.state={ all:[], currentView:'home', editing:null }; }
 
-// --- Supabase ---
-if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){ console.warn('config.js mancante o variabili non definite'); }
-const sb = (typeof supabase!=='undefined') ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY) : null;
+// ----------------- Supabase -----------------
+if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){
+  console.warn('config.js mancante o variabili non definite');
+}
+const sb = (typeof supabase!=='undefined')
+  ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
+  : null;
 
-// --- Storage helpers ---
+// ----------------- Storage helpers -----------------
 const bucket='photos';
 const _pubUrlCache=new Map();
 function publicUrl(path){ const {data}=sb.storage.from(bucket).getPublicUrl(path); return data?.publicUrl||''; }
 function publicUrlCached(path){ if(_pubUrlCache.has(path)) return _pubUrlCache.get(path); const u=publicUrl(path); _pubUrlCache.set(path,u); return u; }
-async function listPhotosFromPrefix(prefix){
-  try{ const {data,error}=await sb.storage.from(bucket).list(prefix,{limit:200,sortBy:{column:'name',order:'asc'}}); if(error) return []; return (data||[]).map(x=>prefix+x.name); }catch{ return []; }
+
+// Throttling queue per evitare 429
+const REQ_QUEUE = [];
+let ACTIVE = 0;
+const MAX_CONCURRENCY = 2;          // al massimo 2 richieste contemporanee
+const MIN_SPACING_MS = 160;         // spaziatura tra job per non saturare
+function delay(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+async function runQueue(){
+  if (ACTIVE >= MAX_CONCURRENCY) return;
+  const job = REQ_QUEUE.shift();
+  if (!job) return;
+  ACTIVE++;
+  try { await job(); }
+  finally {
+    ACTIVE--;
+    // leggero spacing tra job
+    setTimeout(runQueue, MIN_SPACING_MS);
+  }
 }
-async function listPhotos(recordId){
-  let p=await listPhotosFromPrefix(`records/${recordId}/`); if(p.length) return p;
-  p=await listPhotosFromPrefix(`${recordId}/`); if(p.length) return p;
-  try{ const {data,error}=await sb.from('photos').select('path').eq('record_id',recordId).order('created_at',{ascending:true}); if(!error&&data?.length) return data.map(r=>r.path); }catch{}
+function enqueue(fn){
+  REQ_QUEUE.push(fn);
+  runQueue();
+}
+
+// list con retry/backoff se 429
+async function listPhotosFromPrefix(prefix){
+  let attempt = 0;
+  while (attempt < 4){
+    const { data, error } = await sb.storage.from(bucket).list(prefix, {limit:200, sortBy:{column:'name', order:'asc'}});
+    if (!error) return (data||[]).map(x => prefix + x.name);
+    // se 429 o rete, backoff
+    const msg = (error?.message || '').toLowerCase();
+    const status = error?.status || 0;
+    if (status === 429 || msg.includes('too many') || msg.includes('rate')){
+      await delay(400 + attempt*600);
+      attempt++;
+      continue;
+    }
+    // altri errori -> stop
+    return [];
+  }
   return [];
 }
 
-// --- Overlay ---
-(function initOverlay(){
-  const overlay=document.getElementById('imgOverlay');
-  const img=document.getElementById('imgOverlayImg');
-  if(!overlay||!img) return;
-  const btn=overlay.querySelector('.closeBtn');
-  function close(){ overlay.classList.remove('open'); img.removeAttribute('src'); }
-  btn?.addEventListener('click',close);
-  overlay.addEventListener('click',e=>{ if(e.target===overlay) close(); });
-  window.addEventListener('keydown',e=>{ if(e.key==='Escape') close(); });
-  window.__openOverlay=url=>{ img.src=url; overlay.classList.add('open'); };
-})();
-function openLightbox(url){ if(typeof window.__openOverlay==='function') window.__openOverlay(url); else { try{window.location.assign(url);}catch{window.location.href=url;} } }
+// Try multiple layouts + table fallback (con queue)
+const FIRST_PHOTO_CACHE = new Map(); // recordId -> url (o '' se nessuna)
+function getThumbUrl(recordId){
+  // Se in cache, immediato
+  if (FIRST_PHOTO_CACHE.has(recordId)) return Promise.resolve(FIRST_PHOTO_CACHE.get(recordId));
 
-// --- KPI + Home render ---
+  // Promise di risoluzione che usa la queue con backoff
+  return new Promise((resolve)=>{
+    enqueue(async ()=>{
+      // 1) new layout
+      let p = await listPhotosFromPrefix(`records/${recordId}/`);
+      if (!p.length){
+        // 2) old layout
+        p = await listPhotosFromPrefix(`${recordId}/`);
+      }
+      if (!p.length){
+        // 3) fallback tabella
+        try{
+          const { data, error } = await sb.from('photos')
+            .select('path, created_at')
+            .eq('record_id', recordId)
+            .order('created_at', { ascending:true })
+            .limit(1);
+          if (!error && data && data.length) p = [data[0].path];
+        }catch{}
+      }
+      const url = p.length ? publicUrlCached(p[0]) : '';
+      FIRST_PHOTO_CACHE.set(recordId, url);
+      resolve(url);
+    });
+  });
+}
+
+// Lazy-load con IntersectionObserver
+const IO = ('IntersectionObserver' in window)
+  ? new IntersectionObserver((entries)=>{
+      entries.forEach(en=>{
+        if (en.isIntersecting){
+          const img = en.target;
+          IO.unobserve(img);
+          const recordId = img.getAttribute('data-rec');
+          if (!recordId) return;
+          getThumbUrl(recordId).then(url=>{
+            if (url){
+              img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
+              img.src = url;
+              img.addEventListener('click', ()=>openLightbox(url));
+            } else {
+              img.alt = '—';
+            }
+          });
+        }
+      });
+    }, { rootMargin: '200px 0px' })
+  : null;
+
+function mountLazyThumb(imgEl, recordId){
+  imgEl.setAttribute('data-rec', recordId);
+  if (IO) IO.observe(imgEl);
+  else {
+    // fallback senza IO: carica comunque con queue
+    getThumbUrl(recordId).then(url=>{
+      if (url){
+        imgEl.decoding='async'; imgEl.loading='lazy'; imgEl.fetchPriority='low';
+        imgEl.src = url;
+        imgEl.addEventListener('click', ()=>openLightbox(url));
+      } else {
+        imgEl.alt = '—';
+      }
+    });
+  }
+}
+
+// ----------------- Overlay (single) -----------------
+(function initOverlay(){
+  const overlay = document.getElementById('imgOverlay');
+  const img = document.getElementById('imgOverlayImg');
+  if (!overlay || !img) return;
+  const btn = overlay.querySelector('.closeBtn');
+  function close(){ overlay.classList.remove('open'); img.removeAttribute('src'); }
+  btn?.addEventListener('click', close);
+  overlay.addEventListener('click', (e)=>{ if (e.target === overlay) close(); });
+  window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') close(); });
+  window.__openOverlay = function(url){ img.src = url; overlay.classList.add('open'); };
+})();
+function openLightbox(url){
+  if (typeof window.__openOverlay === 'function') window.__openOverlay(url);
+  else { try{ window.location.assign(url); } catch(e){ window.location.href = url; } }
+}
+
+// ----------------- KPI + Home render -----------------
 function renderKPIs(rows){
   try{
     const tot=rows.length;
@@ -82,6 +201,7 @@ function renderKPIs(rows){
     set('kpiTot',tot); set('kpiAttesa',att); set('kpiLav',lav); set('kpiComp',comp);
   }catch{}
 }
+
 window.renderHome=function(rows){
   const tb=document.getElementById('homeRows'); if(!tb) return;
   tb.innerHTML=''; renderKPIs(rows);
@@ -97,8 +217,10 @@ window.renderHome=function(rows){
     const tdDesc=document.createElement('td'); tdDesc.textContent=r.descrizione??''; tr.appendChild(tdDesc);
     const tdMod=document.createElement('td'); tdMod.textContent=r.modello??''; tr.appendChild(tdMod);
 
-    const tdStato=document.createElement('td'); const closed=norm(r.statoPratica).includes('completata');
-    tdStato.textContent=r.statoPratica??''; if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
+    const tdStato=document.createElement('td');
+    const closed=norm(r.statoPratica).includes('completata');
+    tdStato.textContent=r.statoPratica??'';
+    if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
     tr.appendChild(tdStato);
 
     const tdAz=document.createElement('td'); tdAz.className='text-end';
@@ -107,18 +229,13 @@ window.renderHome=function(rows){
 
     tb.appendChild(tr);
 
-    // thumb async
-    try{
-      listPhotos(r.id).then(paths=>{
-        if(paths?.length){ const url=publicUrlCached(paths[0]); img.decoding='async'; img.loading='lazy'; img.fetchPriority='low'; img.src=url; img.addEventListener('click',()=>openLightbox(url)); }
-        else { img.alt='—'; }
-      }).catch(()=>{});
-    }catch{}
+    // Miniatura: lazy + queue (anti 429)
+    mountLazyThumb(img, r.id);
   });
   if(!rows?.length){ tb.innerHTML='<tr><td colspan="7" class="text-center text-muted py-4">Nessun record</td></tr>'; }
 };
 
-// --- Ricerca ---
+// ----------------- Ricerca -----------------
 function getSearchFilters(){
   return {
     q: document.getElementById('q').value.trim(),
@@ -156,15 +273,18 @@ function doSearch(){
     const tr=document.createElement('tr');
 
     const tdFoto=document.createElement('td'); tdFoto.className='thumb-cell';
-    const img=document.createElement('img'); img.className='thumb thumb-home'; img.alt=''; tdFoto.appendChild(img); tr.appendChild(tdFoto);
+    const img=document.createElement('img'); img.className='thumb thumb-home'; img.alt='';
+    tdFoto.appendChild(img); tr.appendChild(tdFoto);
 
     const tdData=document.createElement('td'); tdData.textContent=fmtIT(r.dataApertura); tr.appendChild(tdData);
     const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; tr.appendChild(tdCliente);
     const tdDesc=document.createElement('td'); tdDesc.textContent=r.descrizione??''; tr.appendChild(tdDesc);
     const tdMod=document.createElement('td'); tdMod.textContent=r.modello??''; tr.appendChild(tdMod);
 
-    const tdStato=document.createElement('td'); const closed=norm(r.statoPratica).includes('completata');
-    tdStato.textContent=r.statoPratica??''; if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
+    const tdStato=document.createElement('td');
+    const closed=norm(r.statoPratica).includes('completata');
+    tdStato.textContent=r.statoPratica??'';
+    if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
     tr.appendChild(tdStato);
 
     const tdAz=document.createElement('td'); tdAz.className='text-end';
@@ -173,17 +293,13 @@ function doSearch(){
 
     tb.appendChild(tr);
 
-    try{
-      listPhotos(r.id).then(paths=>{
-        if(paths?.length){ const url=publicUrlCached(paths[0]); img.decoding='async'; img.loading='lazy'; img.fetchPriority='low'; img.src=url; img.addEventListener('click',()=>openLightbox(url)); }
-        else { img.alt='—'; }
-      }).catch(()=>{});
-    }catch{}
+    // Miniatura: lazy + queue (anti 429)
+    mountLazyThumb(img, r.id);
   });
   if(!rows.length){ tb.innerHTML='<tr><td colspan="7" class="text-center text-muted py-4">Nessun risultato</td></tr>'; }
 }
 
-// --- Gallery (Edit) ---
+// ----------------- Gallery (Edit) -----------------
 async function uploadFiles(recordId, files){
   const prefix=`records/${recordId}/`;
   for (const f of files){
@@ -191,6 +307,8 @@ async function uploadFiles(recordId, files){
     const { error } = await sb.storage.from(bucket).upload(prefix+name, f, { upsert:false });
     if(error){ alert('Errore upload: '+error.message); return false; }
   }
+  // invalida cache thumb per questo record
+  FIRST_PHOTO_CACHE.delete(recordId);
   return true;
 }
 async function refreshGallery(recordId){
@@ -198,14 +316,27 @@ async function refreshGallery(recordId){
   const prev=document.querySelector('.img-preview');
   if(gallery) gallery.innerHTML=''; if(prev) prev.innerHTML='';
 
-  const paths=await listPhotos(recordId);
-
+  // per non stressare lo storage, usa la stessa getThumbUrl (queue + cache) per la prima
+  const firstUrl = await getThumbUrl(recordId);
   if(prev){
-    if(paths.length){
-      const url0=publicUrlCached(paths[0]); const img0=new Image();
-      img0.alt='Anteprima'; img0.decoding='async'; img0.loading='eager'; img0.fetchPriority='high'; img0.src=url0;
-      prev.appendChild(img0); img0.addEventListener('click',()=>openLightbox(url0));
-    } else { prev.textContent='Nessuna immagine disponibile'; }
+    if(firstUrl){
+      const img0=new Image();
+      img0.alt='Anteprima'; img0.decoding='async'; img0.loading='eager'; img0.fetchPriority='high';
+      img0.src=firstUrl; prev.appendChild(img0);
+      img0.addEventListener('click',()=>openLightbox(firstUrl));
+    } else {
+      prev.textContent='Nessuna immagine disponibile';
+    }
+  }
+
+  // carica l’elenco completo (qui una sola richiesta, già con retry/backoff)
+  let paths = await listPhotosFromPrefix(`records/${recordId}/`);
+  if (!paths.length) paths = await listPhotosFromPrefix(`${recordId}/`);
+  if (!paths.length){
+    try{
+      const { data } = await sb.from('photos').select('path').eq('record_id', recordId).order('created_at',{ascending:true});
+      if (data?.length) paths = data.map(r=>r.path);
+    }catch{}
   }
 
   if(gallery){
@@ -217,14 +348,16 @@ async function refreshGallery(recordId){
       img.addEventListener('click',()=>openLightbox(url));
       const del=document.createElement('button'); del.type='button'; del.className='btn btn-sm btn-danger position-absolute top-0 end-0 m-1'; del.textContent='×'; del.title='Elimina immagine';
       del.addEventListener('click', async ev=>{ ev.stopPropagation(); if(!confirm('Sei sicuro di voler eliminare questa immagine?')) return;
-        const { error } = await sb.storage.from(bucket).remove([p]); if(error){ alert('Errore eliminazione: '+error.message); return; } refreshGallery(recordId);
+        const { error } = await sb.storage.from(bucket).remove([p]);
+        if(error){ alert('Errore eliminazione: '+error.message); return; }
+        await refreshGallery(recordId);
       });
       wrap.appendChild(img); wrap.appendChild(del); col.appendChild(wrap); gallery.appendChild(col);
     });
   }
 }
 
-// --- Edit page ---
+// ----------------- Edit page -----------------
 function setV(id,v){ const el=document.getElementById(id); if(!el) return;
   if(el.tagName==='SELECT'){ let f=false; for(const opt of el.options){ if(norm(opt.value)===norm(v)){ el.value=opt.value; f=true; break; } } if(!f) el.value=''; }
   else { el.value = v??''; }
@@ -244,10 +377,11 @@ function openEdit(id){
   show('page-edit');
   refreshGallery(r.id);
 
+  // “Carica su cloud” -> salva i dati, poi carica i file, aggiorna galleria
   const upBtn=document.getElementById('btnUpload');
   if(upBtn){
     upBtn.onclick=async ()=>{
-      await saveEdit();
+      await saveEdit(false); // false = non chiudere
       const files=document.getElementById('eFiles').files;
       if(files?.length){
         const ok=await uploadFiles(r.id, files);
@@ -257,7 +391,8 @@ function openEdit(id){
   }
 }
 
-async function saveEdit(){
+// Salva + chiudi richiesta: dopo salvataggio torniamo in Home
+async function saveEdit(closeAfter=true){
   const r=window.state.editing; if(!r) return;
   const payload={
     descrizione:val('eDescrizione'), modello:val('eModello'),
@@ -271,16 +406,19 @@ async function saveEdit(){
   if(error){ alert('Errore salvataggio: '+error.message); return; }
   Object.assign(r, data);
   renderHome(window.state.all);
+  if (closeAfter){
+    // torna alla Home come richiesto
+    show('page-home');
+  }
   alert('Salvato!');
 }
 
-// --- NUOVA SCHEDA ---
+// ----------------- NUOVA SCHEDA -----------------
 let _newModal;
 function todayISO(){ const d=new Date(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${d.getFullYear()}-${m}-${dd}`; }
 function getV(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
 function toNull(s){ return s===''?null:s; }
 
-// **Preview immagini nella modale**
 function previewNewFiles(){
   const box=document.getElementById('nPreview');
   const inp=document.getElementById('nFiles');
@@ -318,13 +456,12 @@ async function createNewRecord(){
   const { data, error } = await sb.from('records').insert(payload).select().single();
   if(error){ alert('Errore creazione: '+error.message); return; }
 
-  // Se sono state selezionate immagini, caricale nel bucket
+  // upload immagini se presenti
   const files=document.getElementById('nFiles')?.files;
   if(files && files.length){
     const ok = await uploadFiles(data.id, files);
     if(!ok){ alert('Attenzione: alcune immagini potrebbero non essere state caricate.'); }
-    // reset input
-    const nf=document.getElementById('nFiles'); if(nf) nf.value='';
+    document.getElementById('nFiles').value='';
     const pv=document.getElementById('nPreview'); if(pv){ pv.innerHTML='Nessuna immagine'; }
   }
 
@@ -335,7 +472,7 @@ async function createNewRecord(){
   try{ _newModal?.hide(); }catch{}
 }
 
-// --- Boot ---
+// ----------------- Boot -----------------
 function showError(msg){ try{ const el=document.getElementById('errBanner'); if(el){ el.textContent=msg; el.classList.remove('d-none'); } }catch{} console.error(msg); }
 
 window.loadAll=async function(){
@@ -375,8 +512,12 @@ document.addEventListener('DOMContentLoaded', ()=>{
   H('kpiLavBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('lavorazione'))));
   H('kpiCompBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('completata'))));
 
-  H('btnSave', saveEdit);
-  H('btnCancel', ()=>show('page-home'));
+  // Salva scheda: chiudi dopo il salvataggio (come richiesto)
+  const btnSave=document.getElementById('btnSave');
+  if(btnSave){ btnSave.addEventListener('click', ()=>saveEdit(true)); }
+
+  const btnCancel=document.getElementById('btnCancel');
+  if(btnCancel){ btnCancel.addEventListener('click', ()=>show('page-home')); }
 
   // Nuova scheda
   const bNew=document.getElementById('btnNew');
