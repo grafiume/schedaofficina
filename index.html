@@ -1,48 +1,299 @@
 <!doctype html>
 <html lang="it">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SchedaOfficina – Demo integrazione Link Preventivo</title>
-  <!-- CSP minima: permettiamo le chiamate REST al progetto Supabase -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://pedmdiljgjgswhfwedno.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
-  <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 16px}
-    .card{border:1px solid #ddd;border-radius:10px;padding:12px;margin:10px 0;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-    .row{display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:center}
-    label{font-weight:600}
-    input[type="text"],input[type="search"],input[type="number"]{width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:8px}
-    .btn{display:inline-block;padding:8px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:600}
-    .btn-primary{background:#1e90ff;color:#fff}
-    .btn-success{background:#21a366;color:#fff}
-    h2{margin-top:24px}
-  </style>
-</head>
-<!-- Inserisci qui l'ID della scheda reale -->
-<body data-record-id="0077ad5c-2492-456c-a96e-4ac61f707b1e">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ELIP TAGLIENTE • Scheda Riparazioni</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" href="favicon.ico">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <nav class="navbar navbar-light bg-light border-bottom sticky-top">
+      <div class="container-fluid">
+        <div class="d-flex align-items-center gap-2">
+          <img src="logo-elip.jpg" class="brand-logo" alt="ELIP">
+          <span class="navbar-brand mb-0 h1">SCHEDA RIPARAZIONI</span>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary" id="btnHome">Home</button>
+          <button class="btn btn-outline-secondary" id="btnRicerca">Ricerca</button>
+          <button class="btn btn-orange" id="btnNew">Nuova scheda</button>
+        </div>
+      </div>
+    </nav>
 
-  <h1>Dettaglio scheda</h1>
+    <!-- HOME -->
+    <div class="container my-3" id="page-home">
+      <div class="d-flex gap-2 flex-wrap mb-3">
+        <button class="card kpi kpi-link border-top-orange text-start" type="button" id="kpiTotBtn">
+          <div class="card-body"><div class="small text-muted">Totali</div><div class="h4 mb-0" id="kpiTot">0</div></div>
+        </button>
+        <button class="card kpi kpi-link border-top-blue text-start" type="button" id="kpiAttesaBtn">
+          <div class="card-body"><div class="small text-muted">In attesa</div><div class="h4 mb-0" id="kpiAttesa">0</div></div>
+        </button>
+        <button class="card kpi kpi-link border-top-orange text-start" type="button" id="kpiLavBtn">
+          <div class="card-body"><div class="small text-muted">In lavorazione</div><div class="h4 mb-0" id="kpiLav">0</div></div>
+        </button>
+        <button class="card kpi kpi-link border-top-green text-start" type="button" id="kpiCompBtn">
+          <div class="card-body"><div class="small text-muted">Completate</div><div class="h4 mb-0" id="kpiComp">0</div></div>
+        </button>
+      </div>
 
-  <section class="card">
-    <h2>Dati scheda e cliente</h2>
-    <div class="row">
-      <label>ID scheda</label>
-      <input type="text" value="0077ad5c-2492-456c-a96e-4ac61f707b1e" readonly>
+      <div id="errBanner" class="alert alert-warning d-none my-2"></div>
+      <div class="table-responsive">
+        <table class="table table-app align-middle" id="tblHome">
+          <thead>
+            <tr>
+              <th class="thumb-cell">Foto</th>
+              <th>Data</th>
+              <th>Cliente</th>
+              <th>Descrizione</th>
+              <th>Modello</th>
+              <th>Stato</th>
+              <th class="text-end">Azioni</th>
+            </tr>
+          </thead>
+          <tbody id="homeRows">
+            <tr><td colspan="7" class="text-center py-4 text-muted">Caricamento…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-    <div class="row">
-      <label>Cliente</label>
-      <input type="text" value="Mario Rossi">
-    </div>
-    <div class="row">
-      <label>Targa</label>
-      <input type="text" value="AB123CD">
-    </div>
-  </section>
 
-  <!-- Integrazione: script standalone per il campo/link preventivo -->
-  <script src="./js/preventivo-link-field.standalone.js?v=20251024"></script>
-  <!-- Fine integrazione -->
+    <!-- RICERCA -->
+    <div class="container my-3 d-none" id="page-search">
+      <h4>Ricerca</h4>
 
-  <p style="margin-top:18px;color:#666"><small>Questa è una pagina di esempio. Nella tua app, includi lo script alla fine della pagina della scheda. Lo script userà data-record-id o window.ELIP_RECORD_ID.</small></p>
-</body>
+      <div class="row g-2 mb-2">
+        <div class="col-md-10">
+          <input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT (token, no accenti)…">
+        </div>
+        <div class="col-md-2 d-grid"><button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button></div>
+      </div>
+
+      <div class="row g-2 mb-3">
+        <div class="col-md-6 col-lg-4"><input id="noteExact" class="form-control" placeholder="Note (match esatto)"></div>
+      </div>
+
+      <div class="card mb-2">
+        <div class="card-header py-2"><strong>Filtri tecnici (singoli)</strong></div>
+        <div class="card-body">
+          <div class="row g-2">
+            <div class="col-md-6 col-lg-3"><input id="fBatt" class="form-control" placeholder="Batt. collettore"></div>
+            <div class="col-md-6 col-lg-3"><input id="fAsse" class="form-control" placeholder="Lunghezza asse"></div>
+            <div class="col-md-6 col-lg-3"><input id="fPacco" class="form-control" placeholder="Lunghezza pacco"></div>
+            <div class="col-md-6 col-lg-3"><input id="fLarg" class="form-control" placeholder="Larghezza pacco"></div>
+            <div class="col-md-6 col-lg-3">
+              <select id="fPunta" class="form-select">
+                <option value="">Punta (tutte)</option>
+                <option>Sinistra</option>
+                <option>Destra</option>
+                <option>Dritta</option>
+              </select>
+            </div>
+            <div class="col-md-6 col-lg-2"><input id="fNP" class="form-control" placeholder="N. punte"></div>
+          </div>
+          <div class="mt-3 d-flex gap-2">
+            <button class="btn btn-secondary" id="btnApply">Applica filtri</button>
+            <button class="btn btn-outline-secondary" id="btnReset">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-app align-middle" id="tblSearch">
+          <thead>
+            <tr>
+              <th class="thumb-cell">Foto</th>
+              <th>Data</th>
+              <th>Cliente</th>
+              <th>Descrizione</th>
+              <th>Modello</th>
+              <th>Stato</th>
+              <th class="text-end">Azioni</th>
+            </tr>
+          </thead>
+          <tbody id="searchRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MODIFICA -->
+    <div class="container my-3 d-none" id="page-edit">
+      <h4>Modifica scheda</h4>
+      <div id="closedBanner" class="alert alert-success d-none py-2 mb-2">Chiusa</div>
+
+      <div class="row g-3">
+        <div class="col-lg-7">
+          <div class="card">
+            <div class="card-header py-2"><strong>Dati scheda e cliente</strong></div>
+            <div class="card-body">
+              <div class="row g-2">
+                <div class="col-md-8"><label class="form-label">Descrizione</label><input id="eDescrizione" class="form-control"></div>
+                <div class="col-md-4"><label class="form-label">Modello</label><input id="eModello" class="form-control" placeholder="es. XYZ-123"></div>
+
+                <div class="col-md-4"><label class="form-label">Data apertura</label><input id="eApertura" type="date" class="form-control"></div>
+                <div class="col-md-4"><label class="form-label">Data accettazione</label><input id="eAcc" type="date" class="form-control"></div>
+                <div class="col-md-4"><label class="form-label">Data scadenza</label><input id="eScad" type="date" class="form-control"></div>
+
+                <div class="col-md-4">
+                  <label class="form-label">Stato</label>
+                  <select id="eStato" class="form-select">
+                    <option>In attesa</option>
+                    <option>In lavorazione</option>
+                    <option>Completata</option>
+                  </select>
+                  <div class="form-text" id="closedHint"></div>
+                </div>
+                <div class="col-md-4"><label class="form-label">Preventivo</label>
+                  <select id="ePrev" class="form-select">
+                    <option>Non inviato</option>
+                    <option>Inviato</option>
+                  </select>
+                </div>
+                <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="eDDT" class="form-control" placeholder="Numero / riferimento DDT"></div>
+
+                <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="eCliente" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Telefono</label><input id="eTel" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Email</label><input id="eEmail" class="form-control"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mt-3">
+            <div class="card-header py-2"><strong>Dati tecnici</strong></div>
+            <div class="card-body">
+              <div class="row g-2">
+                <div class="col-md-3"><label class="form-label">Batt. collettore</label><input id="eBatt" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Lunghezza asse</label><input id="eAsse" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Lunghezza pacco</label><input id="ePacco" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Larghezza pacco</label><input id="eLarg" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Punta</label>
+                  <select id="ePunta" class="form-select">
+                    <option></option><option>Sinistra</option><option>Destra</option><option>Dritta</option>
+                  </select>
+                </div>
+                <div class="col-md-3"><label class="form-label">N. punte</label><input id="eNP" class="form-control"></div>
+                <div class="col-md-6"><label class="form-label">Note</label><input id="eNote" class="form-control"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-grid my-3 gap-2">
+            <button class="btn btn-orange btn-lg" id="btnSave">Salva scheda</button>
+            <button class="btn btn-outline-secondary" id="btnCancel">Annulla</button>
+          </div>
+        </div>
+
+        <div class="col-lg-5">
+          <div class="card">
+            <div class="card-header py-2"><strong>Anteprima immagine</strong> <small class="text-muted">4:3 • adattata</small></div>
+            <div class="card-body">
+              <div class="img-preview text-muted">Nessuna immagine disponibile</div>
+              <div class="small text-muted mt-2">Suggerimento: la prima immagine caricata verrà mostrata qui sopra.</div>
+              <div class="mt-3">
+                <label class="form-label">Carica immagini (multiplo)</label>
+                <input id="eFiles" class="form-control" type="file" multiple accept="image/*" capture="environment" />
+                <div class="d-grid mt-2"><button class="btn btn-outline-primary" id="btnUpload">Carica su cloud</button></div>
+                <div class="row g-2 mt-2" id="gallery"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODALE: NUOVA SCHEDA -->
+    <div class="modal fade" id="newRecordModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Nuova scheda</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-lg-7">
+                <div class="row g-2">
+                  <div class="col-md-8"><label class="form-label">Descrizione</label><input id="nDescrizione" class="form-control"></div>
+                  <div class="col-md-4"><label class="form-label">Modello</label><input id="nModello" class="form-control"></div>
+                  <div class="col-md-4"><label class="form-label">Data apertura</label><input id="nApertura" type="date" class="form-control"></div>
+                  <div class="col-md-4"><label class="form-label">Data accettazione</label><input id="nAcc" type="date" class="form-control"></div>
+                  <div class="col-md-4"><label class="form-label">Data scadenza</label><input id="nScad" type="date" class="form-control"></div>
+                  <div class="col-md-4"><label class="form-label">Stato</label>
+                    <select id="nStato" class="form-select"><option>In attesa</option><option>In lavorazione</option><option>Completata</option></select></div>
+                  <div class="col-md-4"><label class="form-label">Preventivo</label>
+                    <select id="nPrev" class="form-select"><option>Non inviato</option><option>Inviato</option></select></div>
+                  <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="nDDT" class="form-control"></div>
+                  <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="nCliente" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Telefono</label><input id="nTel" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Email</label><input id="nEmail" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Batt. collettore</label><input id="nBatt" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Lunghezza asse</label><input id="nAsse" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Lunghezza pacco</label><input id="nPacco" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Larghezza pacco</label><input id="nLarg" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Punta</label>
+                    <select id="nPunta" class="form-select"><option></option><option>Sinistra</option><option>Destra</option><option>Dritta</option></select></div>
+                  <div class="col-md-3"><label class="form-label">N. punte</label><input id="nNP" class="form-control"></div>
+                  <div class="col-md-6"><label class="form-label">Note</label><input id="nNote" class="form-control"></div>
+                </div>
+              </div>
+              <div class="col-lg-5">
+                <label class="form-label">Immagini</label>
+                <div class="img-preview mb-2" id="nPreview">Nessuna immagine</div>
+                <input id="nFiles" class="form-control" type="file" accept="image/*" capture="environment" multiple>
+                <div class="form-text">Puoi scattare la foto o scegliere dalla galleria. Le immagini vengono inviate al salvataggio.</div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer d-flex justify-content-between">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button>
+            <button type="button" class="btn btn-orange" id="btnNewSave">Salva</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OVERLAY -->
+    <div id="imgOverlay" aria-hidden="true">
+      <div class="frame">
+        <button class="closeBtn" aria-label="Chiudi" title="Chiudi">&times;</button>
+        <img id="imgOverlayImg" alt="Anteprima immagine">
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script>
+      (function addSupabasePreconnect(){
+        try{
+          if(!window.SUPABASE_URL) return;
+          var a=document.createElement("a"); a.href=window.SUPABASE_URL;
+          var origin=a.origin;
+          var link1=document.createElement("link"); link1.rel="preconnect"; link1.href=origin; link1.crossOrigin="anonymous"; document.head.appendChild(link1);
+          var link2=document.createElement("link"); link2.rel="dns-prefetch"; link2.href=origin; document.head.appendChild(link2);
+        }catch(e){}
+      })();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="app.v25.js?v=25"></script>
+  
+<!-- (opzionale ma consigliato) passa l’ID scheda corrente senza modificare il layout -->
+<script>
+  window.ELIP_RECORD_ID = "0077ad5c-2492-456c-a96e-4ac61f707b1e"; /* <— sostituisci con l’ID reale della scheda, se lo hai */
+  // In alternativa all’ELIP_RECORD_ID puoi mettere data-record-id="<UUID>" sul <body>,
+  // oppure passare ?rid=<UUID> nell’URL.
+</script>
+
+<!-- integrazione NON invasiva: aggiunge solo il box “Collegamento al preventivo” -->
+<script src="./js/preventivo-link-field.standalone.js?v=20251024"></script>
+
+
+
+  </body>
 </html>
