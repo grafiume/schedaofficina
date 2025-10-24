@@ -1,13 +1,12 @@
 
-/* preventivo-link-lite.v4.js — per-record + iOS FORCE redirect */
+/* preventivo-link-lite.v4.js — per-record + iOS MAX fallback */
 (function(){
   if (window.__SO_PREV_LITE_INIT) return; window.__SO_PREV_LITE_INIT = true;
 
   const SUPA_URL = "https://pedmdiljgjgswhfwedno.supabase.co";
   const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNjgxNTIsImV4cCI6MjA3NTY0NDE1Mn0.4p2T8BJHGjVsj1Bx22Mk1mbYmfh7MX5WpCwxhwi4CmQ";
 
-  // ATTENZIONE: path esatto della cartella sul sito (rispetta le maiuscole)
-  // Cambia qui se la cartella è "Schedaofficina" con S maiuscola.
+  // Cambia solo se la cartella online NON è /schedaofficina (rispettare maiuscole)
   const REDIRECT_PATH = "/schedaofficina/redirect.html";
 
   function getRidFromURL(){ try { const p=new URLSearchParams(location.search); return p.get('rid')||p.get('id')||null; } catch { return null; } }
@@ -81,7 +80,7 @@
     } finally { btnS.disabled=false; btnS.textContent=old; setTimeout(()=>{help.style.color='#666'},2000); }
   });
 
-  // iOS: forza redirect locale (stessa scheda) QUANDO il link contiene preventivi-elip e pvid=
+  // iOS: usa SEMPRE redirect locale per link che contengono preventivi-elip e pvid=
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   function needsRedirect(url){
     const u = (url||'').toLowerCase();
@@ -92,15 +91,13 @@
     if (!isUrl(href)) return;
     if (isIOS && needsRedirect(href)){
       ev.preventDefault(); ev.stopImmediatePropagation();
-      // forza il link a comportarsi da bottone
       try { btnO.removeAttribute('target'); } catch(e){}
       const redir = `${location.origin}${REDIRECT_PATH}?to=${encodeURIComponent(href)}`;
-      // setTimeout per dare il tempo a iOS di fermare qualsiasi apertura concorrente
       setTimeout(()=>{ location.href = redir; }, 0);
     }
-  }, true); // useCapture=true per battere altri handler
+  }, true);
 
-  // osserva cambio record (body[data-record-id] e query ?rid)
+  // osserva cambio record
   const obs = new MutationObserver(() => {
     const id = currentRecordId();
     if (id !== activeRecordId) loadFor(id);
