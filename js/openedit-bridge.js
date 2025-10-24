@@ -1,1 +1,18 @@
-(()=>{const e=t=>function(n){try{document.body.dataset.recordId=String(n||"")}catch{}return t.apply(this,arguments)};function o(){return"function"==typeof window.openEdit&&(window.openEdit=e(window.openEdit),!0)}if(!o()){const e=setInterval((()=>{o()&&clearInterval(e)}),200);setTimeout((()=>clearInterval(e)),1e4)}})();
+/* openedit-bridge.js — imposta body[data-record-id] quando viene chiamata openEdit(id) */
+(function(){
+  const wrap = (fn) => function(id){
+    try{ document.body.dataset.recordId = String(id||''); }catch(e){}
+    return fn.apply(this, arguments);
+  };
+  function patch(){
+    if (typeof window.openEdit === 'function'){
+      window.openEdit = wrap(window.openEdit);
+      return true;
+    }
+    return false;
+  }
+  if (!patch()){
+    const iv = setInterval(()=>{ if (patch()) clearInterval(iv); }, 200);
+    setTimeout(()=>clearInterval(iv), 10000);
+  }
+})();

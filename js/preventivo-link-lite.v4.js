@@ -1,1 +1,82 @@
-(()=>{if(window.__ELIP_PREV_LITE__)return;window.__ELIP_PREV_LITE__=!0;const e=window.SUPABASE_URL,t=window.SUPABASE_ANON_KEY,n=document.getElementById("preventivo_url"),o=document.getElementById("prev_help"),a=document.getElementById("btn_prev_save"),i=document.getElementById("btn_prev_open");if(!n||!a||!i)return void console.warn("preventivo-link: elementi mancanti");function r(){var e;return(null==(e=document.body)||null==e?void 0:e.dataset.recordId)||null}function d(){try{return(new URLSearchParams(location.search)).get("rid")||new URLSearchParams(location.search).get("id")}catch{return null}}function l(){return window.ELIP_RECORD_ID||null}function s(){return r()||d()||l()}function c(e){return!!e&&/^https?:\/\//i.test((e||"").trim())}function u(e){try{return new URL((e||"").trim()).toString()}catch{return(e||"").trim()}}async function p(n){if(!n)return void(n=await(await fetch(`${e}/rest/v1/records?select=preventivo_url&id=eq.${encodeURIComponent(n)}`,{headers:{apikey:t,Authorization:`Bearer ${t}`}})).json());const a=await(await fetch(`${e}/rest/v1/records?select=preventivo_url&id=eq.${encodeURIComponent(n)}`,{headers:{apikey:t,Authorization:`Bearer ${t}`}})).json();const i=Array.isArray(a)&&a[0]&&a[0].preventivo_url||"";return i}async function m(e){await fetch(`${window.SUPABASE_URL}/rest/v1/records?id=eq.${encodeURIComponent(e)}`,{method:"PATCH",headers:{"content-type":"application/json",apikey:window.SUPABASE_ANON_KEY,Authorization:`Bearer ${window.SUPABASE_ANON_KEY}`,Prefer:"return=minimal"},body:JSON.stringify({preventivo_url:n.value?u(n.value):null})})}async function v(e){if(!e)return n.value="",o.textContent="ID scheda non disponibile: imposta window.ELIP_RECORD_ID o data-record-id sulla pagina.",a.disabled=!0,i.href="#",void(i.style.pointerEvents="none");a.disabled=!1,o.textContent="";try{const t=await p(e);n.value=t||"",f(),t&&(o.textContent="Link caricato ✔")}catch(e){o.textContent="Impossibile caricare il link"}}function f(){const e=u(n.value||"");c(e)?(i.href=e,i.style.opacity=1,i.style.pointerEvents="auto"):(i.href="#",i.style.opacity=.6,i.style.pointerEvents="none")}n.addEventListener("input",f),a.addEventListener("click",async()=>{const e=s();if(!e)return void(o.textContent="ID scheda non disponibile");const t=u(n.value||"");if(t&&!c(t))return void(o.textContent="Inserisci un link http/https valido");const r=a.textContent;a.disabled=!0,a.textContent="Salvo...",o.textContent="";try{await m(e),o.style.color="#0a0",o.textContent="Link salvato ✔"}catch(e){o.style.color="#c00",o.textContent="Errore salvataggio"}finally{a.disabled=!1,a.textContent=r,setTimeout((()=>o.style.color="#666"),1500)}});const h=/iPad|iPhone|iPod/.test(navigator.userAgent);i.addEventListener("click",(e=>{const t=u(n.value||"");c(t)&&(h&&(e.preventDefault(),location.href=t))}));const w=new MutationObserver((()=>{const e=s();e&&v(e)}));w.observe(document.body,{attributes:!0,attributeFilter:["data-record-id"]}),v(s())})();
+/* preventivo-link-lite.v4.js — integra il campo preventivo_url (salva/apri) */
+(function(){
+  if (window.__ELIP_PREV_LITE__) return; window.__ELIP_PREV_LITE__=true;
+  const SUPA_URL = window.SUPABASE_URL;
+  const SUPA_KEY = window.SUPABASE_ANON_KEY;
+
+  const $ = (id)=>document.getElementById(id);
+  const input = $('preventivo_url');
+  const help  = $('prev_help');
+  const btnS  = $('btn_prev_save');
+  const btnO  = $('btn_prev_open');
+  if(!input||!btnS||!btnO){ console.warn('preventivo-link: elementi mancanti'); return; }
+
+  function ridFromBody(){ return document.body?.dataset?.recordId || null; }
+  function ridFromURL(){ try{ const p=new URLSearchParams(location.search); return p.get('rid')||p.get('id'); }catch{return null;} }
+  function ridFromGlobal(){ return window.ELIP_RECORD_ID || null; }
+  function currentRid(){ return ridFromBody() || ridFromURL() || ridFromGlobal(); }
+
+  function isUrl(v){ return !!v && /^https?:\/\//i.test((v||'').trim()); }
+  function norm(v){ try{ return new URL((v||'').trim()).toString(); }catch{ return (v||'').trim(); } }
+
+  async function fetchJSON(url, opt){
+    const r = await fetch(url, opt);
+    if(!r.ok) throw new Error(await r.text());
+    return r.json().catch(()=>null);
+  }
+
+  async function load(id){
+    if(!id){ input.value=''; help.textContent='ID scheda non disponibile: apri una scheda.'; btnS.disabled=true; btnO.href='#'; btnO.style.pointerEvents='none'; return; }
+    btnS.disabled=false; help.textContent='';
+    try{
+      const data = await fetchJSON(`${SUPA_URL}/rest/v1/records?select=preventivo_url&id=eq.${encodeURIComponent(id)}`, {
+        headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${SUPA_KEY}` }
+      });
+      const url = (Array.isArray(data)&&data[0]&&data[0].preventivo_url)||'';
+      input.value = url;
+      setupOpen();
+      if(url) help.textContent='Link caricato ✔';
+    }catch(e){ help.textContent='Impossibile caricare il link'; }
+  }
+
+  function setupOpen(){
+    const v = norm(input.value||'');
+    if(isUrl(v)){ btnO.href=v; btnO.style.opacity=1; btnO.style.pointerEvents='auto'; }
+    else { btnO.href='#'; btnO.style.opacity=.6; btnO.style.pointerEvents='none'; }
+  }
+  input.addEventListener('input', setupOpen);
+
+  btnS.addEventListener('click', async ()=>{
+    const id = currentRid();
+    if(!id){ help.textContent='ID scheda non disponibile'; return; }
+    const v = norm(input.value||'');
+    if(v && !isUrl(v)){ help.textContent='Inserisci un link http/https valido'; return; }
+    const old=btnS.textContent; btnS.disabled=true; btnS.textContent='Salvo...'; help.textContent='';
+    try{
+      await fetch(`${SUPA_URL}/rest/v1/records?id=eq.${encodeURIComponent(id)}`,{
+        method:'PATCH',
+        headers:{ 'content-type':'application/json', apikey:SUPA_KEY, Authorization:`Bearer ${SUPA_KEY}`, Prefer:'return=minimal' },
+        body: JSON.stringify({ preventivo_url: v || null })
+      });
+      help.style.color='#0a0'; help.textContent='Link salvato ✔';
+    }catch(e){ help.style.color='#c00'; help.textContent='Errore salvataggio'; }
+    finally{ btnS.disabled=false; btnS.textContent=old; setTimeout(()=>help.style.color='#666', 1500); }
+  });
+
+  // iOS: apri nella stessa scheda
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  btnO.addEventListener('click', function(ev){
+    const href = norm(input.value||'');
+    if(!isUrl(href)) return;
+    if(isIOS){ ev.preventDefault(); location.href = href; }
+  });
+
+  // osserva cambio scheda
+  const obs = new MutationObserver(()=>{
+    const id = currentRid();
+    if(id) load(id);
+  });
+  obs.observe(document.body, { attributes:true, attributeFilter:['data-record-id'] });
+
+  load(currentRid());
+})();
