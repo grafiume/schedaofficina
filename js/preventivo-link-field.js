@@ -1,21 +1,18 @@
-/* preventivo-link-field.noprompt.rest.js
- * Campo "Link preventivo" cliccabile per SchedaOfficina.
- * - Nessun prompt automatico.
- * - Salva via Supabase JS se disponibile; altrimenti fallback REST (serve ELIP_SUPA_URL/KEY globali).
- * - Rileva l'ID scheda in modo passivo. Se assente, disabilita "Salva" e mostra help.
+/* preventivo-link-field.standalone.js
+ * Campo "Link preventivo" cliccabile per SchedaOfficina — versione STANDALONE
+ * - Non richiede window.supabase (usa REST PostgREST direttamente)
+ * - Nessun prompt: se non trova l'ID scheda, disabilita "Salva" e mostra istruzioni
+ * - Include già URL e KEY del progetto SchedaOfficina
  *
- * Config (solo se usi il fallback REST):
-<script>
-window.ELIP_SUPA_URL = "https://<project>.supabase.co";    // es: https://pedmdiljgjgswhfwedno.supabase.co
-window.ELIP_SUPA_KEY = "sb_publishable_...";
-</script>
- *
- * Accetta link del tipo: https://grafiume.github.io/preventivi-elip/?pvid=<UUID>
+ * Config inclusa (modifica se cambi progetto):
  */
 (function(){
+  const SUPA_URL = "https://pedmdiljgjgswhfwedno.supabase.co";   // Progetto SchedaOfficina
+  const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNjgxNTIsImV4cCI6MjA3NTY0NDE1Mn0.4p2T8BJHGjVsj1Bx22Mk1mbYmfh7MX5WpCwxhwi4CmQ";
+
   const ALLOWED_BASE = /^https:\/\/grafiume\.github\.io\/preventivi-elip\/\?pvid=[0-9a-f-]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
-  // --- ID scheda (passivo, senza prompt)
+  // --- helper ID scheda (passivo, no prompt)
   function getParam(names) { try { const p = new URLSearchParams(location.search); for (const n of names) { const v = p.get(n); if (v) return v; } } catch {} return null; }
   function detectRecordId() {
     if (window.ELIP_RECORD_ID) return String(window.ELIP_RECORD_ID);
@@ -34,33 +31,26 @@ window.ELIP_SUPA_KEY = "sb_publishable_...";
     return document.body;
   }
 
-  // --- Client: SDK se presente, altrimenti REST fallback (mini-shim)
-  const hasSDK = !!(window.supabase && typeof window.supabase.from === "function");
-  const BASE = (window.ELIP_SUPA_URL || "").replace(/\/+$/,"");
-  const KEY  = window.ELIP_SUPA_KEY || "";
-  async function restUpdate(table, values, col, id) {
-    if (!BASE || !KEY) return { data:null, error:{ message: "REST fallback non configurato (ELIP_SUPA_URL/KEY)"} };
-    const url = `${BASE}/rest/v1/${encodeURIComponent(table)}?${encodeURIComponent(col)}=eq.${encodeURIComponent(id)}`;
+  // --- REST helpers
+  async function restPatchRecord(recordId, values){
+    const base = (SUPA_URL || "").replace(/\/+$/,"");
+    const key  = SUPA_KEY || "";
+    if (!base || !key) return { error: { message: "Configurazione REST mancante (SUPA_URL/KEY)" } };
+
+    const url = `${base}/rest/v1/records?id=eq.${encodeURIComponent(recordId)}`;
     const r = await fetch(url, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        "apikey": KEY,
-        "Authorization": "Bearer " + KEY,
+        "apikey": key,
+        "Authorization": "Bearer " + key,
         "Prefer": "return=minimal"
       },
       body: JSON.stringify(values)
     });
-    if (r.ok) return { data:null, error:null };
-    return { data:null, error:{ message: await r.text().catch(()=>String(r.status)) } };
+    if (r.ok) return { error: null };
+    return { error: { message: await r.text().catch(()=> String(r.status)) } };
   }
-  const sb = hasSDK ? window.supabase : {
-    from: (table) => ({
-      update: (values) => ({
-        eq: (col, id) => restUpdate(table, values, col, id)
-      })
-    })
-  };
 
   // --- Stato
   const recordId = detectRecordId();
@@ -99,18 +89,15 @@ window.ELIP_SUPA_KEY = "sb_publishable_...";
   if (mount && mount !== document.body) mount.appendChild(box);
   else { const flo=document.createElement('div'); flo.style.position='fixed'; flo.style.right='16px'; flo.style.bottom='16px'; flo.style.zIndex=9999; flo.appendChild(box); document.body.appendChild(flo); }
 
-  // Stato iniziale
   if (!recordId) { save.disabled = true; help.textContent = 'ID scheda non disponibile: imposta window.ELIP_RECORD_ID o un attributo data-record-id sulla pagina.'; }
-  if (!hasSDK && (!BASE || !KEY)) { help.textContent = 'Salvataggio disabilitato: configura ELIP_SUPA_URL/KEY per il fallback REST.'; }
 
-  // Azione Salva
   save.onclick = async function(){
     const url = (input.value||'').trim();
     if (!isValid(url)) { help.textContent = 'URL non valido: incolla un link con ?pvid=UUID.'; return; }
     if (!recordId)   { help.textContent = 'ID scheda non disponibile (vedi messaggio sopra).'; return; }
     save.disabled = true; const old = save.textContent; save.textContent='Salvo...'; help.textContent='';
     try {
-      const { error } = await sb.from('records').update({ preventivo_url: url || null }).eq('id', recordId);
+      const { error } = await restPatchRecord(recordId, { preventivo_url: url || null });
       if (error) throw error;
       help.style.color='#0a0'; help.textContent='Link salvato ✔';
     } catch(e) {
