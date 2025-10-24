@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reindirizzamento…</title>
+  <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:24px}</style>
+</head>
+<body>
+  <p>Reindirizzamento in corso…</p>
+  <script>
+    (function(){
+      try{
+        var u = new URL(location.href);
+        var to = u.searchParams.get('to') || '';
+        if(!to){ document.body.innerHTML = '<p>URL mancante.</p>'; return; }
+        // Sempre https e contiene pvid=
+        var ok = /^https:\/\//i.test(to) && /pvid=/.test(to);
+        if(!ok){ document.body.innerHTML = '<p>URL non valido.</p>'; return; }
+        location.replace(to);
+      }catch(e){
+        document.body.innerHTML = '<p>Errore redirect.</p>';
+      }
+    })();
+  </script>
+</body>
+</html>
