@@ -5,10 +5,10 @@
  * - Rileva l'ID scheda in modo passivo. Se assente, disabilita "Salva" e mostra help.
  *
  * Config (solo se usi il fallback REST):
- *   <script>
- *     window.ELIP_SUPA_URL = "https://<project>.supabase.co";    // es: https://pedmdiljgjgswhfwedno.supabase.co
- *     window.ELIP_SUPA_KEY = "sb_publishable_...";
- *   </script>
+<script>
+window.ELIP_SUPA_URL = "https://<project>.supabase.co";    // es: https://pedmdiljgjgswhfwedno.supabase.co
+window.ELIP_SUPA_KEY = "sb_publishable_...";
+</script>
  *
  * Accetta link del tipo: https://grafiume.github.io/preventivi-elip/?pvid=<UUID>
  */
