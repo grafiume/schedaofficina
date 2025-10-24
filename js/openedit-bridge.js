@@ -1,3 +1,4 @@
+
 /* openedit-bridge.js — aggiorna automaticamente body[data-record-id] */
 (function(){
   const wrap = function(fn){

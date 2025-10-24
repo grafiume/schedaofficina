@@ -1,22 +1,17 @@
-/* preventivo-link-lite.v4.js — per-record */
+
+/* preventivo-link-lite.v4.js — per-record + fix iOS apertura */
 (function(){
   if (window.__SO_PREV_LITE_INIT) return; window.__SO_PREV_LITE_INIT = true;
 
   const SUPA_URL = "https://pedmdiljgjgswhfwedno.supabase.co";
   const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNjgxNTIsImV4cCI6MjA3NTY0NDE1Mn0.4p2T8BJHGjVsj1Bx22Mk1mbYmfh7MX5WpCwxhwi4CmQ";
 
-  function getRidFromURL(){
-    try { const p = new URLSearchParams(location.search); return p.get('rid') || p.get('id') || null; } catch { return null; }
-  }
-  function getRidFromBody(){
-    const b=document.body;
-    if (b && b.dataset && b.dataset.recordId) return String(b.dataset.recordId);
-    return null;
-  }
-  function currentRecordId(){
-    return getRidFromBody() || getRidFromURL() || (window.ELIP_RECORD_ID ? String(window.ELIP_RECORD_ID) : null);
-  }
+  // --- helpers ID
+  function getRidFromURL(){ try { const p=new URLSearchParams(location.search); return p.get('rid')||p.get('id')||null; } catch { return null; } }
+  function getRidFromBody(){ const b=document.body; return (b && b.dataset && b.dataset.recordId) ? String(b.dataset.recordId) : null; }
+  function currentRecordId(){ return getRidFromBody() || getRidFromURL() || (window.ELIP_RECORD_ID ? String(window.ELIP_RECORD_ID) : null); }
 
+  // --- REST
   async function getLink(id){
     const r = await fetch(`${SUPA_URL}/rest/v1/records?select=preventivo_url&id=eq.${encodeURIComponent(id)}`,{
       headers:{ "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY }
@@ -39,12 +34,14 @@
     if (!r.ok) throw new Error(await r.text().catch(()=>String(r.status)));
   }
 
+  // --- UI refs
   const input = document.getElementById('preventivo_url');
   const help  = document.getElementById('prev_help');
   const btnS  = document.getElementById('btn_prev_save');
   const btnO  = document.getElementById('btn_prev_open');
   if (!input || !btnS || !btnO){ console.warn('preventivo-link-lite: elementi non trovati'); return; }
 
+  // --- utils
   function isUrl(v){ return !!v && /^https?:\/\//i.test((v||'').trim()); }
   function normalize(v){ try{ return new URL((v||'').trim()).toString(); }catch{ return (v||'').trim(); } }
   function refreshOpen(){
@@ -54,6 +51,7 @@
   }
   input.addEventListener('input', refreshOpen);
 
+  // --- stato per record
   let activeRecordId = null;
   let urlCheckTimer  = null;
 
@@ -72,6 +70,7 @@
     }
   }
 
+  // Salva
   btnS.addEventListener('click', async () => {
     const id = activeRecordId || currentRecordId();
     if (!id){ help.textContent='ID scheda non disponibile'; return; }
@@ -86,6 +85,18 @@
     } finally { btnS.disabled=false; btnS.textContent=old; setTimeout(()=>{help.style.color='#666'},2000); }
   });
 
+  // iOS fix: apri nella STESSA scheda per preservare correttamente la query ?pvid=...
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  btnO.addEventListener('click', function(ev){
+    const href = normalize(input.value||"");
+    if (!isUrl(href)) return;
+    if (isIOS){
+      ev.preventDefault();
+      location.href = href; // Safari iOS: evita perdita di query aprendo in _self
+    }
+  });
+
+  // --- osserva cambio record
   const obs = new MutationObserver(() => {
     const id = currentRecordId();
     if (id !== activeRecordId) loadFor(id);
