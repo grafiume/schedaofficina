@@ -4,11 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reindirizzamento…</title>
-  <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:24px}</style>
+  <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:20px}</style>
 </head>
 <body>
   <p>Reindirizzamento in corso…</p>
-  <noscript>Attiva JavaScript per proseguire.</noscript>
   <script>
     (function(){
       function go(url){
@@ -18,23 +17,16 @@
         var u = new URL(location.href);
         var to = u.searchParams.get('to') || '';
         if(!to){ document.body.innerHTML = '<p>URL mancante.</p>'; return; }
-        // fallback HTML <meta> refresh dinamico
-        var meta = document.createElement('meta');
-        meta.httpEquiv = 'refresh';
-        meta.content = '0;url=' + to;
-        document.head.appendChild(meta);
-        // fallback anchor "simulato"
-        var a = document.createElement('a'); a.href = to; a.rel='noopener'; document.body.appendChild(a);
+        // Fallback multipli + link manuale
+        var meta = document.createElement('meta'); meta.httpEquiv='refresh'; meta.content='0;url='+to; document.head.appendChild(meta);
+        var a = document.createElement('a'); a.href=to; a.rel='noopener'; a.style.display='none'; document.body.appendChild(a);
         try{ a.click(); }catch(e){}
-        // fallback programmatico
         setTimeout(function(){ go(to); }, 0);
+        setTimeout(function(){ document.body.innerHTML += '<p><a href="'+to+'">Apri manualmente</a></p>'; }, 600);
       }catch(e){
         document.body.innerHTML = '<p>Errore redirect.</p>';
       }
     })();
   </script>
-  <!-- Fallback manuale -->
-  <p id="manual" style="margin-top:12px;display:none">Se non succede nulla <a id="manualLink" href="#">tocca qui</a>.</p>
-  <script>try{ var u=new URL(location.href); var to=u.searchParams.get('to'); if(to){ var ml=document.getElementById('manual'); var a=document.getElementById('manualLink'); a.href=to; ml.style.display='block'; } }catch(e){}</script>
 </body>
 </html>

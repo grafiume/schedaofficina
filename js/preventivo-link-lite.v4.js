@@ -1,10 +1,13 @@
 
-/* preventivo-link-lite.v4.js — forza apertura stessa scheda su TUTTI i device */
+/* preventivo-link-lite.v4.js — iOS enforce-href variant (same filename) */
 (function(){
   if (window.__SO_PREV_LITE_INIT) return; window.__SO_PREV_LITE_INIT = true;
 
   const SUPA_URL = "https://pedmdiljgjgswhfwedno.supabase.co";
   const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNjgxNTIsImV4cCI6MjA3NTY0NDE1Mn0.4p2T8BJHGjVsj1Bx22Mk1mbYmfh7MX5WpCwxhwi4CmQ";
+
+  const REDIRECT_PATH = "/schedaofficina/redirect.html";
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
   function getRidFromURL(){ try { const p=new URLSearchParams(location.search); return p.get('rid')||p.get('id')||null; } catch { return null; } }
   function getRidFromBody(){ const b=document.body; return (b && b.dataset && b.dataset.recordId) ? String(b.dataset.recordId) : null; }
@@ -40,11 +43,27 @@
 
   function isUrl(v){ return !!v && /^https?:\/\//i.test((v||'').trim()); }
   function normalize(v){ try{ return new URL((v||'').trim()).toString(); }catch{ return (v||'').trim(); } }
+  function isPreventivi(v){ const u=(v||'').toLowerCase(); return u.includes('grafiume.github.io/preventivi-elip/') && u.includes('pvid='); }
+
+  function setHref(v){
+    // Su iOS: punta SEMPRE alla redirect locale
+    if (isIOS && isPreventivi(v)){
+      btnO.removeAttribute('target');
+      btnO.href = `${location.origin}${REDIRECT_PATH}?to=${encodeURIComponent(v)}`;
+    } else {
+      // desktop e altri casi
+      btnO.href = v;
+    }
+  }
+
   function refreshOpen(){
     const v = normalize(input.value||"");
-    btnO.dataset.href = v;
-    if (isUrl(v)){ btnO.style.opacity=1; btnO.style.pointerEvents='auto'; }
-    else { btnO.style.opacity=.6; btnO.style.pointerEvents='none'; }
+    if (isUrl(v)){
+      setHref(v);
+      btnO.style.opacity=1; btnO.style.pointerEvents='auto';
+    } else {
+      btnO.href='#'; btnO.style.opacity=.6; btnO.style.pointerEvents='none';
+    }
   }
   input.addEventListener('input', refreshOpen);
 
@@ -73,16 +92,18 @@
     try {
       await saveLink(id, link || null);
       help.style.color='#0a0'; help.textContent='Link salvato ✔';
+      refreshOpen();
     } catch(e){
       console.error(e); help.style.color='#c00'; help.textContent='Errore salvataggio: '+(e.message||e);
     } finally { btnS.disabled=false; btnS.textContent=old; setTimeout(()=>{help.style.color='#666'},2000); }
   });
 
-  // FORZA apertura stessa scheda su TUTTE le piattaforme (desktop + iOS)
+  // Forza stessa scheda su tutti (evita target _blank)
   btnO.removeAttribute('target');
   btnO.addEventListener('click', function(ev){
-    const href = btnO.dataset.href || normalize(input.value||"");
+    const href = btnO.getAttribute('href') || normalize(input.value||"");
     if (!isUrl(href)) return;
+    // su iOS l'href punta già a redirect.html?to=..., su desktop apriamo direttamente
     ev.preventDefault();
     try { window.location.replace(href); }
     catch(_) { window.location.href = href; }
