@@ -2,6 +2,12 @@
  * Se l'ID scheda non è reperibile, al click di "Salva" viene richiesto via prompt.
  * Prova anche: window.elip_current.id, input/attr comuni e querystring.
  */
+<script>
+  // Progetto SchedaOfficina
+  window.ELIP_SUPA_URL = "https://pedmdiljgjgswhfwedno.supabase.co";
+  window.ELIP_SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNjgxNTIsImV4cCI6MjA3NTY0NDE1Mn0.4p2T8BJHGjVsj1Bx22Mk1mbYmfh7MX5WpCwxhwi4CmQ";
+</script>
+
 (function () {
   const ALLOWED_BASE = /^https:\/\/grafiume\.github\.io\/preventivi-elip\/\?pvid=[0-9a-f-]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
