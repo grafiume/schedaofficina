@@ -1,13 +1,10 @@
 
-/* preventivo-link-lite.v4.js — per-record + iOS MAX fallback */
+/* preventivo-link-lite.v4.js — forza apertura stessa scheda su TUTTI i device */
 (function(){
   if (window.__SO_PREV_LITE_INIT) return; window.__SO_PREV_LITE_INIT = true;
 
   const SUPA_URL = "https://pedmdiljgjgswhfwedno.supabase.co";
   const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNjgxNTIsImV4cCI6MjA3NTY0NDE1Mn0.4p2T8BJHGjVsj1Bx22Mk1mbYmfh7MX5WpCwxhwi4CmQ";
-
-  // Cambia solo se la cartella online NON è /schedaofficina (rispettare maiuscole)
-  const REDIRECT_PATH = "/schedaofficina/redirect.html";
 
   function getRidFromURL(){ try { const p=new URLSearchParams(location.search); return p.get('rid')||p.get('id')||null; } catch { return null; } }
   function getRidFromBody(){ const b=document.body; return (b && b.dataset && b.dataset.recordId) ? String(b.dataset.recordId) : null; }
@@ -45,8 +42,9 @@
   function normalize(v){ try{ return new URL((v||'').trim()).toString(); }catch{ return (v||'').trim(); } }
   function refreshOpen(){
     const v = normalize(input.value||"");
-    if (isUrl(v)){ btnO.href=v; btnO.style.opacity=1; btnO.style.pointerEvents='auto'; }
-    else { btnO.href='#'; btnO.style.opacity=.6; btnO.style.pointerEvents='none'; }
+    btnO.dataset.href = v;
+    if (isUrl(v)){ btnO.style.opacity=1; btnO.style.pointerEvents='auto'; }
+    else { btnO.style.opacity=.6; btnO.style.pointerEvents='none'; }
   }
   input.addEventListener('input', refreshOpen);
 
@@ -80,22 +78,15 @@
     } finally { btnS.disabled=false; btnS.textContent=old; setTimeout(()=>{help.style.color='#666'},2000); }
   });
 
-  // iOS: usa SEMPRE redirect locale per link che contengono preventivi-elip e pvid=
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  function needsRedirect(url){
-    const u = (url||'').toLowerCase();
-    return u.includes('preventivi-elip') && u.includes('pvid=');
-  }
+  // FORZA apertura stessa scheda su TUTTE le piattaforme (desktop + iOS)
+  btnO.removeAttribute('target');
   btnO.addEventListener('click', function(ev){
-    const href = normalize(input.value||"");
+    const href = btnO.dataset.href || normalize(input.value||"");
     if (!isUrl(href)) return;
-    if (isIOS && needsRedirect(href)){
-      ev.preventDefault(); ev.stopImmediatePropagation();
-      try { btnO.removeAttribute('target'); } catch(e){}
-      const redir = `${location.origin}${REDIRECT_PATH}?to=${encodeURIComponent(href)}`;
-      setTimeout(()=>{ location.href = redir; }, 0);
-    }
-  }, true);
+    ev.preventDefault();
+    try { window.location.replace(href); }
+    catch(_) { window.location.href = href; }
+  });
 
   // osserva cambio record
   const obs = new MutationObserver(() => {
