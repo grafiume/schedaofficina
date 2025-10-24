@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reindirizzamento…</title>
+  <meta http-equiv="refresh" content="3">
+  <style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; padding:20px}</style>
+</head>
+<body>
+  <div>Reindirizzamento in corso…</div>
+  <script>
+    (function(){
+      try{
+        // Legge ?to= oppure #to=
+        var u = new URL(location.href);
+        var to = u.searchParams.get('to') || (u.hash||'').replace(/^#to=/,'') || '';
+        to = decodeURIComponent(to);
+        // Valida che sia un URL https verso preventivi-elip con ?pvid=
+        var ok = /^https:\/\/grafiume\.github\.io\/preventivi-elip\/\?pvid=[0-9a-f-]{36}$/i.test(to);
+        if(!ok) { document.body.innerHTML = '<p>URL non valido.</p>'; return; }
+        // Usa replace per non lasciare traccia nella cronologia intermedia
+        location.replace(to);
+      }catch(e){
+        document.body.innerHTML = '<p>Errore redirect.</p>';
+      }
+    })();
+  </script>
+</body>
+</html>
