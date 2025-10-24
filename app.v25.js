@@ -1,220 +1,538 @@
-// app.v25.js — HOTFIX RUNTIME (read/write di base) — sostituisce il placeholder
+// === ELIP TAGLIENTE • app.v25.js ===
+// Thumb 144x144 con lazy-load + throttling & backoff (anti 429), overlay in pagina,
+// Ricerca con filtri esatti, Nuova scheda con upload immagini (mobile OK),
+// Salva scheda => ritorno automatico alla Home.
+
+// ----------------- Helpers -----------------
 (function(){
-  // 1) Supabase client
-  if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
-    console.error("SUPABASE non configurato: definisci SUPABASE_URL/ANON_KEY in config.js");
-    return;
-  }
-  const { createClient } = window.supabase;
-  const supa = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-
-  // 2) UI helpers
-  const el = (id)=>document.getElementById(id);
-  const pageHome = el('page-home');
-  const pageSearch = el('page-search');
-  const pageEdit = el('page-edit');
-  const errBanner = el('errBanner');
-  function showPage(p){
-    [pageHome,pageSearch,pageEdit].forEach(x=>x.classList.add('d-none'));
-    p.classList.remove('d-none');
-  }
-
-  // 3) Nav buttons
-  el('btnHome').onclick = ()=>{ showPage(pageHome); loadHome(); };
-  el('btnRicerca').onclick = ()=>{ showPage(pageSearch); };
-  el('btnNew').onclick = ()=>{
-    // Apri il modale "Nuova scheda"
-    const modal = new bootstrap.Modal(document.getElementById('newRecordModal'));
-    modal.show();
-  };
-
-  // 4) Mapping helper per campi variabili
-  function pick(obj, keys){ for (const k of keys) { if (obj && obj[k] != null) return obj[k]; } return null; }
-
-  // 5) HOME: carica record
-  async function loadHome(){
-    errBanner.classList.add('d-none');
-    const tbody = document.getElementById('homeRows');
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Caricamento…</td></tr>';
-    try {
-      const { data, error } = await supa.from('records')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (error) throw error;
-
-      if (!data || data.length === 0){
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Nessun record</td></tr>';
-        return;
+  if (typeof window.fmtIT !== 'function') {
+    window.fmtIT = function(d){
+      if(!d) return '';
+      const s = String(d);
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)){
+        const [y,m,dd] = s.split('-');
+        return [dd,m,y].join('/');
       }
-
-      const rows = data.map(r=>{
-        const id = r.id;
-        const dataA = pick(r, ['dataApertura','data_apertura','created_at']) || '';
-        const cliente = pick(r, ['cliente','nome','ragione_sociale']) || '';
-        const descr = pick(r, ['descrizione','descrizione_norm']) || '';
-        const modello = pick(r, ['modello','modello_norm']) || '';
-        const stato = pick(r, ['statoPratica','statopratica','stato','stato_pratica']) || '';
-
-        return `
-          <tr>
-            <td class="thumb-cell"><div class="ratio ratio-4x3 bg-light rounded"></div></td>
-            <td>${dataA ? String(dataA).slice(0,10) : ''}</td>
-            <td>${cliente||''}</td>
-            <td>${descr||''}</td>
-            <td>${modello||''}</td>
-            <td>${stato||''}</td>
-            <td class="text-end">
-              <button class="btn btn-sm btn-primary" data-open="${id}">Apri</button>
-            </td>
-          </tr>`;
-      }).join('');
-      tbody.innerHTML = rows;
-
-      // wire "Apri"
-      tbody.querySelectorAll('[data-open]').forEach(btn=>{
-        btn.addEventListener('click', ()=> openEdit(btn.getAttribute('data-open')));
-      });
-    } catch (e){
-      console.error(e);
-      errBanner.textContent = 'Errore caricamento: ' + (e.message || e);
-      errBanner.classList.remove('d-none');
-    }
+      return s;
+    };
   }
+  if (typeof window.norm !== 'function') {
+    window.norm = s => (s??'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  }
+  if (typeof window.statusOrder !== 'function') {
+    window.statusOrder = s => { s=norm(s); if(s.includes('attesa'))return 1; if(s.includes('lavorazione'))return 2; if(s.includes('completata'))return 3; return 9; };
+  }
+  if (typeof window.byHomeOrder !== 'function') {
+    window.byHomeOrder = (a,b)=>{
+      // Ordine principale: dataApertura desc
+      const da = String(b.dataApertura||'').localeCompare(String(a.dataApertura||''));
+      if (da !== 0) return da;
+      // Secondario: stato
+      return window.statusOrder(a.statoPratica) - window.statusOrder(b.statoPratica);
+    };
+  }
+})();
 
-  // 6) OPEN EDIT espone globale per il bridge/finestrella
-  window.openEdit = function(id){
-    if (!id) return;
-    try { document.body.dataset.recordId = String(id); } catch {}
-    loadEdit(id);
-    showPage(pageEdit);
+function show(id){
+  ['page-home','page-search','page-edit'].forEach(pid=>{
+    const el=document.getElementById(pid); if(el) el.classList.add('d-none');
+  });
+  const tgt=document.getElementById(id); if(tgt) tgt.classList.remove('d-none');
+  window.state.currentView=id.replace('page-','');
+}
+if (typeof window.state !== 'object'){ window.state={ all:[], currentView:'home', editing:null }; }
+
+// ----------------- Supabase -----------------
+if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){
+  console.warn('config.js mancante o variabili non definite');
+}
+const sb = (typeof supabase!=='undefined')
+  ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
+  : null;
+
+// ----------------- Storage helpers -----------------
+const bucket='photos';
+const _pubUrlCache=new Map();
+function publicUrl(path){ const {data}=sb.storage.from(bucket).getPublicUrl(path); return data?.publicUrl||''; }
+function publicUrlCached(path){ if(_pubUrlCache.has(path)) return _pubUrlCache.get(path); const u=publicUrl(path); _pubUrlCache.set(path,u); return u; }
+
+// Throttling queue per evitare 429
+const REQ_QUEUE = [];
+let ACTIVE = 0;
+const MAX_CONCURRENCY = 2;          // al massimo 2 richieste contemporanee
+const MIN_SPACING_MS = 160;         // spaziatura tra job per non saturare
+function delay(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+async function runQueue(){
+  if (ACTIVE >= MAX_CONCURRENCY) return;
+  const job = REQ_QUEUE.shift();
+  if (!job) return;
+  ACTIVE++;
+  try { await job(); }
+  finally {
+    ACTIVE--;
+    // leggero spacing tra job
+    setTimeout(runQueue, MIN_SPACING_MS);
+  }
+}
+function enqueue(fn){
+  REQ_QUEUE.push(fn);
+  runQueue();
+}
+
+// list con retry/backoff se 429
+async function listPhotosFromPrefix(prefix){
+  let attempt = 0;
+  while (attempt < 4){
+    const { data, error } = await sb.storage.from(bucket).list(prefix, {limit:200, sortBy:{column:'name', order:'asc'}});
+    if (!error) return (data||[]).map(x => prefix + x.name);
+    // se 429 o rete, backoff
+    const msg = (error?.message || '').toLowerCase();
+    const status = error?.status || 0;
+    if (status === 429 || msg.includes('too many') || msg.includes('rate')){
+      await delay(400 + attempt*600);
+      attempt++;
+      continue;
+    }
+    // altri errori -> stop
+    return [];
+  }
+  return [];
+}
+
+// Try multiple layouts + table fallback (con queue)
+const FIRST_PHOTO_CACHE = new Map(); // recordId -> url (o '' se nessuna)
+function getThumbUrl(recordId){
+  // Se in cache, immediato
+  if (FIRST_PHOTO_CACHE.has(recordId)) return Promise.resolve(FIRST_PHOTO_CACHE.get(recordId));
+
+  // Promise di risoluzione che usa la queue con backoff
+  return new Promise((resolve)=>{
+    enqueue(async ()=>{
+      // 1) new layout
+      let p = await listPhotosFromPrefix(`records/${recordId}/`);
+      if (!p.length){
+        // 2) old layout
+        p = await listPhotosFromPrefix(`${recordId}/`);
+      }
+      if (!p.length){
+        // 3) fallback tabella
+        try{
+          const { data, error } = await sb.from('photos')
+            .select('path, created_at')
+            .eq('record_id', recordId)
+            .order('created_at', { ascending:true })
+            .limit(1);
+          if (!error && data && data.length) p = [data[0].path];
+        }catch{}
+      }
+      const url = p.length ? publicUrlCached(p[0]) : '';
+      FIRST_PHOTO_CACHE.set(recordId, url);
+      resolve(url);
+    });
+  });
+}
+
+// Lazy-load con IntersectionObserver
+const IO = ('IntersectionObserver' in window)
+  ? new IntersectionObserver((entries)=>{
+      entries.forEach(en=>{
+        if (en.isIntersecting){
+          const img = en.target;
+          IO.unobserve(img);
+          const recordId = img.getAttribute('data-rec');
+          if (!recordId) return;
+          getThumbUrl(recordId).then(url=>{
+            if (url){
+              img.decoding='async'; img.loading='lazy'; img.fetchPriority='low';
+              img.src = url;
+              img.addEventListener('click', ()=>openLightbox(url));
+            } else {
+              img.alt = '—';
+            }
+          });
+        }
+      });
+    }, { rootMargin: '200px 0px' })
+  : null;
+
+function mountLazyThumb(imgEl, recordId){
+  imgEl.setAttribute('data-rec', recordId);
+  if (IO) IO.observe(imgEl);
+  else {
+    // fallback senza IO: carica comunque con queue
+    getThumbUrl(recordId).then(url=>{
+      if (url){
+        imgEl.decoding='async'; imgEl.loading='lazy'; imgEl.fetchPriority='low';
+        imgEl.src = url;
+        imgEl.addEventListener('click', ()=>openLightbox(url));
+      } else {
+        imgEl.alt = '—';
+      }
+    });
+  }
+}
+
+// ----------------- Overlay (single) -----------------
+(function initOverlay(){
+  const overlay = document.getElementById('imgOverlay');
+  const img = document.getElementById('imgOverlayImg');
+  if (!overlay || !img) return;
+  const btn = overlay.querySelector('.closeBtn');
+  function close(){ overlay.classList.remove('open'); img.removeAttribute('src'); }
+  btn?.addEventListener('click', close);
+  overlay.addEventListener('click', (e)=>{ if (e.target === overlay) close(); });
+  window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') close(); });
+  window.__openOverlay = function(url){ img.src = url; overlay.classList.add('open'); };
+})();
+function openLightbox(url){
+  if (typeof window.__openOverlay === 'function') window.__openOverlay(url);
+  else { try{ window.location.assign(url); } catch(e){ window.location.href = url; } }
+}
+
+// ----------------- KPI + Home render -----------------
+function renderKPIs(rows){
+  try{
+    const tot=rows.length;
+    const att=rows.filter(r=>norm(r.statoPratica).includes('attesa')).length;
+    const lav=rows.filter(r=>norm(r.statoPratica).includes('lavorazione')).length;
+    const comp=rows.filter(r=>norm(r.statoPratica).includes('completata')).length;
+    const set=(id,val)=>{ const el=document.getElementById(id); if(el) el.textContent=val; };
+    set('kpiTot',tot); set('kpiAttesa',att); set('kpiLav',lav); set('kpiComp',comp);
+  }catch{}
+}
+
+window.renderHome=function(rows){
+  const tb=document.getElementById('homeRows'); if(!tb) return;
+  tb.innerHTML=''; renderKPIs(rows);
+  (rows||[]).sort(byHomeOrder).forEach(r=>{
+    const tr=document.createElement('tr');
+
+    const tdFoto=document.createElement('td'); tdFoto.className='thumb-cell';
+    const img=document.createElement('img'); img.className='thumb thumb-home'; img.alt='';
+    tdFoto.appendChild(img); tr.appendChild(tdFoto);
+
+    const tdData=document.createElement('td'); tdData.textContent=fmtIT(r.dataApertura); tr.appendChild(tdData);
+    const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; tr.appendChild(tdCliente);
+    const tdDesc=document.createElement('td'); tdDesc.textContent=r.descrizione??''; tr.appendChild(tdDesc);
+    const tdMod=document.createElement('td'); tdMod.textContent=r.modello??''; tr.appendChild(tdMod);
+
+    const tdStato=document.createElement('td');
+    const closed=norm(r.statoPratica).includes('completata');
+    tdStato.textContent=r.statoPratica??'';
+    if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
+    tr.appendChild(tdStato);
+
+    const tdAz=document.createElement('td'); tdAz.className='text-end';
+    const btn=document.createElement('button'); btn.className='btn btn-sm btn-outline-primary'; btn.type='button'; btn.textContent='Apri';
+    btn.addEventListener('click',()=>openEdit(r.id)); tdAz.appendChild(btn); tr.appendChild(tdAz);
+
+    tb.appendChild(tr);
+
+    // Miniatura: lazy + queue (anti 429)
+    mountLazyThumb(img, r.id);
+  });
+  if(!rows?.length){ tb.innerHTML='<tr><td colspan="7" class="text-center text-muted py-4">Nessun record</td></tr>'; }
+};
+
+// ----------------- Ricerca -----------------
+function getSearchFilters(){
+  return {
+    q: document.getElementById('q').value.trim(),
+    noteExact: document.getElementById('noteExact')?.value.trim() || '',
+    batt: document.getElementById('fBatt').value.trim(),
+    asse: document.getElementById('fAsse')?.value.trim() || '',
+    pacco: document.getElementById('fPacco')?.value.trim() || '',
+    larg: document.getElementById('fLarg')?.value.trim() || '',
+    punta: document.getElementById('fPunta')?.value.trim() || '',
+    np: document.getElementById('fNP')?.value.trim() || '',
   };
+}
+function toNum(val){ if(val==null) return null; const s=String(val).trim().replace(',', '.'); if(s==='') return null; const n=Number(s); return Number.isFinite(n)?n:null; }
+function isNumEq(fv, rv){ if(fv==null || String(fv).trim()==='') return true; const f=toNum(fv), r=toNum(rv); if(f===null||r===null) return false; return f===r; }
+function matchRow(r,f){
+  if(f.q){
+    const hay=[r.descrizione,r.modello,r.cliente,r.telefono,r.docTrasporto].map(norm).join(' ');
+    const tokens=norm(f.q).split(/\s+/).filter(Boolean);
+    for(const t of tokens){ if(!hay.includes(t)) return false; }
+  }
+  if(f.noteExact && norm(r.note)!==norm(f.noteExact)) return false;
+  if(!isNumEq(f.batt,r.battCollettore)) return false;
+  if(!isNumEq(f.asse,r.lunghezzaAsse)) return false;
+  if(!isNumEq(f.pacco,r.lunghezzaPacco)) return false;
+  if(!isNumEq(f.larg,r.larghezzaPacco)) return false;
+  if(f.punta && norm(f.punta)!==norm(r.punta)) return false;
+  if(!isNumEq(f.np,r.numPunte)) return false;
+  return true;
+}
+function doSearch(){
+  const f=getSearchFilters();
+  const rows=(window.state.all||[]).filter(r=>matchRow(r,f)).sort(byHomeOrder);
+  const tb=document.getElementById('searchRows'); tb.innerHTML='';
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
 
-  // 7) EDIT: carica record singolo
-  async function loadEdit(id){
-    try {
-      const { data, error } = await supa.from('records').select('*').eq('id', id).single();
-      if (error) throw error;
-      // Riempie campi principali
-      el('eDescrizione').value = pick(data, ['descrizione','descrizione_norm']) || '';
-      el('eModello').value = pick(data, ['modello','modello_norm']) || '';
-      el('eApertura').value = (pick(data, ['dataApertura','data_apertura'])||'').slice(0,10);
-      el('eAcc').value     = (pick(data, ['dataAccettazione','data_accettazione'])||'').slice(0,10);
-      el('eScad').value    = (pick(data, ['dataScadenza','data_scadenza'])||'').slice(0,10);
-      el('eStato').value   = pick(data, ['statoPratica','statopratica','stato','stato_pratica']) || 'In attesa';
-      el('ePrev').value    = pick(data, ['preventivo','preventivoStato','preventivo_stato']) || 'Non inviato';
-      el('eDDT').value     = pick(data, ['docTrasporto','doctrasporto_norm','documento_trasporto']) || '';
-      el('eCliente').value = pick(data, ['cliente','cliente_norm']) || '';
-      el('eTel').value     = pick(data, ['telefono','telefono_norm']) || '';
-      el('eEmail').value   = pick(data, ['email','email_norm']) || '';
+    const tdFoto=document.createElement('td'); tdFoto.className='thumb-cell';
+    const img=document.createElement('img'); img.className='thumb thumb-home'; img.alt='';
+    tdFoto.appendChild(img); tr.appendChild(tdFoto);
 
-      el('eBatt').value = pick(data, ['battCollettore','battcollettore_norm']) || '';
-      el('eAsse').value = pick(data, ['lunghezzaAsse','lunghezzaasse_norm']) || '';
-      el('ePacco').value= pick(data, ['lunghezzaPacco','lunghezzapacco_norm']) || '';
-      el('eLarg').value = pick(data, ['larghezzaPacco','larghezzapacco_norm']) || '';
-      el('ePunta').value= pick(data, ['punta','punta_norm']) || '';
-      el('eNP').value   = pick(data, ['numPunte','numpunte_norm']) || '';
-      el('eNote').value = pick(data, ['note','note_norm']) || '';
+    const tdData=document.createElement('td'); tdData.textContent=fmtIT(r.dataApertura); tr.appendChild(tdData);
+    const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; tr.appendChild(tdCliente);
+    const tdDesc=document.createElement('td'); tdDesc.textContent=r.descrizione??''; tr.appendChild(tdDesc);
+    const tdMod=document.createElement('td'); tdMod.textContent=r.modello??''; tr.appendChild(tdMod);
 
-      // Banner chiusa
-      const closed = (el('eStato').value||'').toLowerCase().includes('complet');
-      document.getElementById('closedBanner').classList.toggle('d-none', !closed);
-      document.getElementById('closedHint').textContent = closed ? 'La scheda risulta chiusa.' : '';
+    const tdStato=document.createElement('td');
+    const closed=norm(r.statoPratica).includes('completata');
+    tdStato.textContent=r.statoPratica??'';
+    if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
+    tr.appendChild(tdStato);
 
-      // Preventivo link (se esiste)
-      try {
-        const link = pick(data, ['preventivo_url']);
-        const inp = document.getElementById('preventivo_url');
-        if (inp) { inp.value = link || ''; const evt = new Event('input'); inp.dispatchEvent(evt); }
-      } catch {}
+    const tdAz=document.createElement('td'); tdAz.className='text-end';
+    const btn=document.createElement('button'); btn.className='btn btn-sm btn-outline-primary'; btn.type='button'; btn.textContent='Apri';
+    btn.addEventListener('click',()=>openEdit(r.id)); tdAz.appendChild(btn); tr.appendChild(tdAz);
 
-    } catch(e){
-      console.error(e);
-      alert('Errore nel caricamento della scheda: ' + (e.message||e));
+    tb.appendChild(tr);
+
+    // Miniatura: lazy + queue (anti 429)
+    mountLazyThumb(img, r.id);
+  });
+  if(!rows.length){ tb.innerHTML='<tr><td colspan="7" class="text-center text-muted py-4">Nessun risultato</td></tr>'; }
+}
+
+// ----------------- Gallery (Edit) -----------------
+async function uploadFiles(recordId, files){
+  const prefix=`records/${recordId}/`;
+  for (const f of files){
+    const name=Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
+    const { error } = await sb.storage.from(bucket).upload(prefix+name, f, { upsert:false });
+    if(error){ alert('Errore upload: '+error.message); return false; }
+  }
+  // invalida cache thumb per questo record
+  FIRST_PHOTO_CACHE.delete(recordId);
+  return true;
+}
+async function refreshGallery(recordId){
+  const gallery=document.getElementById('gallery');
+  const prev=document.querySelector('.img-preview');
+  if(gallery) gallery.innerHTML=''; if(prev) prev.innerHTML='';
+
+  // per non stressare lo storage, usa la stessa getThumbUrl (queue + cache) per la prima
+  const firstUrl = await getThumbUrl(recordId);
+  if(prev){
+    if(firstUrl){
+      const img0=new Image();
+      img0.alt='Anteprima'; img0.decoding='async'; img0.loading='eager'; img0.fetchPriority='high';
+      img0.src=firstUrl; prev.appendChild(img0);
+      img0.addEventListener('click',()=>openLightbox(firstUrl));
+    } else {
+      prev.textContent='Nessuna immagine disponibile';
     }
   }
 
-  // 8) Salvataggio scheda
-  document.getElementById('btnSave').addEventListener('click', async ()=>{
-    const id = document.body.dataset.recordId;
-    if (!id) return alert('ID scheda non rilevato');
-    // Prepara patch con i campi trovati
-    const patch = {};
-    // solo se compilati
-    patch.descrizione = el('eDescrizione').value || null;
-    patch.modello = el('eModello').value || null;
-    patch.dataApertura = el('eApertura').value || null;
-    patch.dataAccettazione = el('eAcc').value || null;
-    patch.dataScadenza = el('eScad').value || null;
-    patch.statoPratica = el('eStato').value || null;
-    patch.preventivo = el('ePrev').value || null;
-    patch.docTrasporto = el('eDDT').value || null;
-    patch.cliente = el('eCliente').value || null;
-    patch.telefono = el('eTel').value || null;
-    patch.email = el('eEmail').value || null;
-
-    patch.battCollettore = el('eBatt').value || null;
-    patch.lunghezzaAsse = el('eAsse').value || null;
-    patch.lunghezzaPacco = el('ePacco').value || null;
-    patch.larghezzaPacco = el('eLarg').value || null;
-    patch.punta = el('ePunta').value || null;
-    patch.numPunte = el('eNP').value || null;
-    patch.note = el('eNote').value || null;
-
-    try {
-      const { error } = await supa.from('records').update(patch).eq('id', id);
-      if (error) throw error;
-      alert('Scheda salvata ✔');
-      loadHome();
-      showPage(pageHome);
-    } catch(e){
-      console.error(e);
-      alert('Errore salvataggio: ' + (e.message||e));
-    }
-  });
-
-  document.getElementById('btnCancel').addEventListener('click', ()=>{
-    showPage(pageHome);
-  });
-
-  // 9) Ricerca semplice
-  document.getElementById('btnDoSearch').addEventListener('click', async ()=>{
-    const q = document.getElementById('q').value.trim().toLowerCase();
-    const tbody = document.getElementById('searchRows');
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Caricamento…</td></tr>';
+  // carica l’elenco completo (qui una sola richiesta, già con retry/backoff)
+  let paths = await listPhotosFromPrefix(`records/${recordId}/`);
+  if (!paths.length) paths = await listPhotosFromPrefix(`${recordId}/`);
+  if (!paths.length){
     try{
-      // semplice: scarica 200 e filtra client-side (evita errori su colonne/fts)
-      const { data, error } = await supa.from('records').select('*').order('created_at', { ascending:false }).limit(200);
-      if (error) throw error;
-      const needle = q.split(/\s+/).filter(Boolean);
-      const found = data.filter(r => {
-        const hay = (JSON.stringify(r)||'').toLowerCase();
-        return needle.every(k => hay.includes(k));
+      const { data } = await sb.from('photos').select('path').eq('record_id', recordId).order('created_at',{ascending:true});
+      if (data?.length) paths = data.map(r=>r.path);
+    }catch{}
+  }
+
+  if(gallery){
+    paths.forEach(p=>{
+      const url=publicUrlCached(p);
+      const col=document.createElement('div'); col.className='col-4';
+      const wrap=document.createElement('div'); wrap.className='position-relative';
+      const img=new Image(); img.alt=''; img.className='img-fluid rounded'; img.style.height='144px'; img.style.objectFit='cover'; img.src=url;
+      img.addEventListener('click',()=>openLightbox(url));
+      const del=document.createElement('button'); del.type='button'; del.className='btn btn-sm btn-danger position-absolute top-0 end-0 m-1'; del.textContent='×'; del.title='Elimina immagine';
+      del.addEventListener('click', async ev=>{ ev.stopPropagation(); if(!confirm('Sei sicuro di voler eliminare questa immagine?')) return;
+        const { error } = await sb.storage.from(bucket).remove([p]);
+        if(error){ alert('Errore eliminazione: '+error.message); return; }
+        await refreshGallery(recordId);
       });
-      const rows = found.map(r=>{
-        const id = r.id;
-        const dataA = (r.dataApertura || r.data_apertura || r.created_at || '').slice(0,10);
-        const cliente = r.cliente || '';
-        const descr = r.descrizione || '';
-        const modello = r.modello || '';
-        const stato = r.statoPratica || r.stato || '';
-        return `
-          <tr>
-            <td class="thumb-cell"><div class="ratio ratio-4x3 bg-light rounded"></div></td>
-            <td>${dataA}</td><td>${cliente}</td><td>${descr}</td><td>${modello}</td><td>${stato}</td>
-            <td class="text-end"><button class="btn btn-sm btn-primary" data-open="${id}">Apri</button></td>
-          </tr>`;
-      }).join('') || '<tr><td colspan="7" class="text-center py-4 text-muted">Nessun risultato</td></tr>';
-      tbody.innerHTML = rows;
-      tbody.querySelectorAll('[data-open]').forEach(btn=>{
-        btn.addEventListener('click', ()=> openEdit(btn.getAttribute('data-open')));
-      });
-    }catch(e){
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger">Errore ricerca</td></tr>';
+      wrap.appendChild(img); wrap.appendChild(del); col.appendChild(wrap); gallery.appendChild(col);
+    });
+  }
+}
+
+// ----------------- Edit page -----------------
+function setV(id,v){ const el=document.getElementById(id); if(!el) return;
+  if(el.tagName==='SELECT'){ let f=false; for(const opt of el.options){ if(norm(opt.value)===norm(v)){ el.value=opt.value; f=true; break; } } if(!f) el.value=''; }
+  else { el.value = v??''; }
+}
+function val(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
+
+function openEdit(id){
+  const r=window.state.all.find(x=>x.id===id); if(!r) return; window.state.editing=r;
+  const closed=norm(r.statoPratica).includes('completata'); const cb=document.getElementById('closedBanner'); if(cb) cb.classList.toggle('d-none',!closed);
+
+  setV('eDescrizione',r.descrizione); setV('eModello',r.modello);
+  setV('eApertura',r.dataApertura); setV('eAcc',r.dataAccettazione); setV('eScad',r.dataScadenza);
+  setV('eStato',r.statoPratica); setV('ePrev',r.preventivoStato||'Non inviato'); setV('eDDT',r.docTrasporto);
+  setV('eCliente',r.cliente); setV('eTel',r.telefono); setV('eEmail',r.email);
+  setV('eBatt',r.battCollettore); setV('eAsse',r.lunghezzaAsse); setV('ePacco',r.lunghezzaPacco); setV('eLarg',r.larghezzaPacco); setV('ePunta',r.punta); setV('eNP',r.numPunte); setV('eNote',r.note);
+
+  show('page-edit');
+  refreshGallery(r.id);
+
+  // “Carica su cloud” -> salva i dati, poi carica i file, aggiorna galleria
+  const upBtn=document.getElementById('btnUpload');
+  if(upBtn){
+    upBtn.onclick=async ()=>{
+      await saveEdit(false); // false = non chiudere
+      const files=document.getElementById('eFiles').files;
+      if(files?.length){
+        const ok=await uploadFiles(r.id, files);
+        if(ok){ await refreshGallery(r.id); document.getElementById('eFiles').value=''; }
+      }
+    };
+  }
+}
+
+// Salva + chiudi richiesta: dopo salvataggio torniamo in Home
+async function saveEdit(closeAfter=true){
+  const r=window.state.editing; if(!r) return;
+  const payload={
+    descrizione:val('eDescrizione'), modello:val('eModello'),
+    dataApertura:val('eApertura')||null, dataAccettazione:val('eAcc')||null, dataScadenza:val('eScad')||null,
+    statoPratica:val('eStato'), preventivoStato:val('ePrev'), docTrasporto:val('eDDT'),
+    cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'),
+    battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
+    punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'),
+  };
+  const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
+  if(error){ alert('Errore salvataggio: '+error.message); return; }
+  Object.assign(r, data);
+  renderHome(window.state.all);
+  if (closeAfter){
+    // torna alla Home come richiesto
+    show('page-home');
+  }
+  alert('Salvato!');
+}
+
+// ----------------- NUOVA SCHEDA -----------------
+let _newModal;
+function todayISO(){ const d=new Date(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${d.getFullYear()}-${m}-${dd}`; }
+function getV(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
+function toNull(s){ return s===''?null:s; }
+
+function previewNewFiles(){
+  const box=document.getElementById('nPreview');
+  const inp=document.getElementById('nFiles');
+  if(!box||!inp){ return; }
+  box.innerHTML='';
+  const files=inp.files;
+  if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
+  const url=URL.createObjectURL(files[0]);
+  const img=new Image(); img.src=url; img.onload=()=>URL.revokeObjectURL(url);
+  box.appendChild(img);
+  img.addEventListener('click', ()=>openLightbox(url));
+}
+
+async function createNewRecord(){
+  const dtAper=getV('nApertura')||todayISO();
+  const payload={
+    descrizione:getV('nDescrizione'),
+    modello:getV('nModello'),
+    dataApertura:dtAper,
+    dataAccettazione:toNull(getV('nAcc')),
+    dataScadenza:toNull(getV('nScad')),
+    statoPratica:getV('nStato')||'In attesa',
+    preventivoStato:getV('nPrev')||'Non inviato',
+    docTrasporto:getV('nDDT'),
+    cliente:getV('nCliente'), telefono:getV('nTel'), email:getV('nEmail'),
+    battCollettore:toNull(getV('nBatt')),
+    lunghezzaAsse:toNull(getV('nAsse')),
+    lunghezzaPacco:toNull(getV('nPacco')),
+    larghezzaPacco:toNull(getV('nLarg')),
+    punta:getV('nPunta'), numPunte:toNull(getV('nNP')),
+    note:getV('nNote'),
+  };
+  if(!payload.descrizione){ alert('Inserisci la descrizione.'); return; }
+
+  const { data, error } = await sb.from('records').insert(payload).select().single();
+  if(error){ alert('Errore creazione: '+error.message); return; }
+
+  // upload immagini se presenti
+  const files=document.getElementById('nFiles')?.files;
+  if(files && files.length){
+    const ok = await uploadFiles(data.id, files);
+    if(!ok){ alert('Attenzione: alcune immagini potrebbero non essere state caricate.'); }
+    document.getElementById('nFiles').value='';
+    const pv=document.getElementById('nPreview'); if(pv){ pv.innerHTML='Nessuna immagine'; }
+  }
+
+  // aggiorna cache & UI
+  window.state.all.unshift(data);
+  renderHome(window.state.all);
+
+  try{ _newModal?.hide(); }catch{}
+}
+
+// ----------------- Boot -----------------
+function showError(msg){ try{ const el=document.getElementById('errBanner'); if(el){ el.textContent=msg; el.classList.remove('d-none'); } }catch{} console.error(msg); }
+
+window.loadAll=async function(){
+  try{
+    if(!sb){ showError('Supabase non inizializzato'); return; }
+    let { data, error } = await sb
+      .from('records')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
+      .order('dataApertura',{ascending:false});
+    if(error){
+      const fb=await sb.from('records_view').select('*').order('dataApertura',{ascending:false}).limit(1000);
+      if(fb.error){ showError('Errore lettura records: '+error.message+' / '+fb.error.message); renderHome([]); return; }
+      data=fb.data;
     }
+    window.state.all=data||[];
+    renderHome(window.state.all);
+  }catch(e){ showError('Eccezione loadAll: '+(e?.message||e)); renderHome([]); }
+};
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  const H=(id,fn)=>{ const el=document.getElementById(id); if(el) el.addEventListener('click',fn); };
+
+  H('btnHome', ()=>show('page-home'));
+  H('btnRicerca', ()=>show('page-search'));
+  H('btnApply', doSearch);
+  H('btnDoSearch', doSearch);
+  H('btnReset', ()=>{
+    ['q','noteExact','fBatt','fAsse','fPacco','fLarg','fPunta','fNP'].forEach(id=>{
+      const el=document.getElementById(id); if(!el) return;
+      if(el.tagName==='SELECT') el.selectedIndex=0; else el.value='';
+    });
+    document.getElementById('searchRows').innerHTML='';
   });
 
-  // 10) Avvio
-  showPage(pageHome);
-  loadHome();
-})(); 
+  H('kpiTotBtn', ()=>renderHome(window.state.all));
+  H('kpiAttesaBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('attesa'))));
+  H('kpiLavBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('lavorazione'))));
+  H('kpiCompBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('completata'))));
+
+  // Salva scheda: chiudi dopo il salvataggio (come richiesto)
+  const btnSave=document.getElementById('btnSave');
+  if(btnSave){ btnSave.addEventListener('click', ()=>saveEdit(true)); }
+
+  const btnCancel=document.getElementById('btnCancel');
+  if(btnCancel){ btnCancel.addEventListener('click', ()=>show('page-home')); }
+
+  // Nuova scheda
+  const bNew=document.getElementById('btnNew');
+  if(bNew){
+    bNew.addEventListener('click', ()=>{
+      const el=document.getElementById('newRecordModal'); if(!el) return;
+      if(!_newModal) _newModal=new bootstrap.Modal(el, { backdrop:'static' });
+      const nApertura=document.getElementById('nApertura'); if(nApertura && !nApertura.value) nApertura.value=todayISO();
+      _newModal.show();
+    });
+  }
+  const bNewSave=document.getElementById('btnNewSave'); if(bNewSave) bNewSave.addEventListener('click', createNewRecord);
+
+  // Preview live per "Nuova scheda"
+  const nFiles=document.getElementById('nFiles'); if(nFiles) nFiles.addEventListener('change', previewNewFiles);
+
+  try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
+});
