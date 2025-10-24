@@ -283,14 +283,18 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="app.v25.js?v=25"></script>
   
-<!-- (opzionale ma consigliato) passa l’ID scheda corrente senza modificare il layout -->
-<script>
-  window.ELIP_RECORD_ID = "0077ad5c-2492-456c-a96e-4ac61f707b1e"; /* <— sostituisci con l’ID reale della scheda, se lo hai */
-  // In alternativa all’ELIP_RECORD_ID puoi mettere data-record-id="<UUID>" sul <body>,
-  // oppure passare ?rid=<UUID> nell’URL.
-</script>
+<!-- opzione A: variabile -->
+<script>window.ELIP_RECORD_ID = "0077ad5c-2492-456c-a96e-4ac61f707b1e";</script>
 
-<!-- integrazione NON invasiva: aggiunge solo il box “Collegamento al preventivo” -->
+<!-- opzione B: attributo sul body -->
+<body data-record-id="0077ad5c-2492-456c-a96e-4ac61f707b1e">
+  …
+  <script src="/Schedaofficina/js/preventivo-link-field.standalone.js?v=20251024"></script>
+</body>
+
+<!-- opzione C: parametro in URL (per prove) -->
+https://grafiume.github.io/Schedaofficina/index.html?rid=0077ad5c-2492-456c-a96e-4ac61f707b1e
+
 
 <script src="/schedaofficina/js/preventivo-link-field.standalone.js?v=20251024"></script>
 
