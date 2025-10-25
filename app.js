@@ -107,7 +107,7 @@ function show(id){
 
 async function loadAll(){
   const { data, error } = await sb.from('records')
-    .select('id, descrizione, modello, cliente, telefono, statoPratica, preventivoStato, note, dataApertura, dataAccettazione, dataScadenza, docTrasporto, battCollettore, lunghezzaAsse, lunghezzaPacco, larghezzaPacco, punta, numPunte, email');
+    .select('id, descrizione, modello, cliente, telefono, statoPratica, preventivoStato, note, dataApertura, dataAccettazione, dataScadenza, docTrasporto, battCollettore, lunghezzaAsse, lunghezzaPacco, larghezzaPacco, punta, numPunte, email, preventivo_url');
   if(error){ console.error(error); renderHome([]); return; }
   state.all = data;
   renderHome(state.all);
@@ -252,8 +252,10 @@ function openEdit(id){
   setV('ePunta', r.punta);
   setV('eNP', r.numPunte);
   setV('eNote', r.note);
+  setV('ePrevURL', r.preventivo_url||'');
 
   show('page-edit');
+  const btnOpenPrev = document.getElementById('btnOpenPrev'); if(btnOpenPrev){ btnOpenPrev.onclick = ()=>{ const u = val('ePrevURL'); if(u){ window.open(u, '_blank'); } }; }
   refreshGallery(r.id);
   document.getElementById('btnUpload').onclick = async ()=>{
     const files = document.getElementById('eFiles').files;
@@ -298,6 +300,7 @@ async function saveEdit(){
     punta: val('ePunta'),
     numPunte: val('eNP')||null,
     note: val('eNote'),
+    preventivo_url: val('ePrevURL')||null,
   };
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if(error){ alert('Errore salvataggio: '+error.message); return; }
