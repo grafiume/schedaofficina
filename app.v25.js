@@ -1,25 +1,3 @@
-
-function normalizePrevUrl(raw){
-  if(!raw) return '';
-  let u = String(raw).trim();
-  if(!/^https?:\/\//i.test(u) && /^[a-z0-9]/i.test(u)) u = 'https://' + u;
-  if(/[?&](pvid|id)=/i.test(u)) return u;
-  const m = u.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-  if(m){
-    const uuid = m[0];
-    return `https://grafiume.github.io/preventivi-elip/?pvid=${uuid}`;
-  }
-  if(/preventivi-?elip/i.test(u) && !/[?&](pvid|id)=/i.test(u)) return '';
-  return u;
-}
-async function fetchPreventivoUrl(id){
-  try{
-    const { data, error } = await sb.from('records').select('preventivo_url').eq('id', id).single();
-    if(error){ console.warn('[prevurl] fetchPreventivoUrl:', error.message); return null; }
-    return (data && data.preventivo_url) ? data.preventivo_url : null;
-  }catch(e){ console.warn('[prevurl] fetchPreventivoUrl exception', e); return null; }
-}
-
 // === ELIP TAGLIENTE • app.v25.js ===
 // Thumb 144x144 con lazy-load + throttling & backoff (anti 429), overlay in pagina,
 // Ricerca con filtri esatti, Nuova scheda con upload immagini (mobile OK),
@@ -395,34 +373,8 @@ function openEdit(id){
   setV('eStato',r.statoPratica); setV('ePrev',r.preventivoStato||'Non inviato'); setV('eDDT',r.docTrasporto);
   setV('eCliente',r.cliente); setV('eTel',r.telefono); setV('eEmail',r.email);
   setV('eBatt',r.battCollettore); setV('eAsse',r.lunghezzaAsse); setV('ePacco',r.lunghezzaPacco); setV('eLarg',r.larghezzaPacco); setV('ePunta',r.punta); setV('eNP',r.numPunte); setV('eNote',r.note);
-  try{ setV('ePrevURL',''); setV('ePrevURL', r.preventivo_url || ''); fetchPreventivoUrl(r.id).then(u=>{ if(u!==null){ setV('ePrevURL', u); r.preventivo_url=u; } }); }catch(e){}
 
   show('page-edit');
-  (function(){
-    const rec = window.state.editing;
-    const btnOpen = document.getElementById('btnOpenPrev');
-    if(btnOpen){ btnOpen.onclick = async function(){
-      if(!rec) return;
-      let u = await fetchPreventivoUrl(rec.id);
-      if(!u) u = document.getElementById('ePrevURL')?.value || '';
-      u = normalizePrevUrl(u);
-      if(!u){ alert('URL preventivo mancante o incompleto. Incolla l’URL completo o l’UUID e premi "Salva link".'); return; }
-      window.open(u,'_blank');
-    }; }
-    const btnSave = document.getElementById('btnSaveLink');
-    if(btnSave){ btnSave.onclick = async function(){
-      if(!rec) return;
-      const raw = (document.getElementById('ePrevURL')?.value || '').trim();
-      const url = normalizePrevUrl(raw) || null;
-      if(raw && !url){ alert('URL preventivo non valido: manca l\'ID. Incolla l’URL completo o l\'UUID.'); return; }
-      const { data, error } = await sb.from('records').update({ preventivo_url: url }).eq('id', rec.id).select('id, preventivo_url').single();
-      if(error){ alert('Errore salvataggio link: ' + error.message); return; }
-      rec.preventivo_url = data ? data.preventivo_url : url;
-      setV('ePrevURL', rec.preventivo_url || '');
-      alert('Link salvato');
-    }; }
-  })();
-
   refreshGallery(r.id);
 
   // “Carica su cloud” -> salva i dati, poi carica i file, aggiorna galleria
@@ -448,13 +400,11 @@ async function saveEdit(closeAfter=true){
     statoPratica:val('eStato'), preventivoStato:val('ePrev'), docTrasporto:val('eDDT'),
     cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'),
     battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
-    punta:val('ePunta'), numPunte:val('eNP')||null, note: val('eNote'),
-    preventivo_url: (()=>{ const v=(val('ePrevURL')||'').trim(); const n=normalizePrevUrl(v); return n||null; })(),
+    punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'),
   };
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if(error){ alert('Errore salvataggio: '+error.message); return; }
   Object.assign(r, data);
-  if(data && typeof data.preventivo_url !== 'undefined') r.preventivo_url = data.preventivo_url;
   renderHome(window.state.all);
   if (closeAfter){
     // torna alla Home come richiesto
@@ -586,3 +536,110 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
 });
+
+
+/* === PrevURL strict layer === */
+(function(){
+  if (!window || !window.document) return;
+
+  async function fetchPrevUrlExact(id){
+    try{
+      const { data, error } = await sb.from('records').select('preventivo_url').eq('id', id).single();
+      if(error){ console.warn('[prevurl] fetch exact:', error.message); return null; }
+      return (data && typeof data.preventivo_url !== 'undefined') ? data.preventivo_url : null;
+    }catch(e){ console.warn('[prevurl] fetch exact ex', e); return null; }
+  }
+
+  function ensureUrlBlock(){
+    if (document.getElementById('ePrevURL')) return;
+    const headers = Array.from(document.querySelectorAll('.card-header'));
+    const hdr = headers.find(h => /Dati scheda e cliente/i.test(h.textContent||''));
+    const card = hdr ? hdr.closest('.card') : null;
+    const body = card ? card.querySelector('.card-body') : null;
+    if(!body) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'row mt-2';
+    wrap.innerHTML = `
+      <div class="col-lg-8 mx-auto">
+        <div class="text-center mb-1"><strong>Link preventivo (URL)</strong></div>
+        <div class="input-group" style="max-width:720px;margin:0 auto;">
+          <input id="ePrevURL" class="form-control" placeholder="https://...">
+          <button class="btn btn-outline-primary" type="button" id="btnSaveLink">Salva link</button>
+          <button class="btn btn-outline-secondary" type="button" id="btnOpenPrev">Apri</button>
+        </div>
+        <div class="form-text text-center">Il link viene usato esattamente come scritto qui.</div>
+      </div>
+    `;
+    body.appendChild(wrap);
+  }
+
+  function bindButtons(){
+    const rec = (window.state && window.state.editing) || null;
+    const btnOpen = document.getElementById('btnOpenPrev');
+    if(btnOpen){
+      btnOpen.onclick = async function(){
+        if(!rec) return;
+        let u = await fetchPrevUrlExact(rec.id);
+        if(u == null) u = document.getElementById('ePrevURL')?.value || '';
+        u = (u||'').trim();
+        if(!u){ alert('Nessun URL salvato per questo record.'); return; }
+        // piccolo debug per conferma
+        try { console.log('[prevurl] OPEN URL =', u); } catch(e){}
+        alert('Apro questo URL:\n' + u);
+        window.open(u, '_blank');
+      };
+    }
+    const btnSave = document.getElementById('btnSaveLink');
+    if(btnSave){
+      btnSave.onclick = async function(){
+        if(!rec) return;
+        const url = (document.getElementById('ePrevURL')?.value || '').trim();
+        const { data, error } = await sb.from('records').update({ preventivo_url: url || null }).eq('id', rec.id).select('id, preventivo_url').single();
+        if(error){ alert('Errore salvataggio link: ' + error.message); return; }
+        if(rec) rec.preventivo_url = data ? data.preventivo_url : url;
+        const inp = document.getElementById('ePrevURL'); if(inp) inp.value = (rec && rec.preventivo_url) || '';
+        alert('Link salvato');
+      };
+    }
+  }
+
+  // Wrap openEdit
+  if (typeof window.openEdit === 'function'){
+    const _openEdit = window.openEdit;
+    window.openEdit = function(id){
+      const ret = _openEdit.apply(this, arguments);
+      try{
+        ensureUrlBlock();
+        const rec = (window.state && window.state.editing) || null;
+        const inp = document.getElementById('ePrevURL');
+        if(inp) inp.value = rec && rec.preventivo_url ? rec.preventivo_url : '';
+        if(rec){
+          fetchPrevUrlExact(rec.id).then(u => {
+            if(u !== null && inp){ inp.value = u; }
+            if(rec && u !== null){ rec.preventivo_url = u; }
+          });
+        }
+        bindButtons();
+      }catch(e){ console.warn('[prevurl] openEdit strict ex', e); }
+      return ret;
+    };
+  }
+
+  // Wrap saveEdit (post-save write of preventivo_url, as-is)
+  if (typeof window.saveEdit === 'function'){
+    const _saveEdit = window.saveEdit;
+    window.saveEdit = async function(){
+      const result = await _saveEdit.apply(this, arguments);
+      try{
+        const rec = (window.state && window.state.editing) || null;
+        if(rec){
+          const u = (document.getElementById('ePrevURL')?.value || '').trim();
+          await sb.from('records').update({ preventivo_url: u || null }).eq('id', rec.id);
+          if(rec) rec.preventivo_url = u || null;
+        }
+      }catch(e){ console.warn('[prevurl] saveEdit strict ex', e); }
+      return result;
+    };
+  }
+
+})(); /* === /PrevURL strict layer === */
