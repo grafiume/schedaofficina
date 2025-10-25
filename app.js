@@ -252,6 +252,7 @@ function openEdit(id){
   setV('ePunta', r.punta);
   setV('eNP', r.numPunte);
   setV('eNote', r.note);
+  setV('ePrevURL','');
   setV('ePrevURL', r.preventivo_url||'');
 
   show('page-edit');
@@ -300,12 +301,12 @@ async function saveEdit(){
     punta: val('ePunta'),
     numPunte: val('eNP')||null,
     note: val('eNote'),
-    preventivo_url: val('ePrevURL')||null,
   };
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if(error){ alert('Errore salvataggio: '+error.message); return; }
   // refresh local cache
   Object.assign(r, data);
+  r.preventivo_url = (data && data.preventivo_url) ?? val('ePrevURL');
   // chiusa banner
   const closed = norm(r.statoPratica).includes('completata');
   document.getElementById('closedBanner').classList.toggle('d-none', !closed);
