@@ -48,6 +48,9 @@ if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){
 }
 const sb = (typeof supabase!=='undefined')
   ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
+  window.sb = sb;
+window.supabaseClient = sb;
+
   : null;
 
 // ----------------- Storage helpers -----------------
