@@ -1,3 +1,36 @@
+
+async function fetchPreventivoUrl(id){
+  try{
+    const { data, error } = await sb.from('records')
+      .select('preventivo_url')
+      .eq('id', id)
+      .single();
+    if(error){ console.warn('fetchPreventivoUrl:', error.message); return null; }
+    return (data && data.preventivo_url) ? data.preventivo_url : null;
+  }catch(e){
+    console.warn('fetchPreventivoUrl exception', e); return null;
+  }
+}
+
+
+function normalizePrevUrl(raw){
+  if(!raw) return '';
+  let u = String(raw).trim();
+  // Add https if missing
+  if(!/^https?:\/\//i.test(u) && /^[a-z0-9]/i.test(u)) u = 'https://' + u;
+  // If has ?pvid= or ?id= already, keep
+  if(/[?&](pvid|id)=/i.test(u)) return u;
+  // Try to extract UUID anywhere
+  const m = u.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+  if(m){
+    const uuid = m[0];
+    return `https://grafiume.github.io/preventivi-elip/?pvid=${uuid}`;
+  }
+  // If points to preventivi-elip but lacks param, block to avoid empty page
+  if(/preventivi-?elip/i.test(u) && !/[?&](pvid|id)=/i.test(u)) return '';
+  return u;
+}
+
 // === ELIP TAGLIENTE • app.v25.js ===
 // Thumb 144x144 con lazy-load + throttling & backoff (anti 429), overlay in pagina,
 // Ricerca con filtri esatti, Nuova scheda con upload immagini (mobile OK),
@@ -33,7 +66,7 @@
   }
 })();
 
-function show(id){ try{var f=document.getElementById('ePrevURL'); if(f && id!=='page-edit') f.value='';}catch(e){} 
+function show(id){
   ['page-home','page-search','page-edit'].forEach(pid=>{
     const el=document.getElementById(pid); if(el) el.classList.add('d-none');
   });
@@ -373,24 +406,34 @@ function openEdit(id){
   setV('eStato',r.statoPratica); setV('ePrev',r.preventivoStato||'Non inviato'); setV('eDDT',r.docTrasporto);
   setV('eCliente',r.cliente); setV('eTel',r.telefono); setV('eEmail',r.email);
   setV('eBatt',r.battCollettore); setV('eAsse',r.lunghezzaAsse); setV('ePacco',r.lunghezzaPacco); setV('eLarg',r.larghezzaPacco); setV('ePunta',r.punta); setV('eNP',r.numPunte); setV('eNote',r.note);
-  if(document.getElementById('ePrevURL')){ setV('ePrevURL',''); setV('ePrevURL', r.preventivo_url || ''); }
+  if(document.getElementById('ePrevURL')){ setV('ePrevURL',''); setV('ePrevURL', r.preventivo_url || ''); fetchPreventivoUrl(r.id).then(u=>{ if(u!==null){ setV('ePrevURL', u); r.preventivo_url=u; } }); }
 
   show('page-edit');
   (function(){
-    var btnOpen=document.getElementById('btnOpenPrev');
-    if(btnOpen){ btnOpen.onclick=function(){
-      var u=(document.getElementById('ePrevURL')?.value||'').trim();
-      if(!u) return; if(!/^https?:\/\//i.test(u)) u='https://'+u; window.open(u,'_blank');
-    };}
-    var btnSave=document.getElementById('btnSaveLink');
-    if(btnSave){ btnSave.onclick=async function(){
-      const rec=window.state.editing; if(!rec) return;
-      const url=(document.getElementById('ePrevURL')?.value||'').trim()||null;
-      const {data,error}=await sb.from('records').update({ preventivo_url:url }).eq('id', rec.id).select('id,preventivo_url').single();
-      if(error){ alert('Errore salvataggio link: '+error.message); return; }
+    const rec = window.state.editing;
+    // Open from fresh DB
+    const btnOpen = document.getElementById('btnOpenPrev');
+    if(btnOpen){ btnOpen.onclick = async function(){
+      if(!rec) return;
+      let u = await fetchPreventivoUrl(rec.id);
+      if(!u) u = document.getElementById('ePrevURL')?.value || '';
+      u = normalizePrevUrl(u);
+      if(!u){ alert('URL preventivo mancante o incompleto. Incolla l’URL completo o l’UUID e premi "Salva link".'); return; }
+      window.open(u,'_blank');
+    }; }
+    // Save only preventivo_url
+    const btnSave = document.getElementById('btnSaveLink');
+    if(btnSave){ btnSave.onclick = async function(){
+      if(!rec) return;
+      const raw = (document.getElementById('ePrevURL')?.value || '').trim();
+      const url = normalizePrevUrl(raw) || null;
+      if(raw && !url){ alert('URL preventivo non valido: manca l\'ID. Incolla l’URL completo o l\'UUID.'); return; }
+      const { data, error } = await sb.from('records').update({ preventivo_url: url }).eq('id', rec.id).select('id, preventivo_url').single();
+      if(error){ alert('Errore salvataggio link: ' + error.message); return; }
       rec.preventivo_url = data ? data.preventivo_url : url;
+      setV('ePrevURL', rec.preventivo_url || '');
       alert('Link salvato');
-    };}
+    }; }
   })();
 
   refreshGallery(r.id);
@@ -418,11 +461,13 @@ async function saveEdit(closeAfter=true){
     statoPratica:val('eStato'), preventivoStato:val('ePrev'), docTrasporto:val('eDDT'),
     cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'),
     battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
-    punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'), preventivo_url:(val('ePrevURL')||'').trim()||null,
+    punta:val('ePunta'), numPunte:val('eNP')||null, note: val('eNote'),
+    preventivo_url: (()=>{ const v=(val('ePrevURL')||'').trim(); const n=normalizePrevUrl(v); return n||null; })(),
   };
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if(error){ alert('Errore salvataggio: '+error.message); return; }
   Object.assign(r, data);
+  if(data && typeof data.preventivo_url !== 'undefined') r.preventivo_url = data.preventivo_url;
   renderHome(window.state.all);
   if (closeAfter){
     // torna alla Home come richiesto
