@@ -400,8 +400,7 @@ async function saveEdit(closeAfter=true){
     statoPratica:val('eStato'), preventivoStato:val('ePrev'), docTrasporto:val('eDDT'),
     cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'),
     battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
-    punta:val('ePunta'), numPunte:val('eNP')||null, note: val('eNote'),
-    preventivo_url: (document.getElementById('ePrevURL') ? (document.getElementById('ePrevURL').value||'').trim() : (state.editing?.preventivo_url||null)),
+    punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'),
   };
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if(error){ alert('Errore salvataggio: '+error.message); return; }
@@ -481,7 +480,7 @@ window.loadAll=async function(){
     if(!sb){ showError('Supabase non inizializzato'); return; }
     let { data, error } = await sb
       .from('records')
-      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email, preventivo_url')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
       .order('dataApertura',{ascending:false});
     if(error){
       const fb=await sb.from('records_view').select('*').order('dataApertura',{ascending:false}).limit(1000);
@@ -537,154 +536,3 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
 });
-
-
-/* === PrevURL FINAL WRAP v26 (no direct DB) === */
-(function(){
-  const TAG='[prevurl-finalwrap]';
-  function log(){ try{ console.log(TAG, ...arguments); }catch(e){} }
-
-  function toEditableRoute(raw){
-    if(!raw) return '';
-    let u = String(raw).trim();
-    // already hash routes
-    if (/#\/(pvid|pvno)\//i.test(u)) return u;
-    // from query string
-    const qs = u.split('?')[1] || '';
-    const get = (k)=>{ const m = qs.match(new RegExp('(?:^|&)'+k+'=([^&]+)','i')); return m ? decodeURIComponent(m[1]) : ''; };
-    let pvid = get('pvid') || get('id') || get('pv');
-    let pvno = get('pvno') || get('numero');
-    // from free text
-    if(!pvid){
-      const m = u.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-      if(m) pvid = m[0];
-    }
-    if(!pvno){
-      const n = u.match(/\bPV-\d{4}-\d{6}\b/i);
-      if(n) pvno = n[0];
-    }
-    const base = 'https://grafiume.github.io/preventivi-elip/';
-    if(pvid) return base + '#/pvid/' + pvid;
-    if(pvno) return base + '#/pvno/' + pvno;
-    if(!/^https?:\/\//i.test(u) && /^[a-z0-9]/i.test(u)) u = 'https://' + u;
-    return u;
-  }
-
-  function ensureUi(){
-    if (document.getElementById('ePrevURL')){
-      if(!document.getElementById('prevUrlDiagNote')){
-        const d=document.createElement('div');
-        d.id='prevUrlDiagNote';
-        d.className='form-text text-center';
-        d.style.color='#b45309';
-        d.textContent='PrevURL FINAL WRAP v26 attivo';
-        const grp=document.getElementById('ePrevURL').closest('.input-group')?.parentElement;
-        if(grp) grp.appendChild(d);
-      }
-      return true;
-    }
-    // find the "Dati scheda e cliente" card
-    const hdrs = Array.from(document.querySelectorAll('.card-header'));
-    const hdr = hdrs.find(h => /Dati scheda e cliente/i.test(h.textContent||''));
-    const card = hdr ? hdr.closest('.card') : null;
-    const body = card ? card.querySelector('.card-body') : null;
-    if(!body) return false;
-    const wrap = document.createElement('div');
-    wrap.className='row mt-2';
-    wrap.innerHTML = `
-      <div class="col-lg-8 mx-auto">
-        <div class="text-center mb-1" style="color:#b45309"><strong>Link preventivo (URL) — FINAL WRAP v26</strong></div>
-        <div class="input-group" style="max-width:720px;margin:0 auto;">
-          <input id="ePrevURL" class="form-control" placeholder="https://..." autocomplete="off">
-          <button class="btn btn-outline-primary" type="button" id="btnSaveLink">Salva link</button>
-          <button class="btn btn-outline-secondary" type="button" id="btnOpenPrev">Apri</button>
-        </div>
-        <div class="form-text text-center">Il valore salvato in DB resta invariato; all'apertura uso la rotta editabile.</div>
-      </div>`;
-    body.appendChild(wrap);
-    return true;
-  }
-
-  function bind(rec){
-    const i = document.getElementById('ePrevURL');
-    const bOpen = document.getElementById('btnOpenPrev');
-    const bSave = document.getElementById('btnSaveLink');
-
-    if(i && !i._bound_init){
-      i._bound_init = true;
-      // keep in sync with rec when typing (does not save to DB)
-      i.addEventListener('input', ()=>{ if(rec) rec.preventivo_url = i.value; });
-    }
-
-    if(bOpen && !bOpen._bound){
-      bOpen._bound = true;
-      bOpen.onclick = ()=>{
-        if(!rec) return alert('Nessun record in modifica');
-        let u = (document.getElementById('ePrevURL')?.value || rec.preventivo_url || '').trim();
-        if(!u) return alert('URL mancante per questo record');
-        const routed = toEditableRoute(u);
-        // debug for clarity
-        alert('Apro:\n' + routed);
-        window.open(routed, '_blank');
-      };
-    }
-
-    if(bSave && !bSave._bound){
-      bSave._bound = true;
-      bSave.onclick = async ()=>{
-        if(!rec) return alert('Nessun record in modifica');
-        // copy the field into rec and call the app's own save
-        const val = (document.getElementById('ePrevURL')?.value || '').trim();
-        rec.preventivo_url = val; // keep raw value to satisfy DB CHECK (es. ?pvid=...)
-        if (typeof window.saveEdit === 'function') {
-          await window.saveEdit(); // uses the app's internal sb client and payload
-          alert('Link salvato (tramite Salva scheda)');
-        } else {
-          alert('Impossibile salvare: funzione saveEdit non trovata');
-        }
-      };
-    }
-  }
-
-  // Ensure that when the app saves, it includes preventivo_url from the input
-  if (typeof window.saveEdit === 'function' && !window._saveEditPrevWrap){
-    window._saveEditPrevWrap = window.saveEdit;
-    window.saveEdit = async function(){
-      try{
-        const rec = (window.state && window.state.editing) || null;
-        const i = document.getElementById('ePrevURL');
-        if(rec && i){ rec.preventivo_url = (i.value||'').trim(); }
-      }catch(e){}
-      return await window._saveEditPrevWrap.apply(this, arguments);
-    };
-  }
-
-  // Patch UI on entering edit
-  if (typeof window.openEdit === 'function' && !window._openEditPrevWrap){
-    window._openEditPrevWrap = window.openEdit;
-    window.openEdit = function(id){
-      const ret = window._openEditPrevWrap.apply(this, arguments);
-      setTimeout(()=>{ // after DOM shows
-        ensureUi();
-        const rec = (window.state && window.state.editing) || null;
-        const i = document.getElementById('ePrevURL');
-        if(i){ i.value = rec && rec.preventivo_url ? rec.preventivo_url : ''; }
-        bind(rec);
-      }, 60);
-      return ret;
-    };
-  }
-
-  // In case user was already in edit before this file loaded
-  setTimeout(()=>{
-    const pageEdit = document.getElementById('page-edit');
-    if(pageEdit && pageEdit.style.display !== 'none'){
-      const rec = (window.state && window.state.editing) || null;
-      ensureUi();
-      const i = document.getElementById('ePrevURL');
-      if(i){ i.value = rec && rec.preventivo_url ? rec.preventivo_url : ''; }
-      bind(rec);
-    }
-  }, 200);
-
-})(); /* === /PrevURL FINAL WRAP v26 === */
