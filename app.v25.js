@@ -1,14 +1,11 @@
 
 async function fetchPreventivoUrl(id){
   try{
-    const { data, error } = await sb.from('records')
-      .select('preventivo_url')
-      .eq('id', id)
-      .single();
-    if(error){ console.warn('fetchPreventivoUrl:', error.message); return null; }
+    const { data, error } = await sb.from('records').select('preventivo_url').eq('id', id).single();
+    if(error){ console.warn('[prevurl] fetchPreventivoUrl:', error.message); return null; }
     return (data && data.preventivo_url) ? data.preventivo_url : null;
   }catch(e){
-    console.warn('fetchPreventivoUrl exception', e); return null;
+    console.warn('[prevurl] fetchPreventivoUrl exception', e); return null;
   }
 }
 
@@ -16,17 +13,13 @@ async function fetchPreventivoUrl(id){
 function normalizePrevUrl(raw){
   if(!raw) return '';
   let u = String(raw).trim();
-  // Add https if missing
   if(!/^https?:\/\//i.test(u) && /^[a-z0-9]/i.test(u)) u = 'https://' + u;
-  // If has ?pvid= or ?id= already, keep
   if(/[?&](pvid|id)=/i.test(u)) return u;
-  // Try to extract UUID anywhere
   const m = u.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
   if(m){
     const uuid = m[0];
     return `https://grafiume.github.io/preventivi-elip/?pvid=${uuid}`;
   }
-  // If points to preventivi-elip but lacks param, block to avoid empty page
   if(/preventivi-?elip/i.test(u) && !/[?&](pvid|id)=/i.test(u)) return '';
   return u;
 }
@@ -397,7 +390,7 @@ function setV(id,v){ const el=document.getElementById(id); if(!el) return;
 }
 function val(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
 
-function openEdit(id){
+function openEdit(id){ console.log('[prevurl] openEdit', id);
   const r=window.state.all.find(x=>x.id===id); if(!r) return; window.state.editing=r;
   const closed=norm(r.statoPratica).includes('completata'); const cb=document.getElementById('closedBanner'); if(cb) cb.classList.toggle('d-none',!closed);
 
@@ -411,7 +404,6 @@ function openEdit(id){
   show('page-edit');
   (function(){
     const rec = window.state.editing;
-    // Open from fresh DB
     const btnOpen = document.getElementById('btnOpenPrev');
     if(btnOpen){ btnOpen.onclick = async function(){
       if(!rec) return;
@@ -421,7 +413,6 @@ function openEdit(id){
       if(!u){ alert('URL preventivo mancante o incompleto. Incolla l’URL completo o l’UUID e premi "Salva link".'); return; }
       window.open(u,'_blank');
     }; }
-    // Save only preventivo_url
     const btnSave = document.getElementById('btnSaveLink');
     if(btnSave){ btnSave.onclick = async function(){
       if(!rec) return;
