@@ -1,15 +1,4 @@
 
-async function fetchPreventivoUrl(id){
-  try{
-    const { data, error } = await sb.from('records').select('preventivo_url').eq('id', id).single();
-    if(error){ console.warn('[prevurl] fetchPreventivoUrl:', error.message); return null; }
-    return (data && data.preventivo_url) ? data.preventivo_url : null;
-  }catch(e){
-    console.warn('[prevurl] fetchPreventivoUrl exception', e); return null;
-  }
-}
-
-
 function normalizePrevUrl(raw){
   if(!raw) return '';
   let u = String(raw).trim();
@@ -22,6 +11,13 @@ function normalizePrevUrl(raw){
   }
   if(/preventivi-?elip/i.test(u) && !/[?&](pvid|id)=/i.test(u)) return '';
   return u;
+}
+async function fetchPreventivoUrl(id){
+  try{
+    const { data, error } = await sb.from('records').select('preventivo_url').eq('id', id).single();
+    if(error){ console.warn('[prevurl] fetchPreventivoUrl:', error.message); return null; }
+    return (data && data.preventivo_url) ? data.preventivo_url : null;
+  }catch(e){ console.warn('[prevurl] fetchPreventivoUrl exception', e); return null; }
 }
 
 // === ELIP TAGLIENTE • app.v25.js ===
@@ -390,7 +386,7 @@ function setV(id,v){ const el=document.getElementById(id); if(!el) return;
 }
 function val(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
 
-function openEdit(id){ console.log('[prevurl] openEdit', id);
+function openEdit(id){
   const r=window.state.all.find(x=>x.id===id); if(!r) return; window.state.editing=r;
   const closed=norm(r.statoPratica).includes('completata'); const cb=document.getElementById('closedBanner'); if(cb) cb.classList.toggle('d-none',!closed);
 
@@ -399,7 +395,7 @@ function openEdit(id){ console.log('[prevurl] openEdit', id);
   setV('eStato',r.statoPratica); setV('ePrev',r.preventivoStato||'Non inviato'); setV('eDDT',r.docTrasporto);
   setV('eCliente',r.cliente); setV('eTel',r.telefono); setV('eEmail',r.email);
   setV('eBatt',r.battCollettore); setV('eAsse',r.lunghezzaAsse); setV('ePacco',r.lunghezzaPacco); setV('eLarg',r.larghezzaPacco); setV('ePunta',r.punta); setV('eNP',r.numPunte); setV('eNote',r.note);
-  if(document.getElementById('ePrevURL')){ setV('ePrevURL',''); setV('ePrevURL', r.preventivo_url || ''); fetchPreventivoUrl(r.id).then(u=>{ if(u!==null){ setV('ePrevURL', u); r.preventivo_url=u; } }); }
+  try{ setV('ePrevURL',''); setV('ePrevURL', r.preventivo_url || ''); fetchPreventivoUrl(r.id).then(u=>{ if(u!==null){ setV('ePrevURL', u); r.preventivo_url=u; } }); }catch(e){}
 
   show('page-edit');
   (function(){
