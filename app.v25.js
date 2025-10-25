@@ -33,7 +33,7 @@
   }
 })();
 
-function show(id){
+function show(id){ try{var f=document.getElementById('ePrevURL'); if(f && id!=='page-edit') f.value='';}catch(e){} 
   ['page-home','page-search','page-edit'].forEach(pid=>{
     const el=document.getElementById(pid); if(el) el.classList.add('d-none');
   });
@@ -373,8 +373,26 @@ function openEdit(id){
   setV('eStato',r.statoPratica); setV('ePrev',r.preventivoStato||'Non inviato'); setV('eDDT',r.docTrasporto);
   setV('eCliente',r.cliente); setV('eTel',r.telefono); setV('eEmail',r.email);
   setV('eBatt',r.battCollettore); setV('eAsse',r.lunghezzaAsse); setV('ePacco',r.lunghezzaPacco); setV('eLarg',r.larghezzaPacco); setV('ePunta',r.punta); setV('eNP',r.numPunte); setV('eNote',r.note);
+  if(document.getElementById('ePrevURL')){ setV('ePrevURL',''); setV('ePrevURL', r.preventivo_url || ''); }
 
   show('page-edit');
+  (function(){
+    var btnOpen=document.getElementById('btnOpenPrev');
+    if(btnOpen){ btnOpen.onclick=function(){
+      var u=(document.getElementById('ePrevURL')?.value||'').trim();
+      if(!u) return; if(!/^https?:\/\//i.test(u)) u='https://'+u; window.open(u,'_blank');
+    };}
+    var btnSave=document.getElementById('btnSaveLink');
+    if(btnSave){ btnSave.onclick=async function(){
+      const rec=window.state.editing; if(!rec) return;
+      const url=(document.getElementById('ePrevURL')?.value||'').trim()||null;
+      const {data,error}=await sb.from('records').update({ preventivo_url:url }).eq('id', rec.id).select('id,preventivo_url').single();
+      if(error){ alert('Errore salvataggio link: '+error.message); return; }
+      rec.preventivo_url = data ? data.preventivo_url : url;
+      alert('Link salvato');
+    };}
+  })();
+
   refreshGallery(r.id);
 
   // “Carica su cloud” -> salva i dati, poi carica i file, aggiorna galleria
@@ -400,7 +418,7 @@ async function saveEdit(closeAfter=true){
     statoPratica:val('eStato'), preventivoStato:val('ePrev'), docTrasporto:val('eDDT'),
     cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'),
     battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
-    punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'),
+    punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'), preventivo_url:(val('ePrevURL')||'').trim()||null,
   };
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if(error){ alert('Errore salvataggio: '+error.message); return; }
@@ -480,7 +498,7 @@ window.loadAll=async function(){
     if(!sb){ showError('Supabase non inizializzato'); return; }
     let { data, error } = await sb
       .from('records')
-      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email, preventivo_url')
       .order('dataApertura',{ascending:false});
     if(error){
       const fb=await sb.from('records_view').select('*').order('dataApertura',{ascending:false}).limit(1000);
