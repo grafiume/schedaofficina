@@ -1,3 +1,43 @@
+
+function mapToEditablePreventivo(raw){
+  if(!raw) return '';
+  let u = String(raw).trim();
+
+  // If already a hash route (#/pvid/... or #/pvno/...), leave it
+  if (/#\/(pvid|pvno)\//i.test(u)) return u;
+
+  // Try to extract UUID anywhere -> route by pvid
+  const m = u.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+  if (m) {
+    const id = m[0];
+    return `https://grafiume.github.io/preventivi-elip/#/pvid/${id}`;
+  }
+
+  // If looks like a numero (e.g., PV-2025-000001) map to pvno
+  const n = u.match(/\bPV-\d{4}-\d{6}\b/i);
+  if (n) {
+    const pvno = n[0];
+    return `https://grafiume.github.io/preventivi-elip/#/pvno/${pvno}`;
+  }
+
+  // If it's the root with ?pvid=/pvno= or other params, rewrite to hash route preserving key
+  if (/preventivi-?elip\/?(\?|$)/i.test(u)){
+    const qs = u.split('?')[1] || '';
+    const get = (k)=>{
+      const m = qs.match(new RegExp('[?&]'+k+'=([^&]+)','i'));
+      return m ? decodeURIComponent(m[1]) : '';
+    };
+    const pvid = get('pvid') || get('id') || get('pv');
+    const pvno = get('pvno') || get('numero');
+    if (pvid) return `https://grafiume.github.io/preventivi-elip/#/pvid/${pvid}`;
+    if (pvno) return `https://grafiume.github.io/preventivi-elip/#/pvno/${pvno}`;
+  }
+
+  // Otherwise, if it's a bare domain/path, prefix scheme and leave it (user may host alt domain)
+  if (!/^https?:\/\//i.test(u) && /^[a-z0-9]/i.test(u)) u = 'https://' + u;
+  return u;
+}
+
 // === ELIP TAGLIENTE • app.v25.js ===
 // Thumb 144x144 con lazy-load + throttling & backoff (anti 429), overlay in pagina,
 // Ricerca con filtri esatti, Nuova scheda con upload immagini (mobile OK),
@@ -400,7 +440,8 @@ async function saveEdit(closeAfter=true){
     statoPratica:val('eStato'), preventivoStato:val('ePrev'), docTrasporto:val('eDDT'),
     cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'),
     battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
-    punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'),
+    punta:val('ePunta'), numPunte:val('eNP')||null, note: val('eNote'),
+    preventivo_url: (function(){ const v=(val('ePrevURL')||'').trim(); return mapToEditablePreventivo(v) || null; })(),
   };
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if(error){ alert('Errore salvataggio: '+error.message); return; }
@@ -480,7 +521,7 @@ window.loadAll=async function(){
     if(!sb){ showError('Supabase non inizializzato'); return; }
     let { data, error } = await sb
       .from('records')
-      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email, preventivo_url')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
       .order('dataApertura',{ascending:false});
     if(error){
       const fb=await sb.from('records_view').select('*').order('dataApertura',{ascending:false}).limit(1000);
@@ -536,110 +577,3 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
 });
-
-
-/* === PrevURL strict layer === */
-(function(){
-  if (!window || !window.document) return;
-
-  async function fetchPrevUrlExact(id){
-    try{
-      const { data, error } = await sb.from('records').select('preventivo_url').eq('id', id).single();
-      if(error){ console.warn('[prevurl] fetch exact:', error.message); return null; }
-      return (data && typeof data.preventivo_url !== 'undefined') ? data.preventivo_url : null;
-    }catch(e){ console.warn('[prevurl] fetch exact ex', e); return null; }
-  }
-
-  function ensureUrlBlock(){
-    if (document.getElementById('ePrevURL')) return;
-    const headers = Array.from(document.querySelectorAll('.card-header'));
-    const hdr = headers.find(h => /Dati scheda e cliente/i.test(h.textContent||''));
-    const card = hdr ? hdr.closest('.card') : null;
-    const body = card ? card.querySelector('.card-body') : null;
-    if(!body) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'row mt-2';
-    wrap.innerHTML = `
-      <div class="col-lg-8 mx-auto">
-        <div class="text-center mb-1"><strong>Link preventivo (URL)</strong></div>
-        <div class="input-group" style="max-width:720px;margin:0 auto;">
-          <input id="ePrevURL" class="form-control" placeholder="https://...">
-          <button class="btn btn-outline-primary" type="button" id="btnSaveLink">Salva link</button>
-          <button class="btn btn-outline-secondary" type="button" id="btnOpenPrev">Apri</button>
-        </div>
-        <div class="form-text text-center">Il link viene usato esattamente come scritto qui.</div>
-      </div>
-    `;
-    body.appendChild(wrap);
-  }
-
-  function bindButtons(){
-    const rec = (window.state && window.state.editing) || null;
-    const btnOpen = document.getElementById('btnOpenPrev');
-    if(btnOpen){
-      btnOpen.onclick = async function(){
-        if(!rec) return;
-        let u = await fetchPrevUrlExact(rec.id);
-        if(u == null) u = document.getElementById('ePrevURL')?.value || '';
-        u = (u||'').trim();
-        if(!u){ alert('Nessun URL salvato per questo record.'); return; }
-        // piccolo debug per conferma
-        try { console.log('[prevurl] OPEN URL =', u); } catch(e){}
-        alert('Apro questo URL:\n' + u);
-        window.open(u, '_blank');
-      };
-    }
-    const btnSave = document.getElementById('btnSaveLink');
-    if(btnSave){
-      btnSave.onclick = async function(){
-        if(!rec) return;
-        const url = (document.getElementById('ePrevURL')?.value || '').trim();
-        const { data, error } = await sb.from('records').update({ preventivo_url: url || null }).eq('id', rec.id).select('id, preventivo_url').single();
-        if(error){ alert('Errore salvataggio link: ' + error.message); return; }
-        if(rec) rec.preventivo_url = data ? data.preventivo_url : url;
-        const inp = document.getElementById('ePrevURL'); if(inp) inp.value = (rec && rec.preventivo_url) || '';
-        alert('Link salvato');
-      };
-    }
-  }
-
-  // Wrap openEdit
-  if (typeof window.openEdit === 'function'){
-    const _openEdit = window.openEdit;
-    window.openEdit = function(id){
-      const ret = _openEdit.apply(this, arguments);
-      try{
-        ensureUrlBlock();
-        const rec = (window.state && window.state.editing) || null;
-        const inp = document.getElementById('ePrevURL');
-        if(inp) inp.value = rec && rec.preventivo_url ? rec.preventivo_url : '';
-        if(rec){
-          fetchPrevUrlExact(rec.id).then(u => {
-            if(u !== null && inp){ inp.value = u; }
-            if(rec && u !== null){ rec.preventivo_url = u; }
-          });
-        }
-        bindButtons();
-      }catch(e){ console.warn('[prevurl] openEdit strict ex', e); }
-      return ret;
-    };
-  }
-
-  // Wrap saveEdit (post-save write of preventivo_url, as-is)
-  if (typeof window.saveEdit === 'function'){
-    const _saveEdit = window.saveEdit;
-    window.saveEdit = async function(){
-      const result = await _saveEdit.apply(this, arguments);
-      try{
-        const rec = (window.state && window.state.editing) || null;
-        if(rec){
-          const u = (document.getElementById('ePrevURL')?.value || '').trim();
-          await sb.from('records').update({ preventivo_url: u || null }).eq('id', rec.id);
-          if(rec) rec.preventivo_url = u || null;
-        }
-      }catch(e){ console.warn('[prevurl] saveEdit strict ex', e); }
-      return result;
-    };
-  }
-
-})(); /* === /PrevURL strict layer === */
