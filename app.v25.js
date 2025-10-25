@@ -5,29 +5,6 @@
 
 // ----------------- Helpers -----------------
 (function(){
-  function toEditableRoute(raw){
-    if(!raw) return '';
-    var u = String(raw).trim();
-    if (/#\/(pvid|pvno)\//i.test(u)) return u;
-    var qs = u.split('?')[1] || '';
-    function get(k){ var m = qs.match(new RegExp('(?:^|&)'+k+'=([^&]+)','i')); return m ? decodeURIComponent(m[1]) : ''; }
-    var pvid = get('pvid') || get('id') || get('pv');
-    var pvno = get('pvno') || get('numero');
-    if(!pvid){
-      var m = u.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-      if(m) pvid = m[0];
-    }
-    if(!pvno){
-      var n = u.match(/\bPV-\d{4}-\d{6}\b/i);
-      if(n) pvno = n[0];
-    }
-    var base = 'https://grafiume.github.io/preventivi-elip/';
-    if(pvid) return base + '#/pvid/' + pvid;
-    if(pvno) return base + '#/pvno/' + pvno;
-    if(!/^https?:\/\//i.test(u) && /^[a-z0-9]/i.test(u)) u = 'https://' + u;
-    return u;
-  }
-
   if (typeof window.fmtIT !== 'function') {
     window.fmtIT = function(d){
       if(!d) return '';
@@ -396,6 +373,7 @@ function openEdit(id){
   setV('eStato',r.statoPratica); setV('ePrev',r.preventivoStato||'Non inviato'); setV('eDDT',r.docTrasporto);
   setV('eCliente',r.cliente); setV('eTel',r.telefono); setV('eEmail',r.email);
   setV('eBatt',r.battCollettore); setV('eAsse',r.lunghezzaAsse); setV('ePacco',r.lunghezzaPacco); setV('eLarg',r.larghezzaPacco); setV('ePunta',r.punta); setV('eNP',r.numPunte); setV('eNote',r.note);
+  try{ var _inp=document.getElementById('ePrevURL'); if(_inp) _inp.value = r.preventivo_url || ''; }catch(e){}
 
   show('page-edit');
   refreshGallery(r.id);
@@ -503,7 +481,7 @@ window.loadAll=async function(){
     if(!sb){ showError('Supabase non inizializzato'); return; }
     let { data, error } = await sb
       .from('records')
-      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email, preventivo_url')
       .order('dataApertura',{ascending:false});
     if(error){
       const fb=await sb.from('records_view').select('*').order('dataApertura',{ascending:false}).limit(1000);
@@ -559,3 +537,189 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
 });
+
+
+/* === PrevURL HYBRID v30 === */
+(function(){
+  const TAG='[prevurl-v30]';
+  const db = (window && (window.sb || window.supabaseClient || window.supabase)) || null;
+  function log(){ try{ console.log(TAG, ...arguments);}catch(e){} }
+
+  function toEditableRoute(raw){
+    if(!raw) return '';
+    var u = String(raw).trim();
+    if (/#\/(pvid|pvno)\//i.test(u)) return u;
+    var qs = u.split('?')[1] || '';
+    function get(k){ var m = qs.match(new RegExp('(?:^|&)'+k+'=([^&]+)','i')); return m ? decodeURIComponent(m[1]) : ''; }
+    var pvid = get('pvid') || get('id') || get('pv');
+    var pvno = get('pvno') || get('numero');
+    if(!pvid){
+      var m = u.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      if(m) pvid = m[0];
+    }
+    if(!pvno){
+      var n = u.match(/\bPV-\d{4}-\d{6}\b/i);
+      if(n) pvno = n[0];
+    }
+    var base = 'https://grafiume.github.io/preventivi-elip/';
+    if(pvid) return base + '#/pvid/' + pvid;
+    if(pvno) return base + '#/pvno/' + pvno;
+    if(!/^https?:\/\//i.test(u) && /^[a-z0-9]/i.test(u)) u = 'https://' + u;
+    return u;
+  }
+
+  function ensureUi(){
+    if(document.getElementById('ePrevURL')){
+      if(!document.getElementById('prevURLLink')){
+        var info = document.createElement('div');
+        info.className='form-text text-center';
+        info.innerHTML = 'Anteprima: <a id=\"prevURLLink\" href=\"#\" target=\"_blank\">(vuoto)</a>';
+        var body = document.querySelector('.card-header:contains(\"Dati scheda e cliente\")')?.closest('.card')?.querySelector('.card-body') || document.querySelector('#page-edit .card-body');
+        if(body) body.appendChild(info);
+      }
+      return true;
+    }
+    var headers = Array.from(document.querySelectorAll('.card-header'));
+    var hdr = headers.find(h => /Dati scheda e cliente/i.test(h.textContent||''));
+    var card = hdr ? hdr.closest('.card') : null;
+    var body = card ? card.querySelector('.card-body') : null;
+    if(!body) return false;
+    var wrap = document.createElement('div');
+    wrap.className = 'row mt-2';
+    wrap.innerHTML = `
+      <div class="col-lg-8 mx-auto">
+        <div class="text-center mb-1" style="color:#b45309"><strong>Link preventivo (URL) — HYBRID v30</strong></div>
+        <div class="input-group" style="max-width:720px;margin:0 auto;">
+          <input id="ePrevURL" class="form-control" placeholder="https://..." autocomplete="off">
+          <button class="btn btn-outline-primary" type="button" id="btnSaveLink">Salva link</button>
+          <button class="btn btn-outline-secondary" type="button" id="btnOpenPrev">Apri</button>
+          <button class="btn btn-outline-secondary" type="button" id="btnOpenPrevIOS">Apri iPhone</button>
+        </div>
+        <div class="form-text text-center">Anteprima: <a id="prevURLLink" href="#" target="_blank">(vuoto)</a></div>
+      </div>`;
+    body.appendChild(wrap);
+    return true;
+  }
+
+  async function fetchUrlById(id){
+    if(!db || !db.from){ return null; }
+    try{
+      const { data, error } = await db.from('records').select('preventivo_url').eq('id', id).single();
+      if(error){ log('fetch error', error.message); return null; }
+      return (data && data.preventivo_url) ? data.preventivo_url : null;
+    }catch(e){ log('fetch ex', e); return null; }
+  }
+
+  async function saveUrlById(id, val){
+    if(!db || !db.from){ return false; }
+    try{
+      const { error } = await db.from('records').update({ preventivo_url: (val||'').trim() || null }).eq('id', id);
+      if(error){ alert('Errore salvataggio: ' + error.message); return false; }
+      return true;
+    }catch(e){ alert('Errore salvataggio: ' + e.message); return false; }
+  }
+
+  function bind(rec){
+    var inp = document.getElementById('ePrevURL');
+    var prevA = document.getElementById('prevURLLink');
+    function sync(){
+      if(!inp) return;
+      var routed = toEditableRoute(inp.value||'');
+      if(prevA){ prevA.href = routed || '#'; prevA.textContent = routed || '(vuoto)'; prevA.target = /iPhone|iPad|iPod/i.test(navigator.userAgent)?'_self':'_blank'; }
+    }
+    if(inp && !inp._bound){
+      inp._bound = true;
+      inp.addEventListener('input', sync);
+    }
+    sync();
+
+    var btnOpen = document.getElementById('btnOpenPrev');
+    if(btnOpen && !btnOpen._bound){
+      btnOpen._bound = true;
+      btnOpen.onclick = async function(){
+        var v = (document.getElementById('ePrevURL')?.value || (window.state?.editing?.preventivo_url) || '').trim();
+        if(!v && rec && rec.id){
+          var fresh = await fetchUrlById(rec.id);
+          v = fresh || '';
+        }
+        if(!v){ alert('URL mancante'); return; }
+        var routed = toEditableRoute(v);
+        if(!/iPhone|iPad|iPod/i.test(navigator.userAgent)){ window.open(routed, '_blank'); }
+        else { location.href = routed; }
+      };
+    }
+
+    var btnOpenIOS = document.getElementById('btnOpenPrevIOS');
+    if(btnOpenIOS && !btnOpenIOS._bound){
+      btnOpenIOS._bound = true;
+      btnOpenIOS.onclick = function(){
+        var v = (document.getElementById('ePrevURL')?.value || (window.state?.editing?.preventivo_url) || '').trim();
+        if(!v){ alert('URL mancante'); return; }
+        var routed = toEditableRoute(v);
+        location.href = routed;
+      };
+    }
+
+    var btnSave = document.getElementById('btnSaveLink');
+    if(btnSave && !btnSave._bound){
+      btnSave._bound = true;
+      btnSave.onclick = async function(){
+        var r = (window.state && window.state.editing) || null;
+        if(!r){ alert('Apri prima la scheda in Modifica'); return; }
+        var v = (document.getElementById('ePrevURL')?.value || '').trim();
+        // Try direct DB update if available
+        var ok = false;
+        if(r.id && db && db.from){
+          ok = await saveUrlById(r.id, v);
+        }
+        if(!ok && typeof window.saveEdit === 'function'){
+          r.preventivo_url = v; // inject into record and use app save
+          await window.saveEdit();
+          ok = true;
+        }
+        if(ok){ alert('Link salvato'); }
+      };
+    }
+  }
+
+  // Hook openEdit to fill field (from DB if possible)
+  if(typeof window.openEdit === 'function' && !window._openEditPrevV30){
+    window._openEditPrevV30 = window.openEdit;
+    window.openEdit = function(id){
+      var ret = window._openEditPrevV30.apply(this, arguments);
+      setTimeout(async function(){
+        ensureUi();
+        var rec = (window.state && window.state.editing) || null;
+        var inp = document.getElementById('ePrevURL');
+        if(rec && inp){
+          inp.value = rec.preventivo_url || '';
+          // If client available, fetch fresh from DB
+          if(rec.id){
+            var fresh = await fetchUrlById(rec.id);
+            if(fresh !== null){ inp.value = fresh || ''; rec.preventivo_url = fresh || ''; }
+          }
+        }
+        bind(rec);
+      }, 80);
+      return ret;
+    };
+  }
+
+  // In case already in edit
+  setTimeout(async function(){
+    var pageEdit = document.getElementById('page-edit');
+    if(pageEdit && pageEdit.style.display !== 'none'){
+      ensureUi();
+      var rec = (window.state && window.state.editing) || null;
+      var inp = document.getElementById('ePrevURL');
+      if(rec && inp){
+        inp.value = rec.preventivo_url || '';
+        if(rec.id){
+          var fresh = await fetchUrlById(rec.id);
+          if(fresh !== null){ inp.value = fresh || ''; rec.preventivo_url = fresh || ''; }
+        }
+      }
+      bind(rec);
+    }
+  }, 200);
+})(); /* === /HYBRID v30 === */
