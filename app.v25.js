@@ -1,3 +1,34 @@
+
+function toEditableRoute(raw){
+  if(!raw) return '';
+  let u = String(raw).trim();
+  const base = 'https://grafiume.github.io/preventivi-elip/';
+  // Already hash route -> keep
+  if (/#\/(pvid|pvno)\//i.test(u)) return u;
+  // Extract from query
+  const qs = u.split('?')[1] || '';
+  const get = (k)=>{
+    const m = qs.match(new RegExp('(?:^|&)' + k + '=([^&]+)','i'));
+    return m ? decodeURIComponent(m[1]) : '';
+  };
+  let pvid = get('pvid') || get('id') || get('pv');
+  let pvno = get('pvno') || get('numero');
+  // Or from free text
+  if(!pvid){
+    const m = u.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    if(m) pvid = m[0];
+  }
+  if(!pvno){
+    const n = u.match(/\bPV-\d{4}-\d{6}\b/i);
+    if(n) pvno = n[0];
+  }
+  if (pvid) return base + '#/pvid/' + pvid;
+  if (pvno) return base + '#/pvno/' + pvno;
+  // fallback: ensure https scheme
+  if(!/^https?:\/\//i.test(u) && /^[a-z0-9]/i.test(u)) u = 'https://' + u;
+  return u;
+}
+
 // === ELIP TAGLIENTE • app.v25.js ===
 // Thumb 144x144 con lazy-load + throttling & backoff (anti 429), overlay in pagina,
 // Ricerca con filtri esatti, Nuova scheda con upload immagini (mobile OK),
@@ -536,97 +567,3 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
 });
-
-
-/* ==== PrevURL DIAG v25.7 ==== */
-(function(){
-  const TAG = '[prevurl-diag]';
-  function log(...a){ try{ console.log(TAG, ...a); }catch(e){} }
-
-  // Inject UI if missing
-  function ensureUi(){
-    if (document.getElementById('ePrevURL')) return true;
-    const headers = Array.from(document.querySelectorAll('.card-header'));
-    const hdr = headers.find(h => /Dati scheda e cliente/i.test(h.textContent||''));
-    const card = hdr ? hdr.closest('.card') : null;
-    const body = card ? card.querySelector('.card-body') : null;
-    if(!body){ log('card-body not found'); return false; }
-    const wrap = document.createElement('div');
-    wrap.className = 'row mt-2';
-    wrap.innerHTML = `
-      <div class="col-lg-8 mx-auto">
-        <div class="text-center mb-1" style="color:#b45309"><strong>Link preventivo (URL) — DIAG v25.7</strong></div>
-        <div class="input-group" style="max-width:720px;margin:0 auto;">
-          <input id="ePrevURL" class="form-control" placeholder="https://...">
-          <button class="btn btn-outline-primary" type="button" id="btnSaveLink">Salva link</button>
-          <button class="btn btn-outline-secondary" type="button" id="btnOpenPrev">Apri</button>
-        </div>
-        <div class="form-text text-center">Se vedi "DIAG v25.7", questo file JS è caricato.</div>
-      </div>`;
-    body.appendChild(wrap);
-    return true;
-  }
-
-  async function fetchUrl(id){
-    try{
-      const { data, error } = await sb.from('records').select('preventivo_url').eq('id', id).single();
-      if(error){ log('fetchUrl error', error.message); return null; }
-      return (data && data.preventivo_url) ? data.preventivo_url : '';
-    }catch(e){ log('fetchUrl ex', e); return ''; }
-  }
-
-  async function saveUrl(id, url){
-    try{
-      const { data, error } = await sb.from('records').update({ preventivo_url: (url||'').trim() || null }).eq('id', id).select('id, preventivo_url').single();
-      if(error){ alert('Errore salvataggio: '+error.message); log('saveUrl error', error.message); return null; }
-      return (data && data.preventivo_url) ? data.preventivo_url : (url||'');
-    }catch(e){ alert('Errore salvataggio: '+e.message); log('saveUrl ex', e); return null; }
-  }
-
-  function bindButtons(rec){
-    const btnOpen = document.getElementById('btnOpenPrev');
-    if(btnOpen && !btnOpen._bound){
-      btnOpen._bound = true;
-      btnOpen.onclick = async function(){
-        if(!rec){ alert('Nessun record in modifica'); return; }
-        const fresh = await fetchUrl(rec.id);
-        const u = (fresh || document.getElementById('ePrevURL')?.value || '').trim();
-        if(!u){ alert('Nessun URL salvato per questo record'); return; }
-        alert('Apro per record:\n' + rec.id + '\n\nURL:\n' + u);
-        window.open(u, '_blank');
-      };
-    }
-    const btnSave = document.getElementById('btnSaveLink');
-    if(btnSave && !btnSave._bound){
-      btnSave._bound = true;
-      btnSave.onclick = async function(){
-        if(!rec){ alert('Nessun record in modifica'); return; }
-        const raw = (document.getElementById('ePrevURL')?.value || '').trim();
-        const saved = await saveUrl(rec.id, raw);
-        if(saved === null) return;
-        document.getElementById('ePrevURL').value = saved || '';
-        alert('Link salvato su record:\n' + rec.id + '\n\nURL:\n' + (saved||''));
-      };
-    }
-  }
-
-  // Poller to detect when edit page is visible and state.editing is set
-  let lastRecId = null;
-  setInterval(async function(){
-    const pageEdit = document.getElementById('page-edit');
-    const isVisible = !!pageEdit && (pageEdit.style.display !== 'none');
-    const rec = (window.state && window.state.editing) || null;
-    if(!isVisible || !rec) return;
-    if(!ensureUi()) return;
-
-    if(rec.id !== lastRecId){
-      lastRecId = rec.id;
-      log('enter edit for', rec.id);
-      // Fill from DB
-      const val = await fetchUrl(rec.id);
-      const input = document.getElementById('ePrevURL');
-      if(input) input.value = val || '';
-    }
-    bindButtons(rec);
-  }, 600);
-})();
