@@ -373,8 +373,82 @@ function openEdit(id){
   setV('eStato',r.statoPratica); setV('ePrev',r.preventivoStato||'Non inviato'); setV('eDDT',r.docTrasporto);
   setV('eCliente',r.cliente); setV('eTel',r.telefono); setV('eEmail',r.email);
   setV('eBatt',r.battCollettore); setV('eAsse',r.lunghezzaAsse); setV('ePacco',r.lunghezzaPacco); setV('eLarg',r.larghezzaPacco); setV('ePunta',r.punta); setV('eNP',r.numPunte); setV('eNote',r.note);
+  try{ if(document.getElementById('ePrevURL')) document.getElementById('ePrevURL').value = r.preventivo_url || ''; }catch(e){}
 
-  show('page-edit');
+  
+show('page-edit');
+(function(){
+  // inject field UI if missing
+  if(!document.getElementById('ePrevURL')){
+    var headers = Array.from(document.querySelectorAll('.card-header'));
+    var hdr = headers.find(h => /Dati scheda e cliente/i.test(h.textContent||''));
+    var card = hdr ? hdr.closest('.card') : null;
+    var body = card ? card.querySelector('.card-body') : null;
+    if(body){
+      var wrap = document.createElement('div');
+      wrap.className = 'row mt-2';
+      wrap.innerHTML = `
+        <div class="col-lg-8 mx-auto">
+          <div class="text-center mb-1"><strong>Link preventivo (URL)</strong></div>
+          <div class="input-group" style="max-width:720px;margin:0 auto;">
+            <input id="ePrevURL" class="form-control" placeholder="https://..." autocomplete="off">
+            <button class="btn btn-outline-primary" type="button" id="btnSaveLink">Salva link</button>
+            <button class="btn btn-outline-secondary" type="button" id="btnOpenPrev">Apri</button>
+          </div>
+        </div>`;
+      body.appendChild(wrap);
+    }
+  }
+  // fill from state.editing
+  var rec = window.state && window.state.editing;
+  var inp = document.getElementById('ePrevURL');
+  if(rec && inp) inp.value = rec.preventivo_url || '';
+
+  function toEditableRoute(raw){
+    if(!raw) return '';
+    var u = String(raw).trim();
+    if (/#\/(pvid|pvno)\//i.test(u)) return u;
+    var qs = u.split('?')[1] || '';
+    function get(k){ var m = qs.match(new RegExp('(?:^|&)'+k+'=([^&]+)','i')); return m ? decodeURIComponent(m[1]) : ''; }
+    var pvid = get('pvid') || get('id') || get('pv');
+    var pvno = get('pvno') || get('numero');
+    if(!pvid){
+      var m = u.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      if(m) pvid = m[0];
+    }
+    if(!pvno){
+      var n = u.match(/\bPV-\d{4}-\d{6}\b/i);
+      if(n) pvno = n[0];
+    }
+    var base = 'https://grafiume.github.io/preventivi-elip/';
+    if(pvid) return base + '#/pvid/' + pvid;
+    if(pvno) return base + '#/pvno/' + pvno;
+    if(!/^https?:\/\//i.test(u) && /^[a-z0-9]/i.test(u)) u = 'https://' + u;
+    return u;
+  }
+
+  // bind handlers
+  var btnOpen = document.getElementById('btnOpenPrev');
+  if(btnOpen){ btnOpen.onclick = function(){
+    var v = (document.getElementById('ePrevURL')?.value || (window.state?.editing?.preventivo_url) || '').trim();
+    if(!v){ alert('URL mancante'); return; }
+    var routed = toEditableRoute(v);
+    window.open(routed, '_blank');
+  }; }
+  var btnSave = document.getElementById('btnSaveLink');
+  if(btnSave){ btnSave.onclick = async function(){
+    var rec = window.state && window.state.editing;
+    if(!rec){ alert('Apri prima la scheda in Modifica'); return; }
+    rec.preventivo_url = (document.getElementById('ePrevURL')?.value || '').trim();
+    if(typeof window.saveEdit === 'function'){
+      await window.saveEdit();
+      alert('Link salvato');
+    } else {
+      alert('Salvataggio non disponibile');
+    }
+  }; }
+})();
+
   refreshGallery(r.id);
 
   // “Carica su cloud” -> salva i dati, poi carica i file, aggiorna galleria
@@ -400,7 +474,8 @@ async function saveEdit(closeAfter=true){
     statoPratica:val('eStato'), preventivoStato:val('ePrev'), docTrasporto:val('eDDT'),
     cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'),
     battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
-    punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'),
+    punta:val('ePunta'), numPunte:val('eNP')||null, note: val('eNote'),
+    preventivo_url: (document.getElementById('ePrevURL') ? (document.getElementById('ePrevURL').value||'').trim() : (state.editing?.preventivo_url||null)),
   };
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if(error){ alert('Errore salvataggio: '+error.message); return; }
@@ -480,7 +555,7 @@ window.loadAll=async function(){
     if(!sb){ showError('Supabase non inizializzato'); return; }
     let { data, error } = await sb
       .from('records')
-      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email, preventivo_url')
       .order('dataApertura',{ascending:false});
     if(error){
       const fb=await sb.from('records_view').select('*').order('dataApertura',{ascending:false}).limit(1000);
