@@ -48,9 +48,6 @@ if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){
 }
 const sb = (typeof supabase!=='undefined')
   ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
-  window.sb = sb;
-window.supabaseClient = sb;
-
   : null;
 
 // ----------------- Storage helpers -----------------
@@ -541,25 +538,22 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 
 
-/* === PrevURL FAILSAFE v25.9 === */
+/* === PrevURL FINAL WRAP v26 (no direct DB) === */
 (function(){
-  const TAG='[prevurl-failsafe]';
-  const db = (window && (window.sb || window.supabaseClient)) || null;
-  function log(...a){ try{ console.log(TAG, ...a);}catch(e){} }
-  function errBox(msg){ alert('PrevURL: ' + msg); }
+  const TAG='[prevurl-finalwrap]';
+  function log(){ try{ console.log(TAG, ...arguments); }catch(e){} }
 
   function toEditableRoute(raw){
     if(!raw) return '';
     let u = String(raw).trim();
-    const base = 'https://grafiume.github.io/preventivi-elip/';
+    // already hash routes
     if (/#\/(pvid|pvno)\//i.test(u)) return u;
+    // from query string
     const qs = u.split('?')[1] || '';
-    const get = (k)=>{
-      const m = qs.match(new RegExp('(?:^|&)' + k + '=([^&]+)','i'));
-      return m ? decodeURIComponent(m[1]) : '';
-    };
+    const get = (k)=>{ const m = qs.match(new RegExp('(?:^|&)'+k+'=([^&]+)','i')); return m ? decodeURIComponent(m[1]) : ''; };
     let pvid = get('pvid') || get('id') || get('pv');
     let pvno = get('pvno') || get('numero');
+    // from free text
     if(!pvid){
       const m = u.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
       if(m) pvid = m[0];
@@ -568,6 +562,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
       const n = u.match(/\bPV-\d{4}-\d{6}\b/i);
       if(n) pvno = n[0];
     }
+    const base = 'https://grafiume.github.io/preventivi-elip/';
     if(pvid) return base + '#/pvid/' + pvid;
     if(pvno) return base + '#/pvno/' + pvno;
     if(!/^https?:\/\//i.test(u) && /^[a-z0-9]/i.test(u)) u = 'https://' + u;
@@ -575,122 +570,120 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
 
   function ensureUi(){
-    if(document.getElementById('ePrevURL')){
-      // add small diag note if not present
-      if(!document.getElementById('prevUrlDiag')){
-        const diag=document.createElement('div');
-        diag.id='prevUrlDiag';
-        diag.className='form-text text-center';
-        diag.style.color='#b45309';
-        diag.textContent='PrevURL FAILSAFE v25.9 attivo';
+    if (document.getElementById('ePrevURL')){
+      if(!document.getElementById('prevUrlDiagNote')){
+        const d=document.createElement('div');
+        d.id='prevUrlDiagNote';
+        d.className='form-text text-center';
+        d.style.color='#b45309';
+        d.textContent='PrevURL FINAL WRAP v26 attivo';
         const grp=document.getElementById('ePrevURL').closest('.input-group')?.parentElement;
-        if(grp) grp.appendChild(diag);
+        if(grp) grp.appendChild(d);
       }
       return true;
     }
+    // find the "Dati scheda e cliente" card
     const hdrs = Array.from(document.querySelectorAll('.card-header'));
     const hdr = hdrs.find(h => /Dati scheda e cliente/i.test(h.textContent||''));
     const card = hdr ? hdr.closest('.card') : null;
     const body = card ? card.querySelector('.card-body') : null;
-    if(!body){ log('card-body non trovata'); return false; }
+    if(!body) return false;
     const wrap = document.createElement('div');
     wrap.className='row mt-2';
     wrap.innerHTML = `
       <div class="col-lg-8 mx-auto">
-        <div class="text-center mb-1" style="color:#b45309"><strong>Link preventivo (URL) — FAILSAFE v25.9</strong></div>
+        <div class="text-center mb-1" style="color:#b45309"><strong>Link preventivo (URL) — FINAL WRAP v26</strong></div>
         <div class="input-group" style="max-width:720px;margin:0 auto;">
           <input id="ePrevURL" class="form-control" placeholder="https://..." autocomplete="off">
           <button class="btn btn-outline-primary" type="button" id="btnSaveLink">Salva link</button>
           <button class="btn btn-outline-secondary" type="button" id="btnOpenPrev">Apri</button>
-          <button class="btn btn-outline-secondary" type="button" id="btnOpenPrevHere">Apri (forzato)</button>
         </div>
-        <div class="form-text text-center">Anteprima link: <a id="prevLinkA" href="#" target="_blank">(vuoto)</a></div>
+        <div class="form-text text-center">Il valore salvato in DB resta invariato; all'apertura uso la rotta editabile.</div>
       </div>`;
     body.appendChild(wrap);
     return true;
   }
 
-  async function fetchUrl(id){
-    if(!db){ errBox('client Supabase non disponibile'); return ''; }
-    const { data, error } = await db.from('records').select('preventivo_url').eq('id', id).single();
-    if(error){ errBox('lettura fallita: ' + error.message); return ''; }
-    return (data && data.preventivo_url) ? data.preventivo_url : '';
-  }
-  async function saveUrl(id, url){
-    if(!db){ errBox('client Supabase non disponibile'); return null; }
-    const { data, error } = await db.from('records').update({ preventivo_url: (toEditableRoute(url)||'').trim() || null }).eq('id', id).select('id, preventivo_url').single();
-    if(error){ errBox('salvataggio fallito: ' + error.message); return null; }
-    return (data && data.preventivo_url) ? data.preventivo_url : '';
-  }
-
-  function updatePreview(u){
-    const a=document.getElementById('prevLinkA');
-    if(a){ a.textContent = u || '(vuoto)'; a.href = u || '#'; }
-  }
-
   function bind(rec){
     const i = document.getElementById('ePrevURL');
-    const openBtn = document.getElementById('btnOpenPrev');
-    const openHereBtn = document.getElementById('btnOpenPrevHere');
-    const saveBtn = document.getElementById('btnSaveLink');
-    if(i && !i._bound){
-      i._bound = true;
-      i.addEventListener('input', ()=> updatePreview(toEditableRoute(i.value)));
+    const bOpen = document.getElementById('btnOpenPrev');
+    const bSave = document.getElementById('btnSaveLink');
+
+    if(i && !i._bound_init){
+      i._bound_init = true;
+      // keep in sync with rec when typing (does not save to DB)
+      i.addEventListener('input', ()=>{ if(rec) rec.preventivo_url = i.value; });
     }
-    if(openBtn && !openBtn._bound){
-      openBtn._bound = true;
-      openBtn.onclick = async ()=>{
-        if(!rec) return errBox('nessun record in modifica');
-        let u = await fetchUrl(rec.id);
-        if(!u) u = i?.value || '';
-        u = toEditableRoute(u);
-        if(!u) return errBox('URL mancante');
-        alert('Apro in nuova scheda:\\n' + u);
-        window.open(u, '_blank');
+
+    if(bOpen && !bOpen._bound){
+      bOpen._bound = true;
+      bOpen.onclick = ()=>{
+        if(!rec) return alert('Nessun record in modifica');
+        let u = (document.getElementById('ePrevURL')?.value || rec.preventivo_url || '').trim();
+        if(!u) return alert('URL mancante per questo record');
+        const routed = toEditableRoute(u);
+        // debug for clarity
+        alert('Apro:\n' + routed);
+        window.open(routed, '_blank');
       };
     }
-    if(openHereBtn && !openHereBtn._bound){
-      openHereBtn._bound = true;
-      openHereBtn.onclick = async ()=>{
-        if(!rec) return errBox('nessun record in modifica');
-        let u = await fetchUrl(rec.id);
-        if(!u) u = i?.value || '';
-        u = toEditableRoute(u);
-        if(!u) return errBox('URL mancante');
-        alert('Apro in questa scheda:\\n' + u);
-        location.href = u;
-      };
-    }
-    if(saveBtn && !saveBtn._bound){
-      saveBtn._bound = true;
-      saveBtn.onclick = async ()=>{
-        if(!rec) return errBox('nessun record in modifica');
-        const raw = i?.value || '';
-        const saved = await saveUrl(rec.id, raw);
-        if(saved===null) return;
-        i.value = saved || '';
-        updatePreview(saved||'');
-        alert('Salvato:\\n' + (saved||''));
+
+    if(bSave && !bSave._bound){
+      bSave._bound = true;
+      bSave.onclick = async ()=>{
+        if(!rec) return alert('Nessun record in modifica');
+        // copy the field into rec and call the app's own save
+        const val = (document.getElementById('ePrevURL')?.value || '').trim();
+        rec.preventivo_url = val; // keep raw value to satisfy DB CHECK (es. ?pvid=...)
+        if (typeof window.saveEdit === 'function') {
+          await window.saveEdit(); // uses the app's internal sb client and payload
+          alert('Link salvato (tramite Salva scheda)');
+        } else {
+          alert('Impossibile salvare: funzione saveEdit non trovata');
+        }
       };
     }
   }
 
-  // Poll for page-edit + state.editing changes
-  let lastId = null;
-  setInterval(async ()=>{
+  // Ensure that when the app saves, it includes preventivo_url from the input
+  if (typeof window.saveEdit === 'function' && !window._saveEditPrevWrap){
+    window._saveEditPrevWrap = window.saveEdit;
+    window.saveEdit = async function(){
+      try{
+        const rec = (window.state && window.state.editing) || null;
+        const i = document.getElementById('ePrevURL');
+        if(rec && i){ rec.preventivo_url = (i.value||'').trim(); }
+      }catch(e){}
+      return await window._saveEditPrevWrap.apply(this, arguments);
+    };
+  }
+
+  // Patch UI on entering edit
+  if (typeof window.openEdit === 'function' && !window._openEditPrevWrap){
+    window._openEditPrevWrap = window.openEdit;
+    window.openEdit = function(id){
+      const ret = window._openEditPrevWrap.apply(this, arguments);
+      setTimeout(()=>{ // after DOM shows
+        ensureUi();
+        const rec = (window.state && window.state.editing) || null;
+        const i = document.getElementById('ePrevURL');
+        if(i){ i.value = rec && rec.preventivo_url ? rec.preventivo_url : ''; }
+        bind(rec);
+      }, 60);
+      return ret;
+    };
+  }
+
+  // In case user was already in edit before this file loaded
+  setTimeout(()=>{
     const pageEdit = document.getElementById('page-edit');
-    const visible = !!pageEdit && (pageEdit.style.display !== 'none');
-    const rec = (window.state && window.state.editing) || null;
-    if(!visible || !rec) return;
-    if(!ensureUi()) return;
-    if(rec.id !== lastId){
-      lastId = rec.id;
-      const field = document.getElementById('ePrevURL');
-      if(field){ field.value=''; }
-      let u = await fetchUrl(rec.id);
-      if(field){ field.value = u || ''; }
-      updatePreview(toEditableRoute(u||''));
+    if(pageEdit && pageEdit.style.display !== 'none'){
+      const rec = (window.state && window.state.editing) || null;
+      ensureUi();
+      const i = document.getElementById('ePrevURL');
+      if(i){ i.value = rec && rec.preventivo_url ? rec.preventivo_url : ''; }
+      bind(rec);
     }
-    bind(rec);
-  }, 600);
-})(); /* === /FAILSAFE v25.9 === */
+  }, 200);
+
+})(); /* === /PrevURL FINAL WRAP v26 === */
