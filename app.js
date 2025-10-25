@@ -256,7 +256,16 @@ function openEdit(id){
   setV('ePrevURL', r.preventivo_url||'');
 
   show('page-edit');
-  const btnOpenPrev = document.getElementById('btnOpenPrev'); if(btnOpenPrev){ btnOpenPrev.onclick = ()=>{ const u = val('ePrevURL'); if(u){ window.open(u, '_blank'); } }; }
+  const btnSaveLink = document.getElementById('btnSaveLink');
+  if(btnSaveLink){ btnSaveLink.onclick = async ()=>{
+    const r = state.editing; if(!r) return;
+    const url = (val('ePrevURL')||'').trim();
+    const { data, error } = await sb.from('records').update({ preventivo_url: url || null }).eq('id', r.id).select().single();
+    if(error){ alert('Errore salvataggio link: '+error.message); return; }
+    r.preventivo_url = data ? data.preventivo_url : url || null;
+    alert('Link salvato!');
+  }; }
+  const btnOpenPrev = document.getElementById('btnOpenPrev'); if(btnOpenPrev){ btnOpenPrev.onclick = ()=>{ const u = (val('ePrevURL')||'').trim(); if(u){ window.open(u, '_blank'); } }; }
   refreshGallery(r.id);
   document.getElementById('btnUpload').onclick = async ()=>{
     const files = document.getElementById('eFiles').files;
@@ -306,7 +315,6 @@ async function saveEdit(){
   if(error){ alert('Errore salvataggio: '+error.message); return; }
   // refresh local cache
   Object.assign(r, data);
-  r.preventivo_url = (data && data.preventivo_url) ?? val('ePrevURL');
   // chiusa banner
   const closed = norm(r.statoPratica).includes('completata');
   document.getElementById('closedBanner').classList.toggle('d-none', !closed);
