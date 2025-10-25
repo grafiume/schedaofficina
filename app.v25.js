@@ -400,7 +400,8 @@ async function saveEdit(closeAfter=true){
     statoPratica:val('eStato'), preventivoStato:val('ePrev'), docTrasporto:val('eDDT'),
     cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'),
     battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
-    punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'),
+    punta:val('ePunta'), numPunte:val('eNP')||null, note: val('eNote'),
+    preventivo_url: (document.getElementById('ePrevURL') ? (document.getElementById('ePrevURL').value||'').trim() : (state.editing?.preventivo_url||null)),
   };
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if(error){ alert('Errore salvataggio: '+error.message); return; }
@@ -480,7 +481,7 @@ window.loadAll=async function(){
     if(!sb){ showError('Supabase non inizializzato'); return; }
     let { data, error } = await sb
       .from('records')
-      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email, preventivo_url')
       .order('dataApertura',{ascending:false});
     if(error){
       const fb=await sb.from('records_view').select('*').order('dataApertura',{ascending:false}).limit(1000);
