@@ -34,6 +34,8 @@
 })();
 
 function show(id){
+  try{ if(id!=='edit' && document.getElementById('ePrevURL')) document.getElementById('ePrevURL').value=''; }catch(e){}
+
   ['page-home','page-search','page-edit'].forEach(pid=>{
     const el=document.getElementById(pid); if(el) el.classList.add('d-none');
   });
