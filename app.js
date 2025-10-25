@@ -107,7 +107,7 @@ function show(id){
 
 async function loadAll(){
   const { data, error } = await sb.from('records')
-    .select('id, descrizione, modello, cliente, telefono, statoPratica, preventivoStato, note, dataApertura, dataAccettazione, dataScadenza, docTrasporto, battCollettore, lunghezzaAsse, lunghezzaPacco, larghezzaPacco, punta, numPunte, email, preventivo_url');
+    .select('id, descrizione, modello, cliente, telefono, statoPratica, preventivoStato, note, dataApertura, dataAccettazione, dataScadenza, docTrasporto, battCollettore, lunghezzaAsse, lunghezzaPacco, larghezzaPacco, punta, numPunte, email');
   if(error){ console.error(error); renderHome([]); return; }
   state.all = data;
   renderHome(state.all);
