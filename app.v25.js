@@ -34,8 +34,6 @@
 })();
 
 function show(id){
-  try{ if(id!=='edit' && document.getElementById('ePrevURL')) document.getElementById('ePrevURL').value=''; }catch(e){}
-
   ['page-home','page-search','page-edit'].forEach(pid=>{
     const el=document.getElementById(pid); if(el) el.classList.add('d-none');
   });
@@ -389,7 +387,11 @@ function openEdit(id){
     if(btnSave){ btnSave.onclick = async function(){
       const rec = state.editing; if(!rec) return;
       const url = (val('ePrevURL')||'').trim() || null;
-      const { data, error } = await sb.from('records').update({ preventivo_url: url }).eq('id', rec.id).select('id, preventivo_url').single();
+      const { data, error } = await sb.from('records')
+        .update({ preventivo_url: url })
+        .eq('id', rec.id)
+        .select('id, preventivo_url')
+        .single();
       if(error){ alert('Errore salvataggio link: ' + error.message); return; }
       rec.preventivo_url = data ? data.preventivo_url : url;
       alert('Link salvato');
@@ -427,6 +429,7 @@ async function saveEdit(closeAfter=true){
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if(error){ alert('Errore salvataggio: '+error.message); return; }
   Object.assign(r, data);
+  if(data && typeof data.preventivo_url !== 'undefined') r.preventivo_url = data.preventivo_url;
   renderHome(window.state.all);
   if (closeAfter){
     // torna alla Home come richiesto
