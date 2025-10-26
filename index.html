@@ -285,22 +285,59 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="app.v25.js?v=27"></script>
 
-    <script>
-function toEditUrl(storedUrl){
-  try{
-    const u = new URL(storedUrl);
-    const pvid = new URLSearchParams(u.search).get('pvid');
-    if (!pvid) return storedUrl; // fallback se non è nel formato atteso
-    return 'https://grafiume.github.io/preventivi-elip/open-edit.html?pvid=' + encodeURIComponent(pvid);
-  }catch(e){ return storedUrl; }
-}
+<script>
+(function(){
+  // costruisce il link ponte verso l'app preventivi in MODIFICA
+  function toEditUrl(storedUrl){
+    try{
+      const u = new URL(storedUrl, location.origin);
+      // accetta solo link alla tua app preventivi
+      const isTarget = /grafiume\.github\.io$/.test(u.hostname) && u.pathname === '/preventivi-elip/';
+      if (!isTarget) return storedUrl;
+      const pvid = new URLSearchParams(u.search).get('pvid');
+      if (!pvid) return storedUrl; // se non c'è pvid, non tocchiamo
+      return 'https://grafiume.github.io/preventivi-elip/open-edit.html?pvid=' + encodeURIComponent(pvid);
+    }catch(e){
+      return storedUrl;
+    }
+  }
 
-// ✅ Opzione consigliata: intercetta tutti i click sui link con data-role="pv-link"
-document.addEventListener('click', function(ev){
-  const a = ev.target.closest('a[data-role="pv-link"]');
-  if (!a) return;
-  a.href = toEditUrl(a.getAttribute('href'));
-});
+  // converte TUTTI gli <a> già presenti in pagina (se puntano ai preventivi)
+  function rewriteAllAnchors(root){
+    const anchors = (root instanceof Element ? root : document).querySelectorAll('a[href]');
+    for (const a of anchors) {
+      const href = a.getAttribute('href');
+      if (!href) continue;
+      if (href.includes('grafiume.github.io/preventivi-elip/') && href.includes('?pvid=')) {
+        a.setAttribute('href', toEditUrl(href));
+      }
+    }
+  }
+
+  // intercetta anche link aggiunti dopo (liste dinamiche, SPA, ecc.)
+  const mo = new MutationObserver(muts => {
+    for (const m of muts) {
+      for (const n of m.addedNodes) {
+        if (n.nodeType === 1) rewriteAllAnchors(n);
+      }
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function(){
+    rewriteAllAnchors(document);
+    mo.observe(document.documentElement, {childList:true, subtree:true});
+  });
+
+  // ulteriore sicurezza: se un link “scappa” alla riscrittura, lo correggiamo al click
+  document.addEventListener('click', function(ev){
+    const a = ev.target.closest('a[href]');
+    if (!a) return;
+    const h = a.getAttribute('href') || '';
+    if (h.includes('grafiume.github.io/preventivi-elip/') && h.includes('?pvid=')) {
+      a.setAttribute('href', toEditUrl(h));
+    }
+  }, true);
+})();
 </script>
 
   </body>
