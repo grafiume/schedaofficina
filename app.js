@@ -252,30 +252,8 @@ function openEdit(id){
   setV('ePunta', r.punta);
   setV('eNP', r.numPunte);
   setV('eNote', r.note);
-  setV('ePrevURL','');
-  setV('ePrevURL', r.preventivo_url||'');
 
   show('page-edit');
-  // Handlers URL preventivo
-  (function(){
-    var btnOpen = document.getElementById('btnOpenPrev');
-    if(btnOpen){ btnOpen.onclick = function(){
-      var u = (val('ePrevURL')||'').trim();
-      if(!u) return;
-      if(!/^https?:\/\//i.test(u)) u = 'https://' + u;
-      window.open(u, '_blank');
-    }; }
-    var btnSave = document.getElementById('btnSaveLink');
-    if(btnSave){ btnSave.onclick = async function(){
-      const rec = state.editing; if(!rec) return;
-      const url = (val('ePrevURL')||'').trim() || null;
-      const { data, error } = await sb.from('records').update({ preventivo_url: url }).eq('id', rec.id).select('id, preventivo_url').single();
-      if(error){ alert('Errore salvataggio link: ' + error.message); return; }
-      rec.preventivo_url = data ? data.preventivo_url : url;
-      alert('Link salvato');
-    }; }
-  })();
-
   refreshGallery(r.id);
   document.getElementById('btnUpload').onclick = async ()=>{
     const files = document.getElementById('eFiles').files;

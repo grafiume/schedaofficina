@@ -297,33 +297,8 @@ function openEdit(id){
   setV('ePunta', r.punta);
   setV('eNP', r.numPunte);
   setV('eNote', r.note);
-  setV('ePrevURL','');
-  setV('ePrevURL', r.preventivo_url || '');
 
   show('page-edit');
-  (function(){
-    var btnOpen = document.getElementById('btnOpenPrev');
-    if(btnOpen){ btnOpen.onclick = function(){
-      var u = (val('ePrevURL')||'').trim();
-      if(!u) return;
-      if(!/^https?:\/\//i.test(u)) u = 'https://' + u;
-      window.open(u, '_blank');
-    }; }
-    var btnSave = document.getElementById('btnSaveLink');
-    if(btnSave){ btnSave.onclick = async function(){
-      const rec = state.editing; if(!rec) return;
-      const url = (val('ePrevURL')||'').trim() || null;
-      const { data, error } = await sb.from('records')
-        .update({ preventivo_url: url })
-        .eq('id', rec.id)
-        .select('id, preventivo_url')
-        .single();
-      if(error){ alert('Errore salvataggio link: ' + error.message); return; }
-      rec.preventivo_url = data ? data.preventivo_url : url;
-      alert('Link salvato');
-    }; }
-  })();
-
   refreshGallery(r.id);
   document.getElementById('btnUpload').onclick = async ()=>{
     const files = document.getElementById('eFiles').files;
@@ -368,13 +343,11 @@ async function saveEdit(){
     punta: val('ePunta'),
     numPunte: val('eNP')||null,
     note: val('eNote'),
-    preventivo_url: (val('ePrevURL')||'').trim() || null,
   };
   const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
   if(error){ alert('Errore salvataggio: '+error.message); return; }
   // refresh local cache
   Object.assign(r, data);
-  if(data && typeof data.preventivo_url !== 'undefined') r.preventivo_url = data.preventivo_url;
   // chiusa banner
   const closed = norm(r.statoPratica).includes('completata');
   document.getElementById('closedBanner').classList.toggle('d-none', !closed);
@@ -501,7 +474,7 @@ window.loadAll = async function(){
       return;
     }
     console.log('[cfg]', window.SUPABASE_URL.slice(0,50)+'...', 'key:', (window.SUPABASE_ANON_KEY||'').slice(0,8)+'…');
-    let q = sb.from('records').select('id, descrizione, modello, cliente, telefono, statoPratica, preventivoStato, note, dataApertura, dataAccettazione, dataScadenza, docTrasporto, battCollettore, lunghezzaAsse, lunghezzaPacco, larghezzaPacco, punta, numPunte, email, preventivo_url');
+    let q = sb.from('records').select('id, descrizione, modello, cliente, telefono, statoPratica, preventivoStato, note, dataApertura, dataAccettazione, dataScadenza, docTrasporto, battCollettore, lunghezzaAsse, lunghezzaPacco, larghezzaPacco, punta, numPunte, email');
     let { data, error, status } = await q;
     if (error){
       console.warn('select records error', status, error.message);
