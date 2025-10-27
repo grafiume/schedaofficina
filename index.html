@@ -4,6 +4,37 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ELIP TAGLIENTE • Scheda Riparazioni</title>
+
+  <!-- ELIP Deep Link Inline (loads BEFORE any other script) -->
+<script>
+(function(){
+  try{
+    const id=(new URLSearchParams(location.search)).get('id');
+    if(!id) return;
+    window.ELIP_RECORD_ID = id;
+    document.addEventListener('DOMContentLoaded', function(){
+      try { document.body.setAttribute('data-record-id', id); } catch(e){}
+    }, { once:true });
+    function tryOpen(){
+      try{
+        if (typeof window.openRecordById === 'function') { window.openRecordById(id); return true; }
+        if (typeof window.showDetail    === 'function') { window.showDetail(id);    return true; }
+        if (typeof window.openDetail    === 'function') { window.openDetail(id);    return true; }
+        if (window.app && typeof window.app.open === 'function') { window.app.open(id); return true; }
+      }catch(e){}
+      return false;
+    }
+    if(!tryOpen()){
+      let n=0; const max=25;
+      const t=setInterval(function(){ n++; if(tryOpen() || n>=max) clearInterval(t); }, 200);
+      document.addEventListener('DOMContentLoaded', function(){ tryOpen(); }, { once:true });
+      window.addEventListener('load', function(){ tryOpen(); }, { once:true });
+    }
+  }catch(e){}
+})();
+</script>
+<!-- /ELIP Deep Link Inline -->
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="icon" href="favicon.ico">
     <link rel="manifest" href="manifest.json">
@@ -264,7 +295,6 @@
         <img id="imgOverlayImg" alt="Anteprima immagine">
       </div>
     </div>
-    <script src="deeplink-elip.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
