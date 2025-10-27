@@ -42,6 +42,32 @@ function show(id){
 }
 if (typeof window.state !== 'object'){ window.state={ all:[], currentView:'home', editing:null }; }
 
+
+// --- Deep-link helper: open ?id=<UUID> directly in Edit/Detail ---
+window.__deeplinkOpen = async function(){
+  try{
+    const urlId = (new URLSearchParams(location.search)).get('id') || window.ELIP_RECORD_ID || (localStorage.getItem('elip_deeplink_id')||'').trim();
+    if(!urlId) return false;
+    // Se già in memoria, apri subito
+    if (Array.isArray(window.state?.all)) {
+      const hit = window.state.all.find(r=>r && r.id===urlId);
+      if (hit) { try { openEdit(urlId); return true; } catch(e){} }
+    }
+    // Fallback: carica singolo record e poi apri
+    if (typeof sb !== 'undefined' && sb) {
+      const sel = '*'; // selezione ampia per compatibilità
+      const { data, error } = await sb.from('records').select(sel).eq('id', urlId).single();
+      if (!error && data) {
+        window.state = window.state || { all:[], currentView:'home', editing:null };
+        // Evita duplicati
+        if (!window.state.all.find(r=>r.id===data.id)) window.state.all.unshift(data);
+        try { openEdit(urlId); return true; } catch(e){}
+      }
+    }
+  }catch(e){ /*silent*/ }
+  return false;
+};
+
 // ----------------- Supabase -----------------
 if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){
   console.warn('config.js mancante o variabili non definite');
@@ -406,7 +432,8 @@ async function saveEdit(closeAfter=true){
   if(error){ alert('Errore salvataggio: '+error.message); return; }
   Object.assign(r, data);
   renderHome(window.state.all);
-  if (closeAfter){
+  try{ await window.__deeplinkOpen(); }catch(e){}
+if (closeAfter){
     // torna alla Home come richiesto
     show('page-home');
   }
