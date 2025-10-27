@@ -27,23 +27,52 @@
   }
   function L(id, v){ const el=document.getElementById(id); if(el) el.textContent = v ?? '—'; }
 
-  async function loadFirstPhoto(recordId){
+  // Risolve l'URL della prima foto: 1) tabella 'photos' -> path -> publicUrl; 2) storage list su 'records/<id>/*'
+  async function resolveFirstPhoto(recordId){
+    const bucket = 'photos';
+    // 1) prova dalla tabella 'photos'
     try{
-      // Buckets: di default usiamo 'photos' come da tua app; path 'records/<id>/'
-      const bucket = 'photos';
+      const { data: ph, error: perr } = await supabase
+        .from('photos')
+        .select('path')
+        .eq('record_id', recordId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!perr && ph && ph.path){
+        const { data } = supabase.storage.from(bucket).getPublicUrl(ph.path);
+        if (data?.publicUrl) return data.publicUrl;
+      }
+    } catch(e){ /* ignore */ }
+
+    // 2) storage: prova lista in records/<id>/
+    try{
       const prefix = 'records/' + recordId + '/';
-      const { data: list, error } = await supabase.storage.from(bucket).list(prefix, { limit: 1, offset: 0 });
-      if (error) return;
-      if (Array.isArray(list) && list.length){
-        const file = list[0].name;
-        const { data } = supabase.storage.from(bucket).getPublicUrl(prefix + file);
-        if (data?.publicUrl){
-          heroImg.src = data.publicUrl;
-          heroImg.classList.remove('d-none');
-          noImg.classList.add('d-none');
+      const { data: list, error } = await supabase.storage.from(bucket).list(prefix, { limit: 50, offset: 0 });
+      if (!error && Array.isArray(list) && list.length){
+        // Prendi il primo file immagine valido
+        const file = list.find(f => f?.name && /\.(jpg|jpeg|png|webp|gif)$/i.test(f.name)) || list[0];
+        if (file?.name){
+          const { data } = supabase.storage.from(bucket).getPublicUrl(prefix + file.name);
+          if (data?.publicUrl) return data.publicUrl;
         }
       }
-    }catch(e){ /*silent*/ }
+    } catch(e){ /* ignore */ }
+
+    // 3) storage: fallback thumbs
+    try{
+      const prefix = 'records/' + recordId + '/thumb';
+      const { data: list, error } = await supabase.storage.from(bucket).list(prefix, { limit: 50, offset: 0 });
+      if (!error && Array.isArray(list) && list.length){
+        const file = list.find(f => f?.name && /\.(jpg|jpeg|png|webp|gif)$/i.test(f.name)) || list[0];
+        if (file?.name){
+          const { data } = supabase.storage.from(bucket).getPublicUrl(prefix + (prefix.endsWith('/')?'':'/') + file.name);
+          if (data?.publicUrl) return data.publicUrl;
+        }
+      }
+    } catch(e){ /* ignore */ }
+
+    return null;
   }
 
   async function run(){
@@ -88,8 +117,13 @@
 
     L('fNote', data.note || '—');
 
-    // Foto
-    await loadFirstPhoto(id);
+    // Foto (DB 'photos' -> storage list fallback)
+    const url = await resolveFirstPhoto(id);
+    if (url){
+      heroImg.src = url;
+      heroImg.classList.remove('d-none');
+      noImg.classList.add('d-none');
+    }
 
     // Mostra contenuto
     loading.classList.add('d-none');
