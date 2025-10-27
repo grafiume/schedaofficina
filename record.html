@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Scheda • Dettaglio</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="icon" href="favicon.ico">
+  <meta name="robots" content="noindex">
+  <style>
+    body { background:#f8f9fa; }
+    .container-narrow{ max-width:920px; }
+    .label { font-size:.8rem; color:#6c757d; text-transform:uppercase; letter-spacing:.03em; }
+    .value { font-size:1.05rem; }
+    .chip { display:inline-block; padding:.15rem .5rem; border-radius:.5rem; background:#e9ecef; font-size:.8rem; }
+    .kv { margin-bottom:.5rem; }
+    .thumb { width:100%; max-height:360px; object-fit:cover; border-radius:.5rem; }
+    .muted { color:#6c757d; }
+  </style>
+</head>
+<body>
+  <div class="container container-narrow py-4">
+    <header class="d-flex align-items-center justify-content-between mb-3">
+      <h1 class="h4 mb-0">ELIP TAGLIENTE • Scheda</h1>
+      <a class="btn btn-outline-secondary btn-sm" href="index.html">Home</a>
+    </header>
+
+    <div id="alert" class="alert d-none" role="alert"></div>
+
+    <div id="loading" class="text-center py-5">
+      <div class="spinner-border" role="status" aria-hidden="true"></div>
+      <div class="mt-2 muted">Caricamento…</div>
+    </div>
+
+    <div id="content" class="d-none">
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <div class="d-flex align-items-start gap-3">
+            <div class="flex-grow-1">
+              <div class="kv"><span class="label">Cliente</span><div class="value" id="fCliente">—</div></div>
+              <div class="kv"><span class="label">Descrizione</span><div class="value" id="fDescrizione">—</div></div>
+              <div class="kv"><span class="label">Modello</span><div class="value" id="fModello">—</div></div>
+              <div class="kv"><span class="label">Stato</span><div class="value" id="fStato">—</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h2 class="h6 text-uppercase text-muted">Dati tecnici</h2>
+              <div class="row">
+                <div class="col-6 kv"><span class="label">Batt. Collettore</span><div class="value" id="fBatt">—</div></div>
+                <div class="col-6 kv"><span class="label">Lunghezza Asse</span><div class="value" id="fAsse">—</div></div>
+                <div class="col-6 kv"><span class="label">Lunghezza Pacco</span><div class="value" id="fPacco">—</div></div>
+                <div class="col-6 kv"><span class="label">Larghezza Pacco</span><div class="value" id="fLarg">—</div></div>
+                <div class="col-6 kv"><span class="label">Punta</span><div class="value" id="fPunta">—</div></div>
+                <div class="col-6 kv"><span class="label"># Punte</span><div class="value" id="fNP">—</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h2 class="h6 text-uppercase text-muted">Date</h2>
+              <div class="row">
+                <div class="col-6 kv"><span class="label">Apertura</span><div class="value" id="fApertura">—</div></div>
+                <div class="col-6 kv"><span class="label">Accettazione</span><div class="value" id="fAccettazione">—</div></div>
+                <div class="col-6 kv"><span class="label">Scadenza</span><div class="value" id="fScadenza">—</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-3">
+        <div class="card-body">
+          <h2 class="h6 text-uppercase text-muted">Note</h2>
+          <div id="fNote" class="value">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="record.js"></script>
+</body>
+</html>
