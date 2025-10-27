@@ -12,3 +12,9 @@
 #imgOverlay img{display:block;max-width:90vw;max-height:90vh;width:auto;height:auto;object-fit:contain;background:#111;}
 #imgOverlay .closeBtn{position:absolute;top:.5rem;right:.5rem;border:0;background:rgba(0,0,0,.6);color:#fff;border-radius:999px;width:40px;height:40px;font-size:22px;line-height:40px;text-align:center;cursor:pointer;}
 #imgOverlay .closeBtn:hover{background:rgba(0,0,0,.8);}
+
+/* === Patch: evidenziazione campi cliente richiesti (rosso + grassetto) === */
+#eCliente, #eTel, #eEmail { font-weight: 700; color: #d22; }
+/* Se i label hanno l'attributo for corrispondente, colorali */
+label[for="eCliente"], label[for="eTel"], label[for="eEmail"] { font-weight:700; color:#d22; }
+

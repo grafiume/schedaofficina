@@ -42,32 +42,6 @@ function show(id){
 }
 if (typeof window.state !== 'object'){ window.state={ all:[], currentView:'home', editing:null }; }
 
-
-// --- Deep-link helper: open ?id=<UUID> directly in Edit/Detail ---
-window.__deeplinkOpen = async function(){
-  try{
-    const urlId = (new URLSearchParams(location.search)).get('id') || window.ELIP_RECORD_ID || (localStorage.getItem('elip_deeplink_id')||'').trim();
-    if(!urlId) return false;
-    // Se già in memoria, apri subito
-    if (Array.isArray(window.state?.all)) {
-      const hit = window.state.all.find(r=>r && r.id===urlId);
-      if (hit) { try { openEdit(urlId); return true; } catch(e){} }
-    }
-    // Fallback: carica singolo record e poi apri
-    if (typeof sb !== 'undefined' && sb) {
-      const sel = '*'; // selezione ampia per compatibilità
-      const { data, error } = await sb.from('records').select(sel).eq('id', urlId).single();
-      if (!error && data) {
-        window.state = window.state || { all:[], currentView:'home', editing:null };
-        // Evita duplicati
-        if (!window.state.all.find(r=>r.id===data.id)) window.state.all.unshift(data);
-        try { openEdit(urlId); return true; } catch(e){}
-      }
-    }
-  }catch(e){ /*silent*/ }
-  return false;
-};
-
 // ----------------- Supabase -----------------
 if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){
   console.warn('config.js mancante o variabili non definite');
@@ -391,6 +365,40 @@ function setV(id,v){ const el=document.getElementById(id); if(!el) return;
 function val(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
 
 function openEdit(id){
+  // === ID + Link pubblico (scheda_url) ===
+  try {
+    var url = (window.state && window.state.editing && window.state.editing.scheda_url)
+      ? window.state.editing.scheda_url
+      : ('https://grafiume.github.io/schedaofficina/record.html?id=' + id);
+    var idEl  = document.getElementById('recIdTxt');
+    var urlEl = document.getElementById('recUrlTxt');
+    if (idEl)  idEl.textContent  = id;
+    if (urlEl) { urlEl.textContent = url; urlEl.href = url; }
+  } catch (e) {}
+
+  // === Anteprima prima immagine (se disponibile) ===
+  try {
+    if (typeof getThumbUrl === 'function') {
+      getThumbUrl(id).then(function(url){
+        var box = document.querySelector('.img-preview') || document.getElementById('imgPreview');
+        if (!box) return;
+        if (url) {
+          if (box.tagName === 'IMG') {
+            box.src = url; box.classList.remove('d-none');
+          } else {
+            box.innerHTML = '<img src=\"'+url+'\" alt=\"Anteprima\" class=\"thumb\" style=\"width:100%;height:auto;border-radius:.5rem;\">';
+          }
+        } else {
+          if (box.tagName === 'IMG') {
+            box.removeAttribute('src'); box.classList.add('d-none');
+          } else {
+            box.innerHTML = '<div class=\"text-muted\">Nessuna immagine disponibile</div>';
+          }
+        }
+      });
+    }
+  } catch(e) {}
+
   const r=window.state.all.find(x=>x.id===id); if(!r) return; window.state.editing=r;
   const closed=norm(r.statoPratica).includes('completata'); const cb=document.getElementById('closedBanner'); if(cb) cb.classList.toggle('d-none',!closed);
 
@@ -432,8 +440,7 @@ async function saveEdit(closeAfter=true){
   if(error){ alert('Errore salvataggio: '+error.message); return; }
   Object.assign(r, data);
   renderHome(window.state.all);
-  try{ await window.__deeplinkOpen(); }catch(e){}
-if (closeAfter){
+  if (closeAfter){
     // torna alla Home come richiesto
     show('page-home');
   }
