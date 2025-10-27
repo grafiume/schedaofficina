@@ -17,6 +17,8 @@
   const alertBox = document.getElementById('alert');
   const loading = document.getElementById('loading');
   const content = document.getElementById('content');
+  const heroImg = document.getElementById('heroImg');
+  const noImg = document.getElementById('noImg');
 
   function showAlert(type, msg){
     alertBox.className = 'alert alert-' + type;
@@ -25,11 +27,30 @@
   }
   function L(id, v){ const el=document.getElementById(id); if(el) el.textContent = v ?? '—'; }
 
+  async function loadFirstPhoto(recordId){
+    try{
+      // Buckets: di default usiamo 'photos' come da tua app; path 'records/<id>/'
+      const bucket = 'photos';
+      const prefix = 'records/' + recordId + '/';
+      const { data: list, error } = await supabase.storage.from(bucket).list(prefix, { limit: 1, offset: 0 });
+      if (error) return;
+      if (Array.isArray(list) && list.length){
+        const file = list[0].name;
+        const { data } = supabase.storage.from(bucket).getPublicUrl(prefix + file);
+        if (data?.publicUrl){
+          heroImg.src = data.publicUrl;
+          heroImg.classList.remove('d-none');
+          noImg.classList.add('d-none');
+        }
+      }
+    }catch(e){ /*silent*/ }
+  }
+
   async function run(){
     if(!id){ showAlert('warning','ID non specificato nell\'URL.'); return; }
     if(!supabase){ showAlert('danger','Supabase non inizializzato.'); return; }
 
-    // Colonne minime per la visualizzazione (adatta ai tuoi campi reali)
+    // Colonne minime per la visualizzazione
     const cols = [
       'id','cliente','descrizione','modello','statoPratica','note',
       'battCollettore','lunghezzaAsse','lunghezzaPacco','larghezzaPacco',
@@ -38,18 +59,21 @@
     ].join(',');
 
     const { data, error } = await supabase.from('records').select(cols).eq('id', id).single();
-    loading.classList.add('d-none');
 
     if(error){
+      loading.classList.add('d-none');
       console.error(error);
       showAlert('danger', 'Record non trovato o non condiviso.');
       return;
     }
 
+    // Riempimento campi
     L('fCliente', data.cliente || '—');
     L('fDescrizione', data.descrizione || '—');
     L('fModello', data.modello || '—');
     L('fStato', data.statoPratica || '—');
+    L('fTelefono', data.telefono || '—');
+    L('fEmail', data.email || '—');
 
     L('fBatt', data.battCollettore ?? '—');
     L('fAsse', data.lunghezzaAsse ?? '—');
@@ -64,6 +88,11 @@
 
     L('fNote', data.note || '—');
 
+    // Foto
+    await loadFirstPhoto(id);
+
+    // Mostra contenuto
+    loading.classList.add('d-none');
     content.classList.remove('d-none');
   }
 

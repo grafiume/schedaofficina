@@ -9,13 +9,14 @@
   <meta name="robots" content="noindex">
   <style>
     body { background:#f8f9fa; }
-    .container-narrow{ max-width:920px; }
+    .container-narrow{ max-width:980px; }
     .label { font-size:.8rem; color:#6c757d; text-transform:uppercase; letter-spacing:.03em; }
     .value { font-size:1.05rem; }
-    .chip { display:inline-block; padding:.15rem .5rem; border-radius:.5rem; background:#e9ecef; font-size:.8rem; }
     .kv { margin-bottom:.5rem; }
-    .thumb { width:100%; max-height:360px; object-fit:cover; border-radius:.5rem; }
+    .thumb { width:100%; height:auto; max-height:380px; object-fit:cover; border-radius:.5rem; }
     .muted { color:#6c757d; }
+    /* Richiesta: campi nome/telefono/email in rosso e grassetto */
+    .value-strong { font-weight:700; color:#d22; }
   </style>
 </head>
 <body>
@@ -33,14 +34,29 @@
     </div>
 
     <div id="content" class="d-none">
-      <div class="card shadow-sm mb-4">
-        <div class="card-body">
-          <div class="d-flex align-items-start gap-3">
-            <div class="flex-grow-1">
-              <div class="kv"><span class="label">Cliente</span><div class="value" id="fCliente">—</div></div>
+      <div class="row g-3 align-items-start">
+        <div class="col-md-7">
+          <div class="card shadow-sm mb-3">
+            <div class="card-body">
+              <div class="kv"><span class="label">Cliente</span><div class="value value-strong" id="fCliente">—</div></div>
               <div class="kv"><span class="label">Descrizione</span><div class="value" id="fDescrizione">—</div></div>
               <div class="kv"><span class="label">Modello</span><div class="value" id="fModello">—</div></div>
               <div class="kv"><span class="label">Stato</span><div class="value" id="fStato">—</div></div>
+              <div class="row">
+                <div class="col-6 kv"><span class="label">Telefono</span><div class="value value-strong" id="fTelefono">—</div></div>
+                <div class="col-6 kv"><span class="label">Email</span><div class="value value-strong" id="fEmail">—</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-5">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h2 class="h6 text-uppercase text-muted mb-2">Anteprima immagine</h2>
+              <div id="imgBox" class="text-center">
+                <div id="noImg" class="text-muted">Nessuna immagine disponibile</div>
+                <img id="heroImg" class="thumb d-none" alt="Anteprima"/>
+              </div>
             </div>
           </div>
         </div>
