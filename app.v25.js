@@ -5,7 +5,6 @@
 
 // ----------------- Helpers -----------------
 let _creatingNew=false;
-let _newModal=null;
 let _newGeneratedId=null;
 let _newMainName=null;
 (function(){
