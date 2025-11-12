@@ -382,7 +382,7 @@ async function refreshGallery(recordId){
       const url=publicUrlCached(p);
       const col=document.createElement('div'); col.className='col-4';
       const wrap=document.createElement('div'); wrap.className='position-relative';
-      const star=document.createElement('button'); star.type='button'; star.className='btn btn-sm btn-warning position-absolute btn-main-photo'; star.style.top='6px'; star.style.left='6px'; star.title='Imposta come principale'; star.textContent='☆'; star.setAttribute('data-path', p);
+      const star=document.createElement('button'); star.type='button'; star.className='position-absolute btn-main-photo'; star.style.top='6px'; star.style.left='6px'; star.title='Imposta come principale'; star.textContent='☆'; star.setAttribute('data-path', p); star.style.zIndex='5'; star.style.background='rgba(0,0,0,.65)'; star.style.color='#fff'; star.style.border='0'; star.style.borderRadius='9999px'; star.style.padding='2px 7px'; star.style.lineHeight='1'; star.style.boxShadow='0 2px 6px rgba(0,0,0,.3)';
       star.addEventListener('click', ()=> setMainPhoto(recordId, p));
       const img=new Image(); img.alt='';
       if(currentUrl){ try{ if(publicUrlCached(p)===currentUrl){ star.textContent='★'; star.classList.add('active'); } }catch{} } img.className='img-fluid rounded'; img.style.height='144px'; img.style.objectFit='cover'; img.src=url;
@@ -510,7 +510,7 @@ function previewNewFiles(){
     const url=URL.createObjectURL(f);
     const img=new Image(); img.src=url; img.alt=f.name; img.className='img-fluid rounded border'; img.onload=()=>URL.revokeObjectURL(url);
     img.style.width='100%'; img.style.height='120px'; img.style.objectFit='cover';
-    const star=document.createElement('button'); star.type='button'; star.className='btn btn-sm btn-warning position-absolute'; star.style.top='6px'; star.style.right='6px'; star.title='Imposta come principale'; star.textContent='☆';
+    const star=document.createElement('button'); star.type='button'; star.className='position-absolute btn-main-photo'; star.style.top='6px'; star.style.right='6px'; star.title='Imposta come principale'; star.textContent='☆'; star.style.zIndex='5'; star.style.background='rgba(0,0,0,.65)'; star.style.color='#fff'; star.style.border='0'; star.style.borderRadius='9999px'; star.style.padding='2px 7px'; star.style.lineHeight='1'; star.style.boxShadow='0 2px 6px rgba(0,0,0,.3)';
     star.addEventListener('click', ()=>{
       _newMainName=f.name;
       grid.querySelectorAll('button').forEach(b=>b.textContent='☆');
