@@ -405,7 +405,7 @@ function setV(id,v){ const el=document.getElementById(id); if(!el) return;
 }
 function val(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
 
-async function openEdit(id){
+function openEdit(id){
   // === ID + Link pubblico (scheda_url) ===
   try {
     var url = (window.state && window.state.editing && window.state.editing.scheda_url)
@@ -519,14 +519,6 @@ function previewNewFiles(){
     if(idx===0 && !_newMainName){ _newMainName=f.name; star.textContent='★'; }
     wrap.appendChild(img); wrap.appendChild(star); col.appendChild(wrap); grid.appendChild(col);
   });
-}
-  box.innerHTML='';
-  const files=inp.files;
-  if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
-  const url=URL.createObjectURL(files[0]);
-  const img=new Image(); img.src=url; img.onload=()=>URL.revokeObjectURL(url);
-  box.appendChild(img);
-  img.addEventListener('click', ()=>openLightbox(url));
 }
 
 async function createNewRecord(){
