@@ -302,54 +302,18 @@ function doSearch(){
   if(!rows.length){ tb.innerHTML='<tr><td colspan="7" class="text-center text-muted py-4">Nessun risultato</td></tr>'; }
 }
 
-
-; // separator to avoid ASI pitfalls
-const uploadFiles = async (recordId, files, mainName) => {
-  const prefix = `records/${recordId}/`;
-  const uploadedPaths = [];
-  for (const f of files){
-    const safe = Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
-    const path = prefix + safe;
-    const { error } = await sb.storage.from(bucket).upload(path, f, { upsert:false });
-    if(error){
-      alert('Errore upload: ' + error.message);
-      return false;
-    }
-    uploadedPaths.push(path);
-  }
-
-  try{ FIRST_PHOTO_CACHE.delete(recordId); }catch{}
-
-  try{
-    if(mainName){
-      const cleaned = mainName.replace(/[^a-z0-9_.-]+/gi,'_').toLowerCase();
-      // Prefer appena caricati
-      let paths = uploadedPaths.slice();
-      if(!paths.length){
-        paths = await listPhotosFromPrefix(`records/${recordId}/`);
-        if(!paths.length) paths = await listPhotosFromPrefix(`${recordId}/`);
-      }
-      if(paths.length){
-        const cand = paths.find(p => p.toLowerCase().endswith(cleaned)) || paths[0];
-        if(cand){
-          const url = publicUrlCached(cand);
-          const { error: uerr } = await sb.from('records').update({ image_url: url }).eq('id', recordId);
-          if(uerr){ console.warn('Update image_url failed:', uerr.message); }
-        }
-      }
-    }
-  }catch(e){
-    console.warn('Impostazione image_url fallita', e);
-  }
-  return true;
-};
-
-
 // ----------------- Gallery (Edit) -----------------
-
-
+async function uploadFiles(recordId, files, mainName){
+  const prefix=`records/${recordId}/`;
+  const uploadedPaths=[];
+  return (async ()=>{
+    for (const f of files){
+      const safe = Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
+      const path = prefix+safe;
+      const { error } = await sb.storage.from(bucket).upload(path, f, { upsert:false });
+      if(error){ alert('Errore upload: '+error.message); return false; }
       uploadedPaths.push(path);
-    
+    }
     FIRST_PHOTO_CACHE.delete(recordId);
     try{
       if(mainName){
@@ -362,8 +326,8 @@ const uploadFiles = async (recordId, files, mainName) => {
       }
     }catch(e){ console.warn('Impostazione image_url fallita', e); }
     return true;
-  )();
-
+  })();
+}
 
 async function setMainPhoto(recordId, path){
   try{
@@ -441,7 +405,7 @@ function setV(id,v){ const el=document.getElementById(id); if(!el) return;
 }
 function val(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
 
-function openEdit(id){
+async function openEdit(id){
   // === ID + Link pubblico (scheda_url) ===
   try {
     var url = (window.state && window.state.editing && window.state.editing.scheda_url)
@@ -563,7 +527,7 @@ function previewNewFiles(){
   const img=new Image(); img.src=url; img.onload=()=>URL.revokeObjectURL(url);
   box.appendChild(img);
   img.addEventListener('click', ()=>openLightbox(url));
-
+}
 
 async function createNewRecord(){
   const dtAper=getV('nApertura')||todayISO();
