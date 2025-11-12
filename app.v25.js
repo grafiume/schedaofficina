@@ -300,7 +300,7 @@ function doSearch(){
 }
 
 // ----------------- Gallery (Edit) -----------------
-async function uploadFiles(recordId, files, mainName){
+async function uploadFiles(recordId, files){
   const prefix=`records/${recordId}/`;
   for (const f of files){
     const name=Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
@@ -309,23 +309,6 @@ async function uploadFiles(recordId, files, mainName){
   }
   // invalida cache thumb per questo record
   FIRST_PHOTO_CACHE.delete(recordId);
-
-  try{
-    if(mainName){
-      const cleaned = mainName.replace(/[^a-z0-9_.-]+/gi,'_').toLowerCase();
-      let paths = await listPhotosFromPrefix(`records/${recordId}/`);
-      if(!paths.length) paths = await listPhotosFromPrefix(`${recordId}/`);
-      if(paths.length){
-        const cand = paths.find(p => p.toLowerCase().endswith(cleaned)) || paths[0];
-        if(cand){
-          const url = publicUrlCached(cand);
-          const { error: uerr } = await sb.from('records').update({ image_url: url }).eq('id', recordId);
-          if(uerr){ console.warn('Update image_url failed:', uerr.message); }
-        }
-      }
-    }
-  }catch(e){ console.warn('Impostazione image_url fallita', e); }
-
   return true;
 }
 async function refreshGallery(recordId){
@@ -477,44 +460,6 @@ function previewNewFiles(){
   box.innerHTML='';
   const files=inp.files;
   if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
-
-  const grid=document.createElement('div'); grid.className='row g-2';
-  box.appendChild(grid);
-  window._newMainName = window._newMainName || null;
-
-  [...files].forEach((f,idx)=>{
-    const col=document.createElement('div'); col.className='col-4';
-    const wrap=document.createElement('div'); wrap.className='position-relative';
-    const url=URL.createObjectURL(f);
-    const img=new Image(); img.src=url; img.alt=f.name; img.className='img-fluid rounded border';
-    img.onload=()=>URL.revokeObjectURL(url);
-    img.style.width='100%'; img.style.height='120px'; img.style.objectFit='cover';
-
-    const star=document.createElement('button');
-    star.type='button';
-    star.className='position-absolute btn-main-photo';
-    star.style.top='6px'; star.style.right='6px';
-    star.style.zIndex='5'; star.style.background='rgba(0,0,0,.65)'; star.style.color='#fff';
-    star.style.border='0'; star.style.borderRadius='9999px'; star.style.padding='2px 7px';
-    star.style.lineHeight='1'; star.style.boxShadow='0 2px 6px rgba(0,0,0,.3)';
-    star.title='Imposta come principale';
-    star.textContent='☆';
-    star.addEventListener('click', ()=>{
-      window._newMainName=f.name;
-      grid.querySelectorAll('button.btn-main-photo').forEach(b=>b.textContent='☆');
-      star.textContent='★';
-    });
-    if(idx===0 && !window._newMainName){ window._newMainName=f.name; star.textContent='★'; }
-
-    wrap.appendChild(img);
-    wrap.appendChild(star);
-    col.appendChild(wrap);
-    grid.appendChild(col);
-  });
-}
-box.innerHTML='';
-  const files=inp.files;
-  if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
   const url=URL.createObjectURL(files[0]);
   const img=new Image(); img.src=url; img.onload=()=>URL.revokeObjectURL(url);
   box.appendChild(img);
@@ -540,44 +485,6 @@ async function createNewRecord(){
     punta:getV('nPunta'), numPunte:toNull(getV('nNP')),
     note:getV('nNote'),
   };
-  if(!payload.descrizione){ alert('Inserisci la descrizione.'); return; }
-
-  const saveBtn=document.getElementById('btnNewSave');
-  if(saveBtn){ saveBtn.disabled=true; saveBtn.textContent='Salvo…'; }
-
-  let rid = null;
-  try { rid = sessionStorage.getItem('ELIP_NEW_ID') || null; } catch {}
-  if(!rid){
-    try { rid = (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(16)+'-'+Math.random().toString(16).slice(2,10)); } catch { rid = (Date.now().toString(16)+'-'+Math.random().toString(16).slice(2,10)); }
-    try { sessionStorage.setItem('ELIP_NEW_ID', rid); } catch {}
-  }
-
-  const body = Object.assign({ id: rid }, payload);
-  const { data, error } = await sb.from('records').upsert(body, { onConflict: 'id' }).select().single();
-  if(error){
-    if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Salva'; }
-    alert('Errore creazione: '+error.message);
-    return;
-  }
-
-  const files=document.getElementById('nFiles')?.files;
-  if(files && files.length){
-    const ok = await uploadFiles(data.id, files, window._newMainName || null);
-    if(!ok){ alert('Attenzione: alcune immagini potrebbero non essere state caricate.'); }
-    document.getElementById('nFiles').value='';
-    const pv=document.getElementById('nPreview'); if(pv){ pv.innerHTML='Nessuna immagine'; }
-  }
-
-  window.state.all.unshift(data);
-  renderHome(window.state.all);
-
-  try{ _newModal?.hide(); }catch{}
-  try{ sessionStorage.removeItem('ELIP_NEW_ID'); }catch{}
-  if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Salva'; }
-
-  alert('Creato!');
-}
-;
   if(!payload.descrizione){ alert('Inserisci la descrizione.'); return; }
 
   const { data, error } = await sb.from('records').insert(payload).select().single();
