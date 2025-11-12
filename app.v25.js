@@ -57,6 +57,7 @@ const sb = (typeof supabase!=='undefined')
 const bucket='photos';
 const _pubUrlCache=new Map();
 function publicUrl(path){ const {data}=sb.storage.from(bucket).getPublicUrl(path); return data?.publicUrl||''; }
+
 function publicUrlCached(path){ if(_pubUrlCache.has(path)) return _pubUrlCache.get(path); const u=publicUrl(path); _pubUrlCache.set(path,u); return u; }
 
 // Throttling queue per evitare 429
@@ -78,6 +79,7 @@ async function runQueue(){
     setTimeout(runQueue, MIN_SPACING_MS);
   }
 }
+
 function enqueue(fn){
   REQ_QUEUE.push(fn);
   runQueue();
@@ -251,8 +253,11 @@ function getSearchFilters(){
     np: document.getElementById('fNP')?.value.trim() || '',
   };
 }
+
 function toNum(val){ if(val==null) return null; const s=String(val).trim().replace(',', '.'); if(s==='') return null; const n=Number(s); return Number.isFinite(n)?n:null; }
+
 function isNumEq(fv, rv){ if(fv==null || String(fv).trim()==='') return true; const f=toNum(fv), r=toNum(rv); if(f===null||r===null) return false; return f===r; }
+
 function matchRow(r,f){
   if(f.q){
     const hay=[r.descrizione,r.modello,r.cliente,r.telefono,r.docTrasporto].map(norm).join(' ');
@@ -268,6 +273,7 @@ function matchRow(r,f){
   if(!isNumEq(f.np,r.numPunte)) return false;
   return true;
 }
+
 function doSearch(){
   const f=getSearchFilters();
   const rows=(window.state.all||[]).filter(r=>matchRow(r,f)).sort(byHomeOrder);
@@ -303,49 +309,8 @@ function doSearch(){
 }
 
 // ----------------- Gallery (Edit) -----------------
-async async function uploadFiles(recordId, files, mainName){
-  const prefix = `records/${recordId}/`;
-  const uploadedPaths = [];
-  for (const f of files){
-    const safe = Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
-    const path = prefix + safe;
-    const { error } = await sb.storage.from(bucket).upload(path, f, { upsert:false });
-    if(error){
-      alert('Errore upload: ' + error.message);
-      return false;
-    }
-    uploadedPaths.push(path);
-  }
-
-  // invalida cache thumb
-  try{ FIRST_PHOTO_CACHE.delete(recordId); }catch{}
-
-  // set image_url se selezionata una principale
-  try{
-    if(mainName){
-      const cleaned = mainName.replace(/[^a-z0-9_.-]+/gi,'_').toLowerCase();
-      // elenca i file appena caricati (o già presenti col prefisso)
-      let paths = uploadedPaths.slice();
-      if(!paths.length){
-        paths = await listPhotosFromPrefix(`records/${recordId}/`);
-        if(!paths.length) paths = await listPhotosFromPrefix(`${recordId}/`);
-      }
-      if(paths.length){
-        const cand = paths.find(p => p.toLowerCase().endswith(cleaned)) || paths[0];
-        if(cand){
-          const url = publicUrlCached(cand);
-          const { error: uerr } = await sb.from('records').update({ image_url: url }).eq('id', recordId);
-          if(uerr){ console.warn('Update image_url failed:', uerr.message); }
-        }
-      }
-    }
-  }catch(e){
-    console.warn('Impostazione image_url fallita', e);
-  }
-
-  return true;
-}
-/`;
+async function uploadFiles(recordId, files, mainName){
+  const prefix=`records/${recordId}/`;
   const uploadedPaths=[];
   return (async ()=>{
     for (const f of files){
@@ -444,6 +409,7 @@ function setV(id,v){ const el=document.getElementById(id); if(!el) return;
   if(el.tagName==='SELECT'){ let f=false; for(const opt of el.options){ if(norm(opt.value)===norm(v)){ el.value=opt.value; f=true; break; } } if(!f) el.value=''; }
   else { el.value = v??''; }
 }
+
 function val(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
 
 function openEdit(id){
@@ -532,7 +498,9 @@ async function saveEdit(closeAfter=true){
 // ----------------- NUOVA SCHEDA -----------------
 let _newModal;
 function todayISO(){ const d=new Date(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${d.getFullYear()}-${m}-${dd}`; }
+
 function getV(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
+
 function toNull(s){ return s===''?null:s; }
 
 function previewNewFiles(){
@@ -566,6 +534,7 @@ function previewNewFiles(){
     star.style.lineHeight='1'; star.style.boxShadow='0 2px 6px rgba(0,0,0,.3)';
     star.title='Imposta come principale';
     star.textContent='☆';
+
     star.addEventListener('click', ()=>{
       window._newMainName=f.name;
       grid.querySelectorAll('button.btn-main-photo').forEach(b=>b.textContent='☆');
@@ -582,35 +551,13 @@ function previewNewFiles(){
 box.innerHTML='';
   const files=inp.files;
   if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
-
-  const grid=document.createElement('div'); grid.className='row g-2';
-  box.appendChild(grid);
-  [...files].forEach((f,idx)=>{
-    const col=document.createElement('div'); col.className='col-4';
-    const wrap=document.createElement('div'); wrap.className='position-relative';
-    const url=URL.createObjectURL(f);
-    const img=new Image(); img.src=url; img.alt=f.name; img.className='img-fluid rounded border'; img.onload=()=>URL.revokeObjectURL(url);
-    img.style.width='100%'; img.style.height='120px'; img.style.objectFit='cover';
-    const star=document.createElement('button'); star.type='button'; star.className='btn btn-sm btn-warning position-absolute'; star.style.top='6px'; star.style.right='6px'; star.title='Imposta come principale'; star.textContent='☆';
-    star.addEventListener('click', ()=>{
-      _newMainName=f.name;
-      grid.querySelectorAll('button').forEach(b=>b.textContent='☆');
-      star.textContent='★';
-    });
-    if(idx===0 && !_newMainName){ _newMainName=f.name; star.textContent='★'; }
-    wrap.appendChild(img); wrap.appendChild(star); col.appendChild(wrap); grid.appendChild(col);
-  });
-}
-  box.innerHTML='';
-  const files=inp.files;
-  if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
   const url=URL.createObjectURL(files[0]);
   const img=new Image(); img.src=url; img.onload=()=>URL.revokeObjectURL(url);
   box.appendChild(img);
   img.addEventListener('click', ()=>openLightbox(url));
 }
 
-async async function createNewRecord(){
+async function createNewRecord(){
   const dtAper=getV('nApertura')||todayISO();
   const payload={
     descrizione:getV('nDescrizione'),
@@ -629,44 +576,6 @@ async async function createNewRecord(){
     punta:getV('nPunta'), numPunte:toNull(getV('nNP')),
     note:getV('nNote'),
   };
-  if(!payload.descrizione){ alert('Inserisci la descrizione.'); return; }
-
-  const saveBtn=document.getElementById('btnNewSave');
-  if(saveBtn){ saveBtn.disabled=true; saveBtn.textContent='Salvo…'; }
-
-  let rid = null;
-  try { rid = sessionStorage.getItem('ELIP_NEW_ID') || null; } catch {}
-  if(!rid){
-    try { rid = (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(16)+'-'+Math.random().toString(16).slice(2,10)); } catch { rid = (Date.now().toString(16)+'-'+Math.random().toString(16).slice(2,10)); }
-    try { sessionStorage.setItem('ELIP_NEW_ID', rid); } catch {}
-  }
-
-  const body = Object.assign({ id: rid }, payload);
-  const { data, error } = await sb.from('records').upsert(body, { onConflict: 'id' }).select().single();
-  if(error){
-    if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Salva'; }
-    alert('Errore creazione: '+error.message);
-    return;
-  }
-
-  const files=document.getElementById('nFiles')?.files;
-  if(files && files.length){
-    const ok = await uploadFiles(data.id, files, window._newMainName || null);
-    if(!ok){ alert('Attenzione: alcune immagini potrebbero non essere state caricate.'); }
-    document.getElementById('nFiles').value='';
-    const pv=document.getElementById('nPreview'); if(pv){ pv.innerHTML='Nessuna immagine'; }
-  }
-
-  window.state.all.unshift(data);
-  renderHome(window.state.all);
-
-  try{ _newModal?.hide(); }catch{}
-  try{ sessionStorage.removeItem('ELIP_NEW_ID'); }catch{}
-  if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Salva'; }
-
-  alert('Creato!');
-}
-;
   if(!payload.descrizione){ alert('Inserisci la descrizione.'); return; }
 
   // anti doppio click & idempotenza
@@ -769,3 +678,45 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
 });
+
+
+async function uploadFiles(recordId, files, mainName){
+  const prefix = `records/${recordId}/`;
+  const uploadedPaths = [];
+  for (const f of files){
+    const safe = Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
+    const path = prefix + safe;
+    const { error } = await sb.storage.from(bucket).upload(path, f, { upsert:false });
+    if(error){
+      alert('Errore upload: ' + error.message);
+      return false;
+    }
+    uploadedPaths.push(path);
+  }
+
+  try{ FIRST_PHOTO_CACHE.delete(recordId); }catch{}
+
+  try{
+    if(mainName){
+      const cleaned = mainName.replace(/[^a-z0-9_.-]+/gi,'_').toLowerCase();
+      // Prefer appena caricati; se non presenti, listiamo il prefisso
+      let paths = uploadedPaths.slice();
+      if(!paths.length){
+        paths = await listPhotosFromPrefix(`records/${recordId}/`);
+        if(!paths.length) paths = await listPhotosFromPrefix(`${recordId}/`);
+      }
+      if(paths.length){
+        const cand = paths.find(p => p.toLowerCase().endswith(cleaned)) || paths[0];
+        if(cand){
+          const url = publicUrlCached(cand);
+          const { error: uerr } = await sb.from('records').update({ image_url: url }).eq('id', recordId);
+          if(uerr){ console.warn('Update image_url failed:', uerr.message); }
+        }
+      }
+    }
+  }catch(e){
+    console.warn('Impostazione image_url fallita', e);
+  }
+
+  return true;
+}
