@@ -303,40 +303,8 @@ function doSearch(){
 }
 
 // ----------------- Gallery (Edit) -----------------
-async async function uploadFiles(recordId, files, mainName){
-  const prefix = `records/${recordId}/`;
-  const uploadedPaths = [];
-  for (const f of files){
-    const safe = Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
-    const path = prefix + safe;
-    const { error } = await sb.storage.from(bucket).upload(path, f, { upsert:false });
-    if(error){
-      alert('Errore upload: ' + error.message);
-      return false;
-    }
-    uploadedPaths.push(path);
-  }
-
-  // invalida cache thumb
-  try{ FIRST_PHOTO_CACHE.delete(recordId); }catch{}
-
-  // imposta image_url se è stata selezionata una principale
-  try{
-    if(mainName){
-      const cleaned = mainName.replace(/[^a-z0-9_.-]+/gi,'_').toLowerCase();
-      const cand = uploadedPaths.find(p => p.toLowerCase().endswith(cleaned)) || uploadedPaths[0];
-      if(cand){
-        const url = publicUrlCached(cand);
-        const { error: uerr } = await sb.from('records').update({ image_url: url }).eq('id', recordId);
-        if(uerr){ console.warn('Update image_url failed:', uerr.message); }
-      }
-    }
-  }catch(e){
-    console.warn('Impostazione image_url fallita', e);
-  }
-  return true;
-}
-/`;
+async function uploadFiles(recordId, files, mainName){
+  const prefix=`records/${recordId}/`;
   const uploadedPaths=[];
   return (async ()=>{
     for (const f of files){
@@ -414,7 +382,7 @@ async function refreshGallery(recordId){
       const url=publicUrlCached(p);
       const col=document.createElement('div'); col.className='col-4';
       const wrap=document.createElement('div'); wrap.className='position-relative';
-      const star=document.createElement('button'); star.type='button'; star.className='position-absolute btn-main-photo'; star.style.top='6px'; star.style.left='6px'; star.title='Imposta come principale'; star.textContent='☆'; star.setAttribute('data-path', p); star.style.zIndex='5'; star.style.background='rgba(0,0,0,.65)'; star.style.color='#fff'; star.style.border='0'; star.style.borderRadius='9999px'; star.style.padding='2px 7px'; star.style.lineHeight='1'; star.style.boxShadow='0 2px 6px rgba(0,0,0,.3)';
+      const star=document.createElement('button'); star.type='button'; star.className='btn btn-sm btn-warning position-absolute btn-main-photo'; star.style.top='6px'; star.style.left='6px'; star.title='Imposta come principale'; star.textContent='☆'; star.setAttribute('data-path', p);
       star.addEventListener('click', ()=> setMainPhoto(recordId, p));
       const img=new Image(); img.alt='';
       if(currentUrl){ try{ if(publicUrlCached(p)===currentUrl){ star.textContent='★'; star.classList.add('active'); } }catch{} } img.className='img-fluid rounded'; img.style.height='144px'; img.style.objectFit='cover'; img.src=url;
@@ -542,7 +510,7 @@ function previewNewFiles(){
     const url=URL.createObjectURL(f);
     const img=new Image(); img.src=url; img.alt=f.name; img.className='img-fluid rounded border'; img.onload=()=>URL.revokeObjectURL(url);
     img.style.width='100%'; img.style.height='120px'; img.style.objectFit='cover';
-    const star=document.createElement('button'); star.type='button'; star.className='position-absolute btn-main-photo'; star.style.top='6px'; star.style.right='6px'; star.title='Imposta come principale'; star.textContent='☆'; star.style.zIndex='5'; star.style.background='rgba(0,0,0,.65)'; star.style.color='#fff'; star.style.border='0'; star.style.borderRadius='9999px'; star.style.padding='2px 7px'; star.style.lineHeight='1'; star.style.boxShadow='0 2px 6px rgba(0,0,0,.3)';
+    const star=document.createElement('button'); star.type='button'; star.className='btn btn-sm btn-warning position-absolute'; star.style.top='6px'; star.style.right='6px'; star.title='Imposta come principale'; star.textContent='☆';
     star.addEventListener('click', ()=>{
       _newMainName=f.name;
       grid.querySelectorAll('button').forEach(b=>b.textContent='☆');
@@ -552,6 +520,15 @@ function previewNewFiles(){
     wrap.appendChild(img); wrap.appendChild(star); col.appendChild(wrap); grid.appendChild(col);
   });
 }
+  box.innerHTML='';
+  const files=inp.files;
+  if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
+  const url=URL.createObjectURL(files[0]);
+  const img=new Image(); img.src=url; img.onload=()=>URL.revokeObjectURL(url);
+  box.appendChild(img);
+  img.addEventListener('click', ()=>openLightbox(url));
+}
+
 async function createNewRecord(){
   const dtAper=getV('nApertura')||todayISO();
   const payload={
@@ -582,10 +559,12 @@ async function createNewRecord(){
   const body = Object.assign({ id: rid }, payload);
   const { data, error } = await sb.from('records').upsert(body, { onConflict: 'id' }).select().single();
   if(error){ if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Salva'; } _creatingNew=false; alert('Errore creazione: '+error.message); return; }
+  if(error){ alert('Errore creazione: '+error.message); return; }
+
   // upload immagini se presenti
   const files=document.getElementById('nFiles')?.files;
   if(files && files.length){
-    const ok = await uploadFiles(data.id, files, _newMainName);
+    const ok = await uploadFiles(data.id, files);
     if(!ok){ alert('Attenzione: alcune immagini potrebbero non essere state caricate.'); }
     document.getElementById('nFiles').value='';
     const pv=document.getElementById('nPreview'); if(pv){ pv.innerHTML='Nessuna immagine'; }
