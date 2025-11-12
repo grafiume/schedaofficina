@@ -314,9 +314,11 @@ async function uploadFiles(recordId, files, mainName){
       if(error){ alert('Errore upload: '+error.message); return false; }
       uploadedPaths.push(path);
     }
+    // invalida cache thumb per questo record
     FIRST_PHOTO_CACHE.delete(recordId);
     try{
       if(mainName){
+        // scegli il path la cui parte finale (dopo il timestamp) include il nome pulito
         const cleaned = mainName.replace(/[^a-z0-9_.-]+/gi,'_').toLowerCase();
         const cand = uploadedPaths.find(p => p.toLowerCase().endswith(cleaned)) || uploadedPaths[0];
         if(cand){
@@ -345,9 +347,10 @@ async function setMainPhoto(recordId, path){
       btn.textContent = (p === path) ? '★' : '☆';
       btn.classList.toggle('active', p === path);
     });
-  }catch(e){ console.warn('setMainPhoto failed', e); }
+  }catch(e){
+    console.warn('setMainPhoto failed', e);
+  }
 }
-
 async function refreshGallery(recordId){
   const gallery=document.getElementById('gallery');
   const prev=document.querySelector('.img-preview');
@@ -384,8 +387,8 @@ async function refreshGallery(recordId){
       const wrap=document.createElement('div'); wrap.className='position-relative';
       const star=document.createElement('button'); star.type='button'; star.className='btn btn-sm btn-warning position-absolute btn-main-photo'; star.style.top='6px'; star.style.left='6px'; star.title='Imposta come principale'; star.textContent='☆'; star.setAttribute('data-path', p);
       star.addEventListener('click', ()=> setMainPhoto(recordId, p));
-      const img=new Image(); img.alt='';
-      if(currentUrl){ try{ if(publicUrlCached(p)===currentUrl){ star.textContent='★'; star.classList.add('active'); } }catch{} } img.className='img-fluid rounded'; img.style.height='144px'; img.style.objectFit='cover'; img.src=url;
+      const img=new Image();
+      if(currentUrl){ try{ if(publicUrlCached(p)===currentUrl){ star.textContent='★'; star.classList.add('active'); } }catch{} } img.alt=''; img.className='img-fluid rounded'; img.style.height='144px'; img.style.objectFit='cover'; img.src=url;
       img.addEventListener('click',()=>openLightbox(url));
       const del=document.createElement('button'); del.type='button'; del.className='btn btn-sm btn-danger position-absolute top-0 end-0 m-1'; del.textContent='×'; del.title='Elimina immagine';
       del.addEventListener('click', async ev=>{ ev.stopPropagation(); if(!confirm('Sei sicuro di voler eliminare questa immagine?')) return;
@@ -489,7 +492,7 @@ async function saveEdit(closeAfter=true){
 }
 
 // ----------------- NUOVA SCHEDA -----------------
-let _newModal;
+var _modalNewRecord;
 function todayISO(){ const d=new Date(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${d.getFullYear()}-${m}-${dd}`; }
 function getV(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
 function toNull(s){ return s===''?null:s; }
@@ -513,6 +516,7 @@ function previewNewFiles(){
     const star=document.createElement('button'); star.type='button'; star.className='btn btn-sm btn-warning position-absolute'; star.style.top='6px'; star.style.right='6px'; star.title='Imposta come principale'; star.textContent='☆';
     star.addEventListener('click', ()=>{
       _newMainName=f.name;
+      // reset stars
       grid.querySelectorAll('button').forEach(b=>b.textContent='☆');
       star.textContent='★';
     });
@@ -520,6 +524,10 @@ function previewNewFiles(){
     wrap.appendChild(img); wrap.appendChild(star); col.appendChild(wrap); grid.appendChild(col);
   });
 }
+
+  const box=document.getElementById('nPreview');
+  const inp=document.getElementById('nFiles');
+  if(!box||!inp){ return; }
   box.innerHTML='';
   const files=inp.files;
   if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
@@ -550,15 +558,39 @@ async function createNewRecord(){
   };
   if(!payload.descrizione){ alert('Inserisci la descrizione.'); return; }
 
-  // anti doppio click & idempotenza
+    // anti doppio click: blocca finché la richiesta non termina
   if(_creatingNew){ return; }
   _creatingNew = true;
   const saveBtn=document.getElementById('btnNewSave'); if(saveBtn){ saveBtn.disabled=true; saveBtn.textContent='Salvo…'; }
+  // ID stabile per idempotenza
   let rid = _newGeneratedId || (sessionStorage.getItem('ELIP_NEW_ID')||null);
   if(!rid){ rid = crypto?.randomUUID?.() || (Date.now().toString(16)+'-'+Math.random().toString(16).slice(2,10)); _newGeneratedId=rid; try{ sessionStorage.setItem('ELIP_NEW_ID', rid); }catch{} }
   const body = Object.assign({ id: rid }, payload);
+
+  // usa upsert onConflict:id in modo che un secondo click non crei un duplicato
   const { data, error } = await sb.from('records').upsert(body, { onConflict: 'id' }).select().single();
   if(error){ if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Salva'; } _creatingNew=false; alert('Errore creazione: '+error.message); return; }
+
+  // upload immagini se presenti
+  const files=document.getElementById('nFiles')?.files;
+  if(files && files.length){
+    const ok = await uploadFiles(data.id, files, _newMainName);
+    if(!ok){ alert('Attenzione: alcune immagini potrebbero non essere state caricate.'); }
+    document.getElementById('nFiles').value='';
+    const pv=document.getElementById('nPreview'); if(pv){ pv.innerHTML='Nessuna immagine'; }
+  }
+
+  // aggiorna cache & UI
+  window.state.all.unshift(data);
+  renderHome(window.state.all);
+
+  // reset guards & chiudi
+  try{ _modalNewRecord?.hide(); }catch{}
+  try{ sessionStorage.removeItem('ELIP_NEW_ID'); }catch{}
+  _creatingNew=false;
+  if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Salva'; }
+  alert('Creato!');
+
   if(error){ alert('Errore creazione: '+error.message); return; }
 
   // upload immagini se presenti
@@ -574,11 +606,7 @@ async function createNewRecord(){
   window.state.all.unshift(data);
   renderHome(window.state.all);
 
-  try{ _newModal?.hide(); }catch{}
-  try{ sessionStorage.removeItem('ELIP_NEW_ID'); }catch{}
-  _creatingNew=false;
-  if(document.getElementById('btnNewSave')){ const b=document.getElementById('btnNewSave'); b.disabled=false; b.textContent='Salva'; }
-  alert('Creato!');
+  try{ _modalNewRecord?.hide(); }catch{}
 }
 
 // ----------------- Boot -----------------
@@ -635,12 +663,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
       _creatingNew=false;
       _newMainName=null;
       try{ sessionStorage.removeItem('ELIP_NEW_ID'); }catch{}
+      // pre-genera un UUID stabile per evitare duplicati su doppio click
       _newGeneratedId = (crypto?.randomUUID?.() || (Date.now().toString(16)+'-'+Math.random().toString(16).slice(2,10)+'-'+Math.random().toString(16).slice(2,6)+'-'+Math.random().toString(16).slice(2,6)+'-'+Math.random().toString(16).slice(2,12))).replace(/\.+$/,'');
       try{ sessionStorage.setItem('ELIP_NEW_ID', _newGeneratedId); }catch{}
       const el=document.getElementById('newRecordModal'); if(!el) return;
-      if(!_newModal) _newModal=new bootstrap.Modal(el, { backdrop:'static' });
+      if(!_modalNewRecord) _modalNewRecord=new bootstrap.Modal(el, { backdrop:'static' });
       const nApertura=document.getElementById('nApertura'); if(nApertura && !nApertura.value) nApertura.value=todayISO();
-      _newModal.show();
+      _modalNewRecord.show();
     });
   }
   const bNewSave=document.getElementById('btnNewSave'); if(bNewSave) bNewSave.addEventListener('click', createNewRecord);
