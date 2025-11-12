@@ -4,9 +4,6 @@
 // Salva scheda => ritorno automatico alla Home.
 
 // ----------------- Helpers -----------------
-let _creatingNew=false;
-let _newGeneratedId=null;
-let _newMainName=null;
 (function(){
   if (typeof window.fmtIT !== 'function') {
     window.fmtIT = function(d){
@@ -303,32 +300,16 @@ function doSearch(){
 }
 
 // ----------------- Gallery (Edit) -----------------
-async function uploadFiles(recordId, files, mainName){
+async function uploadFiles(recordId, files){
   const prefix=`records/${recordId}/`;
-  const uploadedPaths=[];
-  return (async ()=>{
-    for (const f of files){
-      const safe = Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
-      const path = prefix+safe;
-      const { error } = await sb.storage.from(bucket).upload(path, f, { upsert:false });
-      if(error){ alert('Errore upload: '+error.message); return false; }
-      uploadedPaths.push(path);
-    }
-    // invalida cache thumb per questo record
-    FIRST_PHOTO_CACHE.delete(recordId);
-    try{
-      if(mainName){
-        // scegli il path la cui parte finale (dopo il timestamp) include il nome pulito
-        const cleaned = mainName.replace(/[^a-z0-9_.-]+/gi,'_').toLowerCase();
-        const cand = uploadedPaths.find(p => p.toLowerCase().endswith(cleaned)) || uploadedPaths[0];
-        if(cand){
-          const url = publicUrlCached(cand);
-          await sb.from('records').update({ image_url: url }).eq('id', recordId);
-        }
-      }
-    }catch(e){ console.warn('Impostazione image_url fallita', e); }
-    return true;
-  })();
+  for (const f of files){
+    const name=Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
+    const { error } = await sb.storage.from(bucket).upload(prefix+name, f, { upsert:false });
+    if(error){ alert('Errore upload: '+error.message); return false; }
+  }
+  // invalida cache thumb per questo record
+  FIRST_PHOTO_CACHE.delete(recordId);
+  return true;
 }
 async function refreshGallery(recordId){
   const gallery=document.getElementById('gallery');
@@ -479,33 +460,6 @@ function previewNewFiles(){
   box.innerHTML='';
   const files=inp.files;
   if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
-
-  const grid=document.createElement('div'); grid.className='row g-2';
-  box.appendChild(grid);
-  [...files].forEach((f,idx)=>{
-    const col=document.createElement('div'); col.className='col-4';
-    const wrap=document.createElement('div'); wrap.className='position-relative';
-    const url=URL.createObjectURL(f);
-    const img=new Image(); img.src=url; img.alt=f.name; img.className='img-fluid rounded border'; img.onload=()=>URL.revokeObjectURL(url);
-    img.style.width='100%'; img.style.height='120px'; img.style.objectFit='cover';
-    const star=document.createElement('button'); star.type='button'; star.className='btn btn-sm btn-warning position-absolute'; star.style.top='6px'; star.style.right='6px'; star.title='Imposta come principale'; star.textContent='☆';
-    star.addEventListener('click', ()=>{
-      _newMainName=f.name;
-      // reset stars
-      grid.querySelectorAll('button').forEach(b=>b.textContent='☆');
-      star.textContent='★';
-    });
-    if(idx===0 && !_newMainName){ _newMainName=f.name; star.textContent='★'; }
-    wrap.appendChild(img); wrap.appendChild(star); col.appendChild(wrap); grid.appendChild(col);
-  });
-}
-
-  const box=document.getElementById('nPreview');
-  const inp=document.getElementById('nFiles');
-  if(!box||!inp){ return; }
-  box.innerHTML='';
-  const files=inp.files;
-  if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
   const url=URL.createObjectURL(files[0]);
   const img=new Image(); img.src=url; img.onload=()=>URL.revokeObjectURL(url);
   box.appendChild(img);
@@ -533,39 +487,7 @@ async function createNewRecord(){
   };
   if(!payload.descrizione){ alert('Inserisci la descrizione.'); return; }
 
-    // anti doppio click: blocca finché la richiesta non termina
-  if(_creatingNew){ return; }
-  _creatingNew = true;
-  const saveBtn=document.getElementById('btnNewSave'); if(saveBtn){ saveBtn.disabled=true; saveBtn.textContent='Salvo…'; }
-  // ID stabile per idempotenza
-  let rid = _newGeneratedId || (sessionStorage.getItem('ELIP_NEW_ID')||null);
-  if(!rid){ rid = crypto?.randomUUID?.() || (Date.now().toString(16)+'-'+Math.random().toString(16).slice(2,10)); _newGeneratedId=rid; try{ sessionStorage.setItem('ELIP_NEW_ID', rid); }catch{} }
-  const body = Object.assign({ id: rid }, payload);
-
-  // usa upsert onConflict:id in modo che un secondo click non crei un duplicato
-  const { data, error } = await sb.from('records').upsert(body, { onConflict: 'id' }).select().single();
-  if(error){ if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Salva'; } _creatingNew=false; alert('Errore creazione: '+error.message); return; }
-
-  // upload immagini se presenti
-  const files=document.getElementById('nFiles')?.files;
-  if(files && files.length){
-    const ok = await uploadFiles(data.id, files, _newMainName);
-    if(!ok){ alert('Attenzione: alcune immagini potrebbero non essere state caricate.'); }
-    document.getElementById('nFiles').value='';
-    const pv=document.getElementById('nPreview'); if(pv){ pv.innerHTML='Nessuna immagine'; }
-  }
-
-  // aggiorna cache & UI
-  window.state.all.unshift(data);
-  renderHome(window.state.all);
-
-  // reset guards & chiudi
-  try{ _newModal?.hide(); }catch{}
-  try{ sessionStorage.removeItem('ELIP_NEW_ID'); }catch{}
-  _creatingNew=false;
-  if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Salva'; }
-  alert('Creato!');
-
+  const { data, error } = await sb.from('records').insert(payload).select().single();
   if(error){ alert('Errore creazione: '+error.message); return; }
 
   // upload immagini se presenti
@@ -635,12 +557,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const bNew=document.getElementById('btnNew');
   if(bNew){
     bNew.addEventListener('click', ()=>{
-      _creatingNew=false;
-      _newMainName=null;
-      try{ sessionStorage.removeItem('ELIP_NEW_ID'); }catch{}
-      // pre-genera un UUID stabile per evitare duplicati su doppio click
-      _newGeneratedId = (crypto?.randomUUID?.() || (Date.now().toString(16)+'-'+Math.random().toString(16).slice(2,10)+'-'+Math.random().toString(16).slice(2,6)+'-'+Math.random().toString(16).slice(2,6)+'-'+Math.random().toString(16).slice(2,12))).replace(/\.+$/,'');
-      try{ sessionStorage.setItem('ELIP_NEW_ID', _newGeneratedId); }catch{}
       const el=document.getElementById('newRecordModal'); if(!el) return;
       if(!_newModal) _newModal=new bootstrap.Modal(el, { backdrop:'static' });
       const nApertura=document.getElementById('nApertura'); if(nApertura && !nApertura.value) nApertura.value=todayISO();
