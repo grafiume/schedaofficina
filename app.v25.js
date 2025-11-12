@@ -304,31 +304,41 @@ function doSearch(){
 
 // ----------------- Gallery (Edit) -----------------
 async function uploadFiles(recordId, files, mainName){
-  const prefix=`records/${recordId}/`;
-  const uploadedPaths=[];
+  const prefix = `records/${recordId}/`;
+  let mainUploadedPath = null;
+
   return (async ()=>{
     for (const f of files){
-      const safe = Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
-      const path = prefix+safe;
+      const cleanedName = f.name.replace(/[^a-z0-9_.-]+/gi,'_');
+      const safe = Date.now() + '_' + cleanedName;
+      const path = prefix + safe;
       const { error } = await sb.storage.from(bucket).upload(path, f, { upsert:false });
-      if(error){ alert('Errore upload: '+error.message); return false; }
-      uploadedPaths.push(path);
-    }
-    FIRST_PHOTO_CACHE.delete(recordId);
-    try{
-      if(mainName){
-        const cleaned = mainName.replace(/[^a-z0-9_.-]+/gi,'_').toLowerCase();
-        const cand = uploadedPaths.find(p => p.toLowerCase().endswith(cleaned)) || uploadedPaths[0];
-        if(cand){
-          const url = publicUrlCached(cand);
-          await sb.from('records').update({ image_url: url }).eq('id', recordId);
-        }
+      if(error){
+        alert('Errore upload: ' + error.message);
+        return false;
       }
-    }catch(e){ console.warn('Impostazione image_url fallita', e); }
+      // Se questo file è quello marcato come principale, ricordiamo il suo path esatto
+      if (mainName && cleanedName.toLowerCase() === mainName.replace(/[^a-z0-9_.-]+/gi,'_').toLowerCase()){
+        mainUploadedPath = path;
+      }
+    }
+
+    try{ FIRST_PHOTO_CACHE.delete(recordId); }catch{}
+
+    // Imposta image_url con il path ESATTO caricato per la foto principale
+    try{
+      if(mainUploadedPath){
+        const url = publicUrlCached(mainUploadedPath);
+        const { error: uerr } = await sb.from('records').update({ image_url: url }).eq('id', recordId);
+        if(uerr){ console.warn('Update image_url failed:', uerr.message); }
+      }
+    }catch(e){
+      console.warn('Impostazione image_url fallita', e);
+    }
+
     return true;
   })();
 }
-
 async function setMainPhoto(recordId, path){
   try{
     const url = publicUrlCached(path);
@@ -520,6 +530,14 @@ function previewNewFiles(){
     wrap.appendChild(img); wrap.appendChild(star); col.appendChild(wrap); grid.appendChild(col);
   });
 }
+  box.innerHTML='';
+  const files=inp.files;
+  if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
+  const url=URL.createObjectURL(files[0]);
+  const img=new Image(); img.src=url; img.onload=()=>URL.revokeObjectURL(url);
+  box.appendChild(img);
+  img.addEventListener('click', ()=>openLightbox(url));
+}
 
 async function createNewRecord(){
   const dtAper=getV('nApertura')||todayISO();
@@ -556,7 +574,7 @@ async function createNewRecord(){
   // upload immagini se presenti
   const files=document.getElementById('nFiles')?.files;
   if(files && files.length){
-    const ok = await uploadFiles(data.id, files);
+    const ok = await uploadFiles(data.id, files, window._newMainName || null);
     if(!ok){ alert('Attenzione: alcune immagini potrebbero non essere state caricate.'); }
     document.getElementById('nFiles').value='';
     const pv=document.getElementById('nPreview'); if(pv){ pv.innerHTML='Nessuna immagine'; }
