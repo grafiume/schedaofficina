@@ -4,9 +4,6 @@
 // Salva scheda => ritorno automatico alla Home.
 
 // ----------------- Helpers -----------------
-let _creatingNew=false;
-let _newGeneratedId=null;
-let _newMainName=null;
 (function(){
   if (typeof window.fmtIT !== 'function') {
     window.fmtIT = function(d){
@@ -303,51 +300,17 @@ function doSearch(){
 }
 
 // ----------------- Gallery (Edit) -----------------
-async function uploadFiles(recordId, files, mainName){
+async function uploadFiles(recordId, files){
   const prefix=`records/${recordId}/`;
-  const uploadedPaths=[];
-  return (async ()=>{
-    for (const f of files){
-      const safe = Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
-      const path = prefix+safe;
-      const { error } = await sb.storage.from(bucket).upload(path, f, { upsert:false });
-      if(error){ alert('Errore upload: '+error.message); return false; }
-      uploadedPaths.push(path);
-    }
-    FIRST_PHOTO_CACHE.delete(recordId);
-    try{
-      if(mainName){
-        const cleaned = mainName.replace(/[^a-z0-9_.-]+/gi,'_').toLowerCase();
-        const cand = uploadedPaths.find(p => p.toLowerCase().endswith(cleaned)) || uploadedPaths[0];
-        if(cand){
-          const url = publicUrlCached(cand);
-          await sb.from('records').update({ image_url: url }).eq('id', recordId);
-        }
-      }
-    }catch(e){ console.warn('Impostazione image_url fallita', e); }
-    return true;
-  })();
+  for (const f of files){
+    const name=Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
+    const { error } = await sb.storage.from(bucket).upload(prefix+name, f, { upsert:false });
+    if(error){ alert('Errore upload: '+error.message); return false; }
+  }
+  // invalida cache thumb per questo record
+  FIRST_PHOTO_CACHE.delete(recordId);
+  return true;
 }
-
-async function setMainPhoto(recordId, path){
-  try{
-    const url = publicUrlCached(path);
-    const { error } = await sb.from('records').update({ image_url: url }).eq('id', recordId);
-    if(error){ alert('Errore impostazione foto principale: '+error.message); return; }
-    try{
-      if(window.state && window.state.editing && window.state.editing.id===recordId){
-        window.state.editing.image_url = url;
-      }
-    }catch{}
-    const stars = document.querySelectorAll('.btn-main-photo');
-    stars.forEach(btn=>{
-      const p = btn.getAttribute('data-path');
-      btn.textContent = (p === path) ? '★' : '☆';
-      btn.classList.toggle('active', p === path);
-    });
-  }catch(e){ console.warn('setMainPhoto failed', e); }
-}
-
 async function refreshGallery(recordId){
   const gallery=document.getElementById('gallery');
   const prev=document.querySelector('.img-preview');
@@ -377,15 +340,11 @@ async function refreshGallery(recordId){
   }
 
   if(gallery){
-    const currentUrl = (window.state && window.state.editing && window.state.editing.image_url) ? window.state.editing.image_url : null;
     paths.forEach(p=>{
       const url=publicUrlCached(p);
       const col=document.createElement('div'); col.className='col-4';
       const wrap=document.createElement('div'); wrap.className='position-relative';
-      const star=document.createElement('button'); star.type='button'; star.className='position-absolute btn-main-photo'; star.style.top='6px'; star.style.left='6px'; star.title='Imposta come principale'; star.textContent='☆'; star.setAttribute('data-path', p); star.style.zIndex='5'; star.style.background='rgba(0,0,0,.65)'; star.style.color='#fff'; star.style.border='0'; star.style.borderRadius='9999px'; star.style.padding='2px 7px'; star.style.lineHeight='1'; star.style.boxShadow='0 2px 6px rgba(0,0,0,.3)';
-      star.addEventListener('click', ()=> setMainPhoto(recordId, p));
-      const img=new Image(); img.alt='';
-      if(currentUrl){ try{ if(publicUrlCached(p)===currentUrl){ star.textContent='★'; star.classList.add('active'); } }catch{} } img.className='img-fluid rounded'; img.style.height='144px'; img.style.objectFit='cover'; img.src=url;
+      const img=new Image(); img.alt=''; img.className='img-fluid rounded'; img.style.height='144px'; img.style.objectFit='cover'; img.src=url;
       img.addEventListener('click',()=>openLightbox(url));
       const del=document.createElement('button'); del.type='button'; del.className='btn btn-sm btn-danger position-absolute top-0 end-0 m-1'; del.textContent='×'; del.title='Elimina immagine';
       del.addEventListener('click', async ev=>{ ev.stopPropagation(); if(!confirm('Sei sicuro di voler eliminare questa immagine?')) return;
@@ -393,7 +352,7 @@ async function refreshGallery(recordId){
         if(error){ alert('Errore eliminazione: '+error.message); return; }
         await refreshGallery(recordId);
       });
-      wrap.appendChild(star); wrap.appendChild(img); wrap.appendChild(del); col.appendChild(wrap); gallery.appendChild(col);
+      wrap.appendChild(img); wrap.appendChild(del); col.appendChild(wrap); gallery.appendChild(col);
     });
   }
 }
@@ -501,61 +460,12 @@ function previewNewFiles(){
   box.innerHTML='';
   const files=inp.files;
   if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
-
-  const grid=document.createElement('div'); grid.className='row g-2';
-  box.appendChild(grid);
-  [...files].forEach((f,idx)=>{
-    const col=document.createElement('div'); col.className='col-4';
-    const wrap=document.createElement('div'); wrap.className='position-relative';
-    const url=URL.createObjectURL(f);
-    const img=new Image(); img.src=url; img.alt=f.name; img.className='img-fluid rounded border';
-    img.onload=()=>URL.revokeObjectURL(url);
-    img.style.width='100%'; img.style.height='120px'; img.style.objectFit='cover';
-
-    const star=document.createElement('button');
-    star.type='button';
-    star.className='position-absolute btn-main-photo';
-    star.style.top='6px'; star.style.right='6px';
-    star.style.zIndex='5'; star.style.background='rgba(0,0,0,.65)'; star.style.color='#fff';
-    star.style.border='0'; star.style.borderRadius='9999px'; star.style.padding='2px 7px';
-    star.style.lineHeight='1'; star.style.boxShadow='0 2px 6px rgba(0,0,0,.3)';
-    star.title='Imposta come principale';
-    star.textContent='☆';
-    star.addEventListener('click', ()=>{
-      _newMainName=f.name;
-      grid.querySelectorAll('button.btn-main-photo').forEach(b=>b.textContent='☆');
-      star.textContent='★';
-    });
-    if(idx===0 && !_newMainName){ _newMainName=f.name; star.textContent='★'; }
-
-    wrap.appendChild(img);
-    wrap.appendChild(star);
-    col.appendChild(wrap);
-    grid.appendChild(col);
-  });
+  const url=URL.createObjectURL(files[0]);
+  const img=new Image(); img.src=url; img.onload=()=>URL.revokeObjectURL(url);
+  box.appendChild(img);
+  img.addEventListener('click', ()=>openLightbox(url));
 }
-box.innerHTML='';
-  const files=inp.files;
-  if(!files||!files.length){ box.textContent='Nessuna immagine'; return; }
 
-  const grid=document.createElement('div'); grid.className='row g-2';
-  box.appendChild(grid);
-  [...files].forEach((f,idx)=>{
-    const col=document.createElement('div'); col.className='col-4';
-    const wrap=document.createElement('div'); wrap.className='position-relative';
-    const url=URL.createObjectURL(f);
-    const img=new Image(); img.src=url; img.alt=f.name; img.className='img-fluid rounded border'; img.onload=()=>URL.revokeObjectURL(url);
-    img.style.width='100%'; img.style.height='120px'; img.style.objectFit='cover';
-    const star=document.createElement('button'); star.type='button'; star.className='position-absolute btn-main-photo'; star.style.top='6px'; star.style.right='6px'; star.title='Imposta come principale'; star.textContent='☆'; star.style.zIndex='5'; star.style.background='rgba(0,0,0,.65)'; star.style.color='#fff'; star.style.border='0'; star.style.borderRadius='9999px'; star.style.padding='2px 7px'; star.style.lineHeight='1'; star.style.boxShadow='0 2px 6px rgba(0,0,0,.3)';
-    star.addEventListener('click', ()=>{
-      _newMainName=f.name;
-      grid.querySelectorAll('button').forEach(b=>b.textContent='☆');
-      star.textContent='★';
-    });
-    if(idx===0 && !_newMainName){ _newMainName=f.name; star.textContent='★'; }
-    wrap.appendChild(img); wrap.appendChild(star); col.appendChild(wrap); grid.appendChild(col);
-  });
-}
 async function createNewRecord(){
   const dtAper=getV('nApertura')||todayISO();
   const payload={
@@ -577,19 +487,13 @@ async function createNewRecord(){
   };
   if(!payload.descrizione){ alert('Inserisci la descrizione.'); return; }
 
-  // anti doppio click & idempotenza
-  if(_creatingNew){ return; }
-  _creatingNew = true;
-  const saveBtn=document.getElementById('btnNewSave'); if(saveBtn){ saveBtn.disabled=true; saveBtn.textContent='Salvo…'; }
-  let rid = _newGeneratedId || (sessionStorage.getItem('ELIP_NEW_ID')||null);
-  if(!rid){ rid = crypto?.randomUUID?.() || (Date.now().toString(16)+'-'+Math.random().toString(16).slice(2,10)); _newGeneratedId=rid; try{ sessionStorage.setItem('ELIP_NEW_ID', rid); }catch{} }
-  const body = Object.assign({ id: rid }, payload);
-  const { data, error } = await sb.from('records').upsert(body, { onConflict: 'id' }).select().single();
-  if(error){ if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Salva'; } _creatingNew=false; alert('Errore creazione: '+error.message); return; }
+  const { data, error } = await sb.from('records').insert(payload).select().single();
+  if(error){ alert('Errore creazione: '+error.message); return; }
+
   // upload immagini se presenti
   const files=document.getElementById('nFiles')?.files;
   if(files && files.length){
-    const ok = await uploadFiles(data.id, files, _newMainName);
+    const ok = await uploadFiles(data.id, files);
     if(!ok){ alert('Attenzione: alcune immagini potrebbero non essere state caricate.'); }
     document.getElementById('nFiles').value='';
     const pv=document.getElementById('nPreview'); if(pv){ pv.innerHTML='Nessuna immagine'; }
@@ -600,10 +504,6 @@ async function createNewRecord(){
   renderHome(window.state.all);
 
   try{ _newModal?.hide(); }catch{}
-  try{ sessionStorage.removeItem('ELIP_NEW_ID'); }catch{}
-  _creatingNew=false;
-  if(document.getElementById('btnNewSave')){ const b=document.getElementById('btnNewSave'); b.disabled=false; b.textContent='Salva'; }
-  alert('Creato!');
 }
 
 // ----------------- Boot -----------------
@@ -657,11 +557,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const bNew=document.getElementById('btnNew');
   if(bNew){
     bNew.addEventListener('click', ()=>{
-      _creatingNew=false;
-      _newMainName=null;
-      try{ sessionStorage.removeItem('ELIP_NEW_ID'); }catch{}
-      _newGeneratedId = (crypto?.randomUUID?.() || (Date.now().toString(16)+'-'+Math.random().toString(16).slice(2,10)+'-'+Math.random().toString(16).slice(2,6)+'-'+Math.random().toString(16).slice(2,6)+'-'+Math.random().toString(16).slice(2,12))).replace(/\.+$/,'');
-      try{ sessionStorage.setItem('ELIP_NEW_ID', _newGeneratedId); }catch{}
       const el=document.getElementById('newRecordModal'); if(!el) return;
       if(!_newModal) _newModal=new bootstrap.Modal(el, { backdrop:'static' });
       const nApertura=document.getElementById('nApertura'); if(nApertura && !nApertura.value) nApertura.value=todayISO();
@@ -675,36 +570,3 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
 });
-
-;
-const uploadFiles = async (recordId, files, mainName)=>{
-  const prefix = `records/${recordId}/`;
-  const uploadedPaths = [];
-  for (const f of files){
-    const safe = Date.now()+'_'+f.name.replace(/[^a-z0-9_.-]+/gi,'_');
-    const path = prefix + safe;
-    const { error } = await sb.storage.from(bucket).upload(path, f, { upsert:false });
-    if(error){
-      alert('Errore upload: ' + error.message);
-      return false;
-    }
-    uploadedPaths.push(path);
-  }
-
-  try{ FIRST_PHOTO_CACHE.delete(recordId); }catch{}
-
-  try{
-    if(mainName){
-      const cleaned = mainName.replace(/[^a-z0-9_.-]+/gi,'_').toLowerCase();
-      const cand = uploadedPaths.find(p => p.toLowerCase().endswith(cleaned)) || uploadedPaths[0];
-      if(cand){
-        const url = publicUrlCached(cand);
-        const { error: uerr } = await sb.from('records').update({ image_url: url }).eq('id', recordId);
-        if(uerr){ console.warn('Update image_url failed:', uerr.message); }
-      }
-    }
-  }catch(e){
-    console.warn('Impostazione image_url fallita', e);
-  }
-  return true;
-};
