@@ -23,7 +23,11 @@
   <div class="container container-narrow py-4">
     <header class="d-flex align-items-center justify-content-between mb-3">
       <h1 class="h4 mb-0">ELIP TAGLIENTE • Scheda</h1>
-      <a class="btn btn-outline-secondary btn-sm" href="index.html">Home</a>
+      <div class="d-flex gap-2 align-items-center">
+        <a id="linkPreventivo" class="btn btn-outline-primary btn-sm d-none" target="_blank" rel="noopener">Apri preventivo</a>
+        <button id="btnCreaPreventivo" class="btn btn-primary btn-sm" type="button">Crea Preventivo</button>
+        <a class="btn btn-outline-secondary btn-sm" href="index.html">Home</a>
+      </div>
     </header>
 
     <div id="alert" class="alert d-none" role="alert"></div>
@@ -100,16 +104,106 @@
       </div>
     </div>
   </div>
-<script src="./crea-preventivo.js"></script>
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  bindCreaPreventivoButton({ id: new URLSearchParams(location.search).get("id") });
-});
-</script>
-  <button id="btnCreaPreventivo" type="button">Crea Preventivo</button>
+
+  <!-- Librerie + config/officina -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script src="record.js"></script>
+
+  <!-- Integrazione preventivi (includi UNA SOLA VOLTA) -->
   <script src="./crea-preventivo.js"></script>
+
+  <!-- Bind: usa i valori REALI già mostrati nella pagina (non solo id) -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const schedaId = new URLSearchParams(location.search).get("id");
+
+      // prova a recuperare il record da variabili globali se le hai (se record.js le espone)
+      function getRecordFromGlobals() {
+        return window.currentRecord || window.record || window.__record || null;
+      }
+
+      // fallback: costruisce recordData leggendo i campi già renderizzati in pagina
+      function getRecordFromDOM() {
+        const t = (id) => (document.getElementById(id)?.textContent || "").trim();
+        const recordData = {
+          id: schedaId,
+          cliente: t("fCliente"),
+          telefono: t("fTelefono"),
+          email: t("fEmail"),
+          descrizione: t("fDescrizione"),
+          modello: t("fModello"),
+          statoPratica: t("fStato"),
+          note: t("fNote"),
+          docTrasporto: null
+        };
+        // se i campi sono ancora "—", li consideriamo non pronti
+        const notReady = (!recordData.cliente || recordData.cliente === "—") && (!recordData.descrizione || recordData.descrizione === "—");
+        return notReady ? null : recordData;
+      }
+
+      // Per salvare il link su DB officina serve un client supabase accessibile.
+      // Se record.js non lo espone, proviamo a crearlo da config.js (molte volte definisce SUPABASE_URL e SUPABASE_ANON_KEY).
+      function ensureOfficinaClientGlobal() {
+        if (window.supabaseClient || window.supabase_officina) return window.supabaseClient || window.supabase_officina;
+        // supabase-js v2 espone "supabase" come namespace globale
+        const ns = window.supabase;
+        if (!ns || typeof ns.createClient !== "function") return null;
+
+        const url = window.SUPABASE_URL || window.supabaseUrl || window.supabase_url;
+        const key = window.SUPABASE_ANON_KEY || window.supabaseAnonKey || window.supabase_anon_key;
+        if (!url || !key) return null;
+
+        const client = ns.createClient(url, key);
+        window.supabaseClient = client;
+        return client;
+      }
+
+      ensureOfficinaClientGlobal();
+
+      // aspetta che la pagina abbia i dati (record.js è async)
+      const btn = document.getElementById("btnCreaPreventivo");
+      if (!btn) return;
+
+      const linkEl = document.getElementById("linkPreventivo");
+
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries++;
+
+        const rec = getRecordFromGlobals() || getRecordFromDOM();
+        if (rec) {
+          clearInterval(timer);
+
+          // se in futuro record.js espone preventivo_url, mostralo
+          const existingUrl = rec.preventivo_url || null;
+          if (existingUrl && linkEl) {
+            linkEl.href = existingUrl;
+            linkEl.classList.remove("d-none");
+          }
+
+          // bind con il record completo (così invia "voci" al preventivo)
+          if (typeof window.bindCreaPreventivoButton === "function") {
+            window.bindCreaPreventivoButton(rec, {
+              saveLinkToScheda: true,
+              updateLinkElementId: "linkPreventivo"
+            });
+          } else {
+            console.warn("bindCreaPreventivoButton non disponibile: controlla crea-preventivo.js");
+          }
+        }
+
+        // timeout dopo ~10s
+        if (tries > 40) {
+          clearInterval(timer);
+          console.warn("Record non pronto: non riesco a leggere i campi per il preventivo (dati non renderizzati).");
+          // fallback minimo: bind solo id
+          if (typeof window.bindCreaPreventivoButton === "function") {
+            window.bindCreaPreventivoButton({ id: schedaId }, { saveLinkToScheda: false });
+          }
+        }
+      }, 250);
+    });
+  </script>
 </body>
 </html>
