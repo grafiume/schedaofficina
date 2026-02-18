@@ -15,7 +15,6 @@
     .kv { margin-bottom:.5rem; }
     .thumb { width:100%; height:auto; max-height:420px; object-fit:cover; border-radius:.5rem; }
     .muted { color:#6c757d; }
-    /* Richiesta: campi cliente in rosso e grassetto */
     .value-strong { font-weight:700; color:#d22; }
   </style>
 </head>
@@ -105,105 +104,14 @@
     </div>
   </div>
 
-  <!-- Librerie + config/officina -->
+  <!-- Carica supabase-js UNA sola volta -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Config + record loader -->
   <script src="config.js"></script>
   <script src="record.js"></script>
 
-  <!-- Integrazione preventivi (includi UNA SOLA VOLTA) -->
+  <!-- Integrazione preventivi (usa l'evento record:loaded) -->
   <script src="./crea-preventivo.js"></script>
-
-  <!-- Bind: usa i valori REALI già mostrati nella pagina (non solo id) -->
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const schedaId = new URLSearchParams(location.search).get("id");
-
-      // prova a recuperare il record da variabili globali se le hai (se record.js le espone)
-      function getRecordFromGlobals() {
-        return window.currentRecord || window.record || window.__record || null;
-      }
-
-      // fallback: costruisce recordData leggendo i campi già renderizzati in pagina
-      function getRecordFromDOM() {
-        const t = (id) => (document.getElementById(id)?.textContent || "").trim();
-        const recordData = {
-          id: schedaId,
-          cliente: t("fCliente"),
-          telefono: t("fTelefono"),
-          email: t("fEmail"),
-          descrizione: t("fDescrizione"),
-          modello: t("fModello"),
-          statoPratica: t("fStato"),
-          note: t("fNote"),
-          docTrasporto: null
-        };
-        // se i campi sono ancora "—", li consideriamo non pronti
-        const notReady = (!recordData.cliente || recordData.cliente === "—") && (!recordData.descrizione || recordData.descrizione === "—");
-        return notReady ? null : recordData;
-      }
-
-      // Per salvare il link su DB officina serve un client supabase accessibile.
-      // Se record.js non lo espone, proviamo a crearlo da config.js (molte volte definisce SUPABASE_URL e SUPABASE_ANON_KEY).
-      function ensureOfficinaClientGlobal() {
-        if (window.supabaseClient || window.supabase_officina) return window.supabaseClient || window.supabase_officina;
-        // supabase-js v2 espone "supabase" come namespace globale
-        const ns = window.supabase;
-        if (!ns || typeof ns.createClient !== "function") return null;
-
-        const url = window.SUPABASE_URL || window.supabaseUrl || window.supabase_url;
-        const key = window.SUPABASE_ANON_KEY || window.supabaseAnonKey || window.supabase_anon_key;
-        if (!url || !key) return null;
-
-        const client = ns.createClient(url, key);
-        window.supabaseClient = client;
-        return client;
-      }
-
-      ensureOfficinaClientGlobal();
-
-      // aspetta che la pagina abbia i dati (record.js è async)
-      const btn = document.getElementById("btnCreaPreventivo");
-      if (!btn) return;
-
-      const linkEl = document.getElementById("linkPreventivo");
-
-      let tries = 0;
-      const timer = setInterval(() => {
-        tries++;
-
-        const rec = getRecordFromGlobals() || getRecordFromDOM();
-        if (rec) {
-          clearInterval(timer);
-
-          // se in futuro record.js espone preventivo_url, mostralo
-          const existingUrl = rec.preventivo_url || null;
-          if (existingUrl && linkEl) {
-            linkEl.href = existingUrl;
-            linkEl.classList.remove("d-none");
-          }
-
-          // bind con il record completo (così invia "voci" al preventivo)
-          if (typeof window.bindCreaPreventivoButton === "function") {
-            window.bindCreaPreventivoButton(rec, {
-              saveLinkToScheda: true,
-              updateLinkElementId: "linkPreventivo"
-            });
-          } else {
-            console.warn("bindCreaPreventivoButton non disponibile: controlla crea-preventivo.js");
-          }
-        }
-
-        // timeout dopo ~10s
-        if (tries > 40) {
-          clearInterval(timer);
-          console.warn("Record non pronto: non riesco a leggere i campi per il preventivo (dati non renderizzati).");
-          // fallback minimo: bind solo id
-          if (typeof window.bindCreaPreventivoButton === "function") {
-            window.bindCreaPreventivoButton({ id: schedaId }, { saveLinkToScheda: false });
-          }
-        }
-      }, 250);
-    });
-  </script>
 </body>
 </html>
