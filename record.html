@@ -100,7 +100,13 @@
       </div>
     </div>
   </div>
-<button id="btnCreaPreventivo" type="button">Crea Preventivo</button>
+<script src="./crea-preventivo.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  bindCreaPreventivoButton({ id: new URLSearchParams(location.search).get("id") });
+});
+</script>
+  <button id="btnCreaPreventivo" type="button">Crea Preventivo</button>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script src="record.js"></script>
