@@ -16,6 +16,7 @@
     { code:'RIP07', text:'TORNITURA, SMICATURA ED EQUILIBRATURA ROTORE' },
     { code:'RIP22', text:'SOSTITUZIONE COLLETTORE CON RECUPERO AVVOLGIMENTO' },
     { code:'RIP01', text:'AVVOLGIMENTO INDOTTO CON SOSTITUZIONE COLLETTORE' },
+    { code:'RIP01C', text:'AVVOLGIMENTO INDOTTO CON SOSTITUZIONE COLLETTORE' },
     { code:'RIP08', text:'ISOLAMENTO STATORE' },
     { code:'RIP02', text:'AVVOLGIMENTO STATORE' },
     { code:'RIP31', text:'LAVORAZIONI MECCANICHE ALBERO' },
@@ -267,7 +268,32 @@
 
       const tr = document.createElement('tr');
 
-      // checkbox
+      // lavorazione / descrizione (prima)
+      const tdDesc = document.createElement('td');
+      if(w.free){
+        const inp = document.createElement('input');
+        inp.className = 'form-control';
+        inp.placeholder = 'Descrizione lavorazione libera…';
+        inp.value = (item?.description ?? '') || '';
+        inp.disabled = !checked;
+        inp.addEventListener('input', ()=>{
+          if(!itemsByCode.get(w.code)) return;
+          itemsByCode.get(w.code).description = inp.value;
+          recalcTotals();
+        });
+        tdDesc.appendChild(inp);
+      } else {
+        tdDesc.textContent = `${w.text}`;
+      }
+      tr.appendChild(tdDesc);
+
+      // codice RIP (dopo descrizione)
+      const tdCode = document.createElement('td');
+      tdCode.className = 'text-muted fw-semibold nowrap';
+      tdCode.textContent = w.code;
+      tr.appendChild(tdCode);
+
+      // checkbox (dopo codice)
       const tdC = document.createElement('td');
       tdC.className = 'text-center';
       const cb = document.createElement('input');
@@ -290,25 +316,6 @@
       });
       tdC.appendChild(cb);
       tr.appendChild(tdC);
-
-      // lavorazione / descrizione
-      const tdDesc = document.createElement('td');
-      if(w.free){
-        const inp = document.createElement('input');
-        inp.className = 'form-control';
-        inp.placeholder = 'Descrizione lavorazione libera…';
-        inp.value = item?.description || `${w.code} ${w.text}`;
-        inp.disabled = !checked;
-        inp.addEventListener('input', ()=>{
-          if(!itemsByCode.get(w.code)) return;
-          itemsByCode.get(w.code).description = inp.value;
-          recalcTotals();
-        });
-        tdDesc.appendChild(inp);
-      } else {
-        tdDesc.textContent = `${w.code} ${w.text}`;
-      }
-      tr.appendChild(tdDesc);
 
       // prezzo
       const tdPrice = document.createElement('td');
@@ -382,7 +389,7 @@
   async function ensureItem(w, idx){
     if(itemsByCode.get(w.code)) return;
 
-    const desc = `${w.code} ${w.text}`;
+    const desc = w.free ? '' : `${w.text}`;
     const payload = {
       quote_id: quote.id,
       position: idx,
