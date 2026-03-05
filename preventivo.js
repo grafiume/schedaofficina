@@ -119,13 +119,27 @@
 
   async function loadOrCreateQuoteForRecord(record_id){
     // prova a riaprire l'ultima BOZZA; altrimenti crea nuova
-    const { data, error } = await sb
-      .from('quotes')
-      .select('*')
-      .eq('record_id', record_id)
-      .in('status', ['BOZZA','INVIATO','ACCETTATO'])
-      .order('created_at', { ascending:false })
-      .limit(1);
+    let data, error;
+    // Tentativo completo (status). Se il DB ha una vecchia tabella senza colonna "status", facciamo fallback.
+    {
+      const r = await sb
+        .from('quotes')
+        .select('*')
+        .eq('record_id', record_id)
+        .in('status', ['BOZZA','INVIATO','ACCETTATO'])
+        .order('created_at', { ascending:false })
+        .limit(1);
+      data = r.data; error = r.error;
+    }
+    if(error && (String(error.code)==='42703' || /status/i.test(error.message||''))){
+      const r2 = await sb
+        .from('quotes')
+        .select('*')
+        .eq('record_id', record_id)
+        .order('created_at', { ascending:false })
+        .limit(1);
+      data = r2.data; error = r2.error;
+    }
     if(error) throw error;
 
     if(data && data.length){
@@ -253,6 +267,7 @@
       await refreshNewTaskCats();
       $('newTaskTitle').value='';
       $('newTaskDesc').value='';
+      if($('newTaskPhases')) $('newTaskPhases').value = 'Preparazione | 20\nEsecuzione | 60\nCollaudo | 20';
       newTaskModal?.show();
     });
 
@@ -358,17 +373,75 @@
         renderTotalsAndProgress();
       });
 
-      // render sintetico fasi completate
-      const done = (it.phases||[]).filter(p=>p.is_done);
-      phBox.innerHTML = done.length ? (done.map(p=>`<span class="badge bg-light text-dark border me-1">✓ ${escapeHtml(p.phase_name)} (${p.weight_percent}%)</span>`).join('')) : '<span class="text-muted">Fasi: nessuna completata</span>';
+      // FASI: sempre visibili e cliccabili (così non "spariscono" se non sono completate)
+      renderPhasesInline(it, phBox);
 
       tbody.appendChild(tr);
     });
   }
 
+  function renderPhasesInline(it, container){
+    if(!container) return;
+
+    // se non ci sono fasi (caso raro), crea uno standard minimo
+    if(!it.phases || !it.phases.length){
+      it.phases = DEFAULT_PHASES.map((p,idx)=>({ id:null, phase_name:p.name, weight_percent:p.w, is_done:false, sort_order:idx+1 }));
+    }
+
+    const pills = document.createElement('div');
+    pills.className = 'd-flex flex-wrap gap-2 mt-2';
+
+    it.phases.forEach((p)=>{
+      const lab = document.createElement('label');
+      lab.className='phase-pill clickable';
+      lab.innerHTML = `
+        <input class="form-check-input" type="checkbox" ${p.is_done?'checked':''} />
+        <span>${escapeHtml(p.phase_name)} <span class="text-muted">(${p.weight_percent}%)</span></span>
+      `;
+      const cb = lab.querySelector('input');
+      cb.addEventListener('change', ()=>{
+        p.is_done = cb.checked;
+        renderTotalsAndProgress();
+      });
+      pills.appendChild(lab);
+    });
+
+    const actions = document.createElement('div');
+    actions.className = 'd-flex gap-2 mt-2 flex-wrap';
+
+    const addBtn = document.createElement('button');
+    addBtn.type='button';
+    addBtn.className='btn btn-sm btn-outline-primary';
+    addBtn.textContent='Aggiungi fase';
+    addBtn.addEventListener('click', ()=>{
+      const name = prompt('Nome fase:');
+      if(!name) return;
+      const w = parseNum(prompt('Percentuale fase (0-100):', '10'));
+      it.phases.push({ id:null, phase_name:name, weight_percent:Math.max(0,Math.min(100,w)), is_done:false, sort_order:(it.phases.length+1) });
+      container.innerHTML='';
+      renderPhasesInline(it, container);
+      renderTotalsAndProgress();
+    });
+
+    const editBtn = document.createElement('button');
+    editBtn.type='button';
+    editBtn.className='btn btn-sm btn-outline-secondary';
+    editBtn.textContent='Modifica % / rimuovi';
+    editBtn.addEventListener('click', ()=>{
+      togglePhasesEditor(it, container);
+    });
+
+    actions.appendChild(addBtn);
+    actions.appendChild(editBtn);
+
+    container.innerHTML='';
+    container.appendChild(pills);
+    container.appendChild(actions);
+  }
+
   function togglePhasesEditor(it, container){
     // se già aperto, chiudi
-    if(container.__open){ container.__open=false; container.innerHTML = (it.phases||[]).filter(p=>p.is_done).length ? (it.phases.filter(p=>p.is_done).map(p=>`<span class="badge bg-light text-dark border me-1">✓ ${escapeHtml(p.phase_name)} (${p.weight_percent}%)</span>`).join('')) : '<span class="text-muted">Fasi: nessuna completata</span>'; return; }
+    if(container.__open){ container.__open=false; renderPhasesInline(it, container); return; }
 
     container.__open=true;
 
@@ -395,6 +468,39 @@
       pills.appendChild(lab);
     });
 
+    // Editor rapido (nome e percentuale + rimozione)
+    const editor = document.createElement('div');
+    editor.className='mt-3';
+    editor.innerHTML = '<div class="small text-muted mb-2">Editor fasi: puoi rinominare, cambiare % o rimuovere una fase. Le % possono anche non fare 100.</div>';
+
+    const grid = document.createElement('div');
+    grid.className='d-grid gap-2';
+    it.phases.forEach((p, idx)=>{
+      const row = document.createElement('div');
+      row.className='d-flex align-items-center gap-2 flex-wrap';
+      row.innerHTML = `
+        <input class="form-control form-control-sm" style="max-width:280px" value="${escapeHtml(p.phase_name)}" data-n />
+        <input class="form-control form-control-sm text-end" style="max-width:120px" value="${Number(p.weight_percent||0)}" data-w />
+        <span class="small text-muted">%</span>
+        <button class="btn btn-sm btn-outline-danger" type="button" data-del>Rimuovi</button>
+      `;
+      const n = row.querySelector('[data-n]');
+      const w = row.querySelector('[data-w]');
+      const d = row.querySelector('[data-del]');
+      n.addEventListener('input', ()=>{ p.phase_name = n.value; });
+      w.addEventListener('input', ()=>{ p.weight_percent = parseNum(w.value); renderTotalsAndProgress(); });
+      d.addEventListener('click', ()=>{
+        if(!confirm('Rimuovere questa fase?')) return;
+        it.phases.splice(idx,1);
+        // refresh editor
+        togglePhasesEditor(it, container); // close
+        togglePhasesEditor(it, container); // open
+        renderTotalsAndProgress();
+      });
+      grid.appendChild(row);
+    });
+    editor.appendChild(grid);
+
     const addBtn = document.createElement('button');
     addBtn.type='button';
     addBtn.className='btn btn-sm btn-outline-primary';
@@ -415,6 +521,7 @@
     wrap.appendChild(pills);
     wrap.appendChild(document.createElement('div')).className='mt-2';
     wrap.appendChild(addBtn);
+    wrap.appendChild(editor);
     wrap.appendChild(hint);
 
     container.innerHTML='';
@@ -805,7 +912,21 @@
       }).select().single();
       if(tIns.error) throw tIns.error;
 
-      const phasesPayload = DEFAULT_PHASES.map((p,idx)=>({
+      // Fasi: lette da textarea (Nome | %). Se vuoto, usa default.
+      const raw = ($('newTaskPhases')?.value || '').trim();
+      let phaseList = [];
+      if(raw){
+        raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean).forEach(line=>{
+          const parts = line.split('|').map(s=>s.trim()).filter(Boolean);
+          if(!parts.length) return;
+          const name = parts[0];
+          const w = parts.length>1 ? parseNum(parts[1]) : 0;
+          if(name) phaseList.push({ name, w: Math.max(0, Math.min(100, w)) });
+        });
+      }
+      if(!phaseList.length) phaseList = DEFAULT_PHASES.map(p=>({ name:p.name, w:p.w }));
+
+      const phasesPayload = phaseList.map((p,idx)=>({
         task_id: tIns.data.id,
         phase_name: p.name,
         weight_percent: p.w,

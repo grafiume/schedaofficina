@@ -199,8 +199,12 @@
               <label class="form-label">Descrizione (opz.)</label>
               <input id="newTaskDesc" class="form-control" placeholder="Testo più lungo…">
             </div>
-            <div class="alert alert-light border small">
-              Verranno create 3 fasi standard: <strong>Preparazione 20%</strong>, <strong>Esecuzione 60%</strong>, <strong>Collaudo 20%</strong>.
+            <div class="mb-2">
+              <label class="form-label">Fasi (una per riga)</label>
+              <textarea id="newTaskPhases" class="form-control" rows="5" placeholder="Esempio:\nSmontaggio | 10\nMisure | 20\nLavorazione | 50\nImpregnazione | 10\nCollaudo | 10">Preparazione | 20
+Esecuzione | 60
+Collaudo | 20</textarea>
+              <div class="form-text">Formato: <code>Nome fase | %</code>. La somma può anche non fare 100.</div>
             </div>
           </div>
           <div class="modal-footer">
