@@ -15,6 +15,11 @@
       .muted{ color:#6c757d; }
       .progbar{ height:10px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
       .progbar > div{ height:100%; background:#ff7a00; width:0%; }
+      .linebar{ height:10px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
+      .linebar > div{ height:100%; width:5%; }
+      .st-DA_FARE{ background:#dc3545; }
+      .st-IN_LAVORAZIONE{ background:#ffc107; }
+      .st-COMPLETATA{ background:#198754; }
       .smallmono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
       .item-row td{ vertical-align:middle; }
       .phase-pill{ display:inline-flex; align-items:center; gap:.4rem; padding:.2rem .5rem; border-radius:999px; border:1px solid rgba(0,0,0,.12); background:#fff; font-size:.85rem; }
@@ -106,27 +111,23 @@
 
       <div class="card shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <strong>Righe</strong>
-          <div class="d-flex gap-2 flex-wrap">
-            <button class="btn btn-sm btn-outline-secondary" id="btnAddFree">Aggiungi riga libera</button>
-            <button class="btn btn-sm btn-outline-primary" id="btnLibrary">Lavorazioni (PDF)</button>
-          </div>
+          <strong>Lavorazioni Riparazione</strong>
+          <div class="small text-muted">Seleziona le voci RIP e inserisci solo il prezzo (IVA esclusa).</div>
         </div>
         <div class="card-body">
           <div class="table-responsive">
             <table class="table table-app align-middle">
               <thead>
                 <tr>
-                  <th>Descrizione</th>
-                  <th class="w-qty">Q.tà</th>
+                  <th style="width:44px;"></th>
+                  <th>Lavorazione</th>
                   <th class="w-price text-end">Prezzo (IVA escl.)</th>
-                  <th class="w-price text-end">Totale riga</th>
+                  <th style="width:190px;">Stato</th>
                   <th style="min-width:170px;">Avanz.</th>
-                  <th class="w-actions text-end">Azioni</th>
                 </tr>
               </thead>
-              <tbody id="itemsRows">
-                <tr><td colspan="6" class="text-center py-4 text-muted">Nessuna riga. Aggiungi una lavorazione.</td></tr>
+              <tbody id="taskRows">
+                <tr><td colspan="5" class="text-center py-4 text-muted">Caricamento…</td></tr>
               </tbody>
             </table>
           </div>
@@ -142,78 +143,6 @@
       </div>
     </div>
 
-    <!-- MODALE: libreria lavorazioni -->
-    <div class="modal fade" id="libModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Lavorazioni (struttura PDF)</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <div class="row g-2 align-items-end mb-2">
-              <div class="col-md-6">
-                <label class="form-label">Cerca lavorazione</label>
-                <input id="libSearch" class="form-control" placeholder="Scrivi per filtrare…">
-              </div>
-              <div class="col-md-3 d-grid">
-                <button class="btn btn-outline-secondary" id="btnInitDefaults">Inizializza categorie base</button>
-              </div>
-              <div class="col-md-3 d-grid">
-                <button class="btn btn-outline-primary" id="btnNewTask">Nuova lavorazione</button>
-              </div>
-            </div>
-
-            <div id="libBox" class="accordion"></div>
-
-            <div class="small text-muted mt-2">
-              Nota: i prezzi non sono in listino. Inserisci il prezzo IVA esclusa nella riga del preventivo.
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- MODALE: nuova lavorazione -->
-    <div class="modal fade" id="newTaskModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Nuova lavorazione</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <div class="mb-2">
-              <label class="form-label">Categoria</label>
-              <select id="newTaskCat" class="form-select"></select>
-              <div class="form-text">Se non hai categorie, usa “Inizializza categorie base”.</div>
-            </div>
-            <div class="mb-2">
-              <label class="form-label">Titolo</label>
-              <input id="newTaskTitle" class="form-control" placeholder="es. Prova isolamento statore">
-            </div>
-            <div class="mb-2">
-              <label class="form-label">Descrizione (opz.)</label>
-              <input id="newTaskDesc" class="form-control" placeholder="Testo più lungo…">
-            </div>
-            <div class="mb-2">
-              <label class="form-label">Fasi (una per riga)</label>
-              <textarea id="newTaskPhases" class="form-control" rows="5" placeholder="Esempio:\nSmontaggio | 10\nMisure | 20\nLavorazione | 50\nImpregnazione | 10\nCollaudo | 10">Preparazione | 20
-Esecuzione | 60
-Collaudo | 20</textarea>
-              <div class="form-text">Formato: <code>Nome fase | %</code>. La somma può anche non fare 100.</div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
-            <button type="button" class="btn btn-primary" id="btnCreateTask">Crea</button>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
