@@ -128,21 +128,37 @@
   }
 
   async function loadOrCreateQuoteForRecord(record_id){
-    // ultima BOZZA, altrimenti crea nuova
-    const { data, error } = await sb
-      .from('quotes')
-      .select('*')
-      .eq('record_id', record_id)
-      .order('created_at', { ascending:false })
-      .limit(1);
-    if(error) throw error;
+    // ✅ Dalla scheda record, se esiste un preventivo già "salvato" (INVIATO/ACCETTATO), apri quello.
+    // Altrimenti apri l'ultima BOZZA. Crea una nuova BOZZA solo se non esiste nulla.
 
-    if(data && data.length){
-      quote = data[0];
-      if(quote.status !== 'BOZZA'){
-        quote = await createNewQuote(record_id);
-      }
-    } else {
+    // 1) Preferisci INVIATO/ACCETTATO (non ANNULLATO)
+    {
+      const { data, error } = await sb
+        .from('quotes')
+        .select('*')
+        .eq('record_id', record_id)
+        .in('status', ['INVIATO','ACCETTATO'])
+        .order('created_at', { ascending:false })
+        .limit(1);
+      if(error) throw error;
+      if(data && data.length){ quote = data[0]; }
+    }
+
+    // 2) Se non trovato, prendi l'ultima BOZZA
+    if(!quote){
+      const { data, error } = await sb
+        .from('quotes')
+        .select('*')
+        .eq('record_id', record_id)
+        .eq('status', 'BOZZA')
+        .order('created_at', { ascending:false })
+        .limit(1);
+      if(error) throw error;
+      if(data && data.length){ quote = data[0]; }
+    }
+
+    // 3) Altrimenti crea BOZZA nuova
+    if(!quote){
       quote = await createNewQuote(record_id);
     }
 
