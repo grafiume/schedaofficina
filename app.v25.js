@@ -445,12 +445,21 @@ function openEdit(id){
 
   setV('eDescrizione',r.descrizione); setV('eModello',r.modello);
   setV('eApertura',r.dataApertura); setV('eAcc',r.dataAccettazione); setV('eScad',r.dataScadenza);
-  setV('eStato',r.statoPratica); setV('ePrev',r.preventivoStato||'Non inviato'); setV('eDDT',r.docTrasporto);
+  setV('eStato',r.statoPratica); setV('eDDT',r.docTrasporto);
   setV('eCliente',r.cliente); setV('eTel',r.telefono); setV('eEmail',r.email);
   setV('eBatt',r.battCollettore); setV('eAsse',r.lunghezzaAsse); setV('ePacco',r.lunghezzaPacco); setV('eLarg',r.larghezzaPacco); setV('ePunta',r.punta); setV('eNP',r.numPunte); setV('eNote',r.note);
 
   show('page-edit');
   refreshGallery(r.id);
+
+  // Preventivo collegato al record
+  const qBtn=document.getElementById('btnQuoteOpen');
+  if(qBtn){
+    qBtn.onclick=()=>{
+      try{ location.href = 'preventivo.html?record_id=' + encodeURIComponent(r.id); }
+      catch(e){}
+    };
+  }
 
   // “Carica su cloud” -> salva i dati, poi carica i file, aggiorna galleria
   const upBtn=document.getElementById('btnUpload');
@@ -472,7 +481,7 @@ async function saveEdit(closeAfter=true){
   const payload={
     descrizione:val('eDescrizione'), modello:val('eModello'),
     dataApertura:val('eApertura')||null, dataAccettazione:val('eAcc')||null, dataScadenza:val('eScad')||null,
-    statoPratica:val('eStato'), preventivoStato:val('ePrev'), docTrasporto:val('eDDT'),
+    statoPratica:val('eStato'), docTrasporto:val('eDDT'),
     cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'),
     battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
     punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'),
@@ -530,7 +539,6 @@ async function createNewRecord(){
     dataAccettazione:toNull(getV('nAcc')),
     dataScadenza:toNull(getV('nScad')),
     statoPratica:getV('nStato')||'In attesa',
-    preventivoStato:getV('nPrev')||'Non inviato',
     docTrasporto:getV('nDDT'),
     cliente:getV('nCliente'), telefono:getV('nTel'), email:getV('nEmail'),
     battCollettore:toNull(getV('nBatt')),
@@ -581,7 +589,7 @@ window.loadAll=async function(){
     if(!sb){ showError('Supabase non inizializzato'); return; }
     let { data, error } = await sb
       .from('records')
-      .select('id,descrizione,modello,cliente,telefono,statoPratica,preventivoStato,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
       .order('dataApertura',{ascending:false});
     if(error){
       const fb=await sb.from('records_view').select('*').order('dataApertura',{ascending:false}).limit(1000);
@@ -598,6 +606,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   H('btnHome', ()=>show('page-home'));
   H('btnRicerca', ()=>show('page-search'));
+  H('btnPreventivi', ()=>{ try{ location.href='preventivi.html'; }catch(e){} });
   H('btnApply', doSearch);
   H('btnDoSearch', doSearch);
   H('btnReset', ()=>{

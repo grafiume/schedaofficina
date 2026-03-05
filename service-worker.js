@@ -1,12 +1,24 @@
 
-const STATIC_CACHE = 'so-static-v3';
+const STATIC_CACHE = 'so-static-v4';
 const IMG_CACHE = 'so-img-v1';
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(STATIC_CACHE);
     await cache.addAll([
-      './','./index.html','./styles.css','./app-core.js','./app-supabase.js','./app.js','./manifest.json'
+      './',
+      './index.html',
+      './record.html',
+      './record.js',
+      './preventivi.html',
+      './preventivi.js',
+      './preventivo.html',
+      './preventivo.js',
+      './styles.css',
+      './app-core.js',
+      './app-supabase.js',
+      './app.v25.js',
+      './manifest.json'
     ]);
     self.skipWaiting();
   })());

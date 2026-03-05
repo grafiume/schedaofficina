@@ -110,6 +110,12 @@
     window.currentRecord = data;
     window.dispatchEvent(new CustomEvent('record:loaded', { detail: data }));
 
+    // Preventivo collegato
+    try{
+      const b=document.getElementById('btnQuote');
+      if(b){ b.onclick=()=>{ location.href='preventivo.html?record_id=' + encodeURIComponent(id); }; }
+    }catch(e){}
+
     // Riempimento campi
     L('fCliente', data.cliente || '—');
     L('fDescrizione', data.descrizione || '—');

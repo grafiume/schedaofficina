@@ -20,6 +20,7 @@
         <div class="d-flex gap-2">
           <button class="btn btn-outline-secondary" id="btnHome">Home</button>
           <button class="btn btn-outline-secondary" id="btnRicerca">Ricerca</button>
+          <button class="btn btn-outline-secondary" id="btnPreventivi">Preventivi</button>
           <button class="btn btn-orange" id="btnNew">Nuova scheda</button>
         </div>
       </div>
@@ -124,13 +125,6 @@
     <!-- MODIFICA -->
     <div class="container my-3 d-none" id="page-edit">
 
-<!-- Box ID + Link pubblico -->
-<div id="recLinkBox" class="small text-muted mb-2" style="user-select:text;">
-  <div><strong>ID:</strong> <span id="recIdTxt" style="user-select:all"></span></div>
-  <div><strong>Link:</strong> <a id="recUrlTxt" href="#" target="_blank" rel="noopener" style="user-select:all"></a></div>
-</div>
-
-
       <h4>Modifica scheda</h4>
       <div id="closedBanner" class="alert alert-success d-none py-2 mb-2">Chiusa</div>
 
@@ -156,13 +150,7 @@
                   </select>
                   <div class="form-text" id="closedHint"></div>
                 </div>
-                <div class="col-md-4"><label class="form-label">Preventivo</label>
-                  <select id="ePrev" class="form-select">
-                    <option>Non inviato</option>
-                    <option>Inviato</option>
-                  </select>
-                </div>
-                <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="eDDT" class="form-control" placeholder="Numero / riferimento DDT"></div>
+<div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="eDDT" class="form-control" placeholder="Numero / riferimento DDT"></div>
 
                 <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="eCliente" class="form-control"></div>
                 <div class="col-md-3"><label class="form-label">Telefono</label><input id="eTel" class="form-control"></div>
@@ -192,6 +180,7 @@
 
           <div class="d-grid my-3 gap-2">
             <button class="btn btn-orange btn-lg" id="btnSave">Salva scheda</button>
+            <button class="btn btn-outline-primary" id="btnQuoteOpen">Preventivo</button>
             <button class="btn btn-outline-secondary" id="btnCancel">Annulla</button>
           </div>
         </div>
@@ -233,9 +222,7 @@
                   <div class="col-md-4"><label class="form-label">Data scadenza</label><input id="nScad" type="date" class="form-control"></div>
                   <div class="col-md-4"><label class="form-label">Stato</label>
                     <select id="nStato" class="form-select"><option>In attesa</option><option>In lavorazione</option><option>Completata</option></select></div>
-                  <div class="col-md-4"><label class="form-label">Preventivo</label>
-                    <select id="nPrev" class="form-select"><option>Non inviato</option><option>Inviato</option></select></div>
-                  <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="nDDT" class="form-control"></div>
+<div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="nDDT" class="form-control"></div>
                   <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="nCliente" class="form-control"></div>
                   <div class="col-md-3"><label class="form-label">Telefono</label><input id="nTel" class="form-control"></div>
                   <div class="col-md-3"><label class="form-label">Email</label><input id="nEmail" class="form-control"></div>

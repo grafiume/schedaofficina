@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ELIP TAGLIENTE • Preventivo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" href="favicon.ico">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+      body{ background:#f8f9fa; }
+      .container-narrow{ max-width:1100px; }
+      .muted{ color:#6c757d; }
+      .progbar{ height:10px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
+      .progbar > div{ height:100%; background:#ff7a00; width:0%; }
+      .smallmono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+      .item-row td{ vertical-align:middle; }
+      .phase-pill{ display:inline-flex; align-items:center; gap:.4rem; padding:.2rem .5rem; border-radius:999px; border:1px solid rgba(0,0,0,.12); background:#fff; font-size:.85rem; }
+      .phase-pill input{ margin-top:0; }
+      .w-qty{ width:90px; }
+      .w-price{ width:140px; }
+      .w-actions{ width:170px; }
+      .table thead th{ white-space:nowrap; }
+      .clickable{ cursor:pointer; }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar navbar-light bg-light border-bottom sticky-top">
+      <div class="container-fluid">
+        <div class="d-flex align-items-center gap-2">
+          <img src="logo-elip.jpg" class="brand-logo" alt="ELIP">
+          <span class="navbar-brand mb-0 h1">PREVENTIVO</span>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary" id="btnBack">Indietro</button>
+          <button class="btn btn-outline-secondary" id="btnOpenRecord">Scheda</button>
+          <button class="btn btn-orange" id="btnSave">Salva</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container container-narrow py-3">
+      <div id="errBanner" class="alert alert-warning d-none"></div>
+      <div id="okBanner" class="alert alert-success d-none"></div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+            <div>
+              <div class="small text-muted">Cliente</div>
+              <div class="h5 mb-0" id="recCliente">—</div>
+              <div class="text-muted" id="recDesc">—</div>
+              <div class="small text-muted" id="recModel"></div>
+            </div>
+            <div class="text-end">
+              <div class="mb-2">Stato: <span id="quoteStatusBadge" class="badge bg-secondary">BOZZA</span></div>
+              <div class="small text-muted">ID Preventivo</div>
+              <div class="smallmono" id="quoteId">—</div>
+            </div>
+          </div>
+
+          <hr>
+
+          <div class="row g-2">
+            <div class="col-md-3">
+              <label class="form-label">Stato</label>
+              <select id="status" class="form-select">
+                <option value="BOZZA">BOZZA</option>
+                <option value="INVIATO">INVIATO</option>
+                <option value="ACCETTATO">ACCETTATO</option>
+                <option value="ANNULLATO">ANNULLATO</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Data invio</label>
+              <input id="sent_at" type="date" class="form-control">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Data accettazione</label>
+              <input id="accepted_at" type="date" class="form-control">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Tempi consegna (gg)</label>
+              <input id="delivery_days" type="number" min="0" step="1" class="form-control" placeholder="es. 10">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Data consegna (opz.)</label>
+              <input id="delivery_date" type="date" class="form-control">
+              <div class="form-text">Se compili la data, prevale sui giorni.</div>
+            </div>
+            <div class="col-md-9">
+              <label class="form-label">Note</label>
+              <input id="notes" class="form-control" placeholder="Note interne / note al cliente…">
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <div class="d-flex justify-content-between small"><span>Avanzamento preventivo</span><span id="quoteProgressTxt">0%</span></div>
+            <div class="progbar"><div id="quoteProgBar"></div></div>
+            <div class="small text-muted mt-1" id="dueLabel">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>Righe</strong>
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-sm btn-outline-secondary" id="btnAddFree">Aggiungi riga libera</button>
+            <button class="btn btn-sm btn-outline-primary" id="btnLibrary">Lavorazioni (PDF)</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-app align-middle">
+              <thead>
+                <tr>
+                  <th>Descrizione</th>
+                  <th class="w-qty">Q.tà</th>
+                  <th class="w-price text-end">Prezzo (IVA escl.)</th>
+                  <th class="w-price text-end">Totale riga</th>
+                  <th style="min-width:170px;">Avanz.</th>
+                  <th class="w-actions text-end">Azioni</th>
+                </tr>
+              </thead>
+              <tbody id="itemsRows">
+                <tr><td colspan="6" class="text-center py-4 text-muted">Nessuna riga. Aggiungi una lavorazione.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="d-flex justify-content-end mt-3">
+            <div style="min-width:320px;" class="text-end">
+              <div class="d-flex justify-content-between"><span class="text-muted">Totale IVA esclusa</span><span class="fw-semibold" id="subtotal">€ 0,00</span></div>
+              <div class="d-flex justify-content-between"><span class="text-muted">IVA 22%</span><span class="fw-semibold" id="vat">€ 0,00</span></div>
+              <div class="d-flex justify-content-between fs-5"><span class="fw-semibold">Totale</span><span class="fw-bold" id="grand">€ 0,00</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODALE: libreria lavorazioni -->
+    <div class="modal fade" id="libModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Lavorazioni (struttura PDF)</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-2 align-items-end mb-2">
+              <div class="col-md-6">
+                <label class="form-label">Cerca lavorazione</label>
+                <input id="libSearch" class="form-control" placeholder="Scrivi per filtrare…">
+              </div>
+              <div class="col-md-3 d-grid">
+                <button class="btn btn-outline-secondary" id="btnInitDefaults">Inizializza categorie base</button>
+              </div>
+              <div class="col-md-3 d-grid">
+                <button class="btn btn-outline-primary" id="btnNewTask">Nuova lavorazione</button>
+              </div>
+            </div>
+
+            <div id="libBox" class="accordion"></div>
+
+            <div class="small text-muted mt-2">
+              Nota: i prezzi non sono in listino. Inserisci il prezzo IVA esclusa nella riga del preventivo.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODALE: nuova lavorazione -->
+    <div class="modal fade" id="newTaskModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Nuova lavorazione</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label class="form-label">Categoria</label>
+              <select id="newTaskCat" class="form-select"></select>
+              <div class="form-text">Se non hai categorie, usa “Inizializza categorie base”.</div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Titolo</label>
+              <input id="newTaskTitle" class="form-control" placeholder="es. Prova isolamento statore">
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Descrizione (opz.)</label>
+              <input id="newTaskDesc" class="form-control" placeholder="Testo più lungo…">
+            </div>
+            <div class="alert alert-light border small">
+              Verranno create 3 fasi standard: <strong>Preparazione 20%</strong>, <strong>Esecuzione 60%</strong>, <strong>Collaudo 20%</strong>.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+            <button type="button" class="btn btn-primary" id="btnCreateTask">Crea</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="preventivo.js"></script>
+  </body>
+</html>
