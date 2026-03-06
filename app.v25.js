@@ -53,60 +53,6 @@ const sb = (typeof supabase!=='undefined')
   ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
   : null;
 
-async function findBestQuoteIdForRecord(recordId){
-  if(!sb || !recordId) return null;
-
-  {
-    const { data, error } = await sb
-      .from('quotes')
-      .select('id,status,accepted_at,sent_at,created_at')
-      .eq('record_id', recordId)
-      .in('status', ['ACCETTATO','INVIATO'])
-      .order('accepted_at', { ascending:false, nullsFirst:false })
-      .order('sent_at', { ascending:false, nullsFirst:false })
-      .order('created_at', { ascending:false })
-      .limit(1);
-    if(error) throw error;
-    if(data && data.length) return data[0].id;
-  }
-
-  {
-    const { data, error } = await sb
-      .from('quotes')
-      .select('id,status,subtotal_ex_vat,grand_total,sent_at,accepted_at,delivery_date,delivery_days,notes,updated_at,created_at')
-      .eq('record_id', recordId)
-      .eq('status', 'BOZZA')
-      .order('updated_at', { ascending:false, nullsFirst:false })
-      .order('created_at', { ascending:false })
-      .limit(50);
-    if(error) throw error;
-    const drafts = data || [];
-    if(drafts.length){
-      const ids = drafts.map(x=>x.id);
-      const { data: items, error: itemsErr } = await sb
-        .from('quote_items')
-        .select('quote_id')
-        .in('quote_id', ids)
-        .limit(1000);
-      if(itemsErr) throw itemsErr;
-      const itemCount = new Map();
-      (items || []).forEach(it=> itemCount.set(it.quote_id, (itemCount.get(it.quote_id)||0)+1));
-      drafts.sort((a,b)=>{
-        const score = q => ((itemCount.get(q.id)||0)>0 ? 1000 : 0)
-          + ((Number(q.subtotal_ex_vat||0)>0 || Number(q.grand_total||0)>0) ? 100 : 0)
-          + ((q.sent_at||q.accepted_at||q.delivery_date||q.delivery_days) ? 10 : 0)
-          + (String(q.notes||'').trim() ? 1 : 0);
-        const ds = score(b) - score(a);
-        if(ds) return ds;
-        return new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
-      });
-      if(drafts[0]) return drafts[0].id;
-    }
-  }
-
-  return null;
-}
-
 // ----------------- Storage helpers -----------------
 const bucket='photos';
 const _pubUrlCache=new Map();
@@ -511,16 +457,11 @@ function openEdit(id){
   if(qBtn){
     qBtn.onclick=async ()=>{
       try{
-        qBtn.disabled = true;
-        const bestId = await findBestQuoteIdForRecord(r.id);
-        location.href = bestId
-          ? ('preventivo.html?id=' + encodeURIComponent(bestId))
-          : ('preventivo.html?record_id=' + encodeURIComponent(r.id));
-      }catch(e){
+        location.href = await resolveBestQuoteUrl(r.id);
+      }
+      catch(e){
         console.warn('Apertura preventivo fallback', e);
-        try{ location.href = 'preventivo.html?record_id=' + encodeURIComponent(r.id); }catch(_e){}
-      }finally{
-        qBtn.disabled = false;
+        try{ location.href = 'preventivo.html?record_id=' + encodeURIComponent(r.id); }catch(_){}
       }
     };
   }
@@ -537,6 +478,59 @@ function openEdit(id){
       }
     };
   }
+}
+
+
+async function resolveBestQuoteUrl(recordId){
+  if(!sb) return 'preventivo.html?record_id=' + encodeURIComponent(recordId);
+
+  try{
+    const { data, error } = await sb
+      .from('quotes')
+      .select('id,status,created_at,accepted_at,sent_at,subtotal_ex_vat,grand_total')
+      .eq('record_id', recordId)
+      .in('status', ['ACCETTATO','INVIATO'])
+      .order('accepted_at', { ascending:false, nullsFirst:false })
+      .order('sent_at', { ascending:false, nullsFirst:false })
+      .order('created_at', { ascending:false })
+      .limit(1);
+    if(!error && data && data.length && data[0]?.id){
+      return 'preventivo.html?id=' + encodeURIComponent(data[0].id);
+    }
+  }catch(e){ console.warn('resolveBestQuoteUrl preferred status failed', e); }
+
+  try{
+    const { data: quotes, error } = await sb
+      .from('quotes')
+      .select('id,status,created_at,accepted_at,sent_at,subtotal_ex_vat,grand_total,delivery_days,delivery_date,notes')
+      .eq('record_id', recordId)
+      .neq('status', 'ANNULLATO')
+      .order('created_at', { ascending:false });
+    if(!error && Array.isArray(quotes) && quotes.length){
+      const ids = quotes.map(q=>q.id).filter(Boolean);
+      let itemCount = {};
+      if(ids.length){
+        const { data: items } = await sb.from('quote_items').select('quote_id').in('quote_id', ids);
+        (items||[]).forEach(it=>{ itemCount[it.quote_id] = (itemCount[it.quote_id]||0)+1; });
+      }
+      const scored = quotes.map(q=>{
+        const count = itemCount[q.id] || 0;
+        const total = Number(q.grand_total || q.subtotal_ex_vat || 0);
+        const hasDates = !!(q.accepted_at || q.sent_at || q.delivery_date || q.delivery_days);
+        const hasNotes = !!(q.notes && String(q.notes).trim());
+        const score = (count>0 ? 1000 : 0) + (total>0 ? 500 : 0) + (hasDates ? 100 : 0) + (hasNotes ? 20 : 0);
+        return { q, score };
+      }).sort((a,b)=> b.score - a.score || String(b.q.created_at||'').localeCompare(String(a.q.created_at||'')));
+      if(scored[0]?.q?.id && scored[0].score>0){
+        return 'preventivo.html?id=' + encodeURIComponent(scored[0].q.id);
+      }
+      if(quotes[0]?.id){
+        return 'preventivo.html?id=' + encodeURIComponent(quotes[0].id);
+      }
+    }
+  }catch(e){ console.warn('resolveBestQuoteUrl scored fallback failed', e); }
+
+  return 'preventivo.html?record_id=' + encodeURIComponent(recordId);
 }
 
 // Salva + chiudi richiesta: dopo salvataggio torniamo in Home
