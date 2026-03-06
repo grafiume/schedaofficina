@@ -57,12 +57,6 @@
 
   function statusMeta(v){ return STATUS.find(x=>x.v===v) || STATUS[0]; }
 
-  function autoStatusFromDates(item){
-    if(item?.finished_at) return 'COMPLETATA';
-    if(item?.started_at) return 'IN_LAVORAZIONE';
-    return item?.work_status || 'DA_FARE';
-  }
-
   function today0(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
   function fmtDateISO(d){
     const x = (d instanceof Date) ? d : new Date(d);
@@ -97,7 +91,41 @@
   let sb;
   let quote=null;
   let record=null;
-  let itemsByCode = new Map(); // code -> item
+  let itemsByCode = new Map(); // bozza in memoria: code -> item
+  let savedItemsByCode = new Map(); // ultimo stato salvato dal DB
+  let dirty = false;
+  let saving = false;
+
+
+  function setDirty(flag=true){
+    dirty = !!flag;
+    const btn = $('btnSave');
+    if(btn){
+      btn.textContent = dirty ? 'Salva *' : 'Salva';
+      btn.classList.toggle('btn-warning', dirty);
+      btn.classList.toggle('btn-orange', !dirty);
+    }
+  }
+
+  function confirmLeaveIfDirty(){
+    if(!dirty) return true;
+    return window.confirm('Hai modifiche non salvate.
+
+Premi OK per uscire senza salvare.');
+  }
+
+  function bindLeaveProtection(){
+    window.addEventListener('beforeunload', (e)=>{
+      if(!dirty || saving) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
+    window.addEventListener('popstate', ()=>{
+      if(confirmLeaveIfDirty()) return;
+      history.pushState({preventivo:true}, '', location.href);
+    });
+    try{ history.replaceState({preventivo:true}, '', location.href); }catch{}
+  }
 
   async function init(){
     clearErr();
@@ -120,7 +148,9 @@
       await loadRecord();
       await loadItems();
       bindUI();
+      bindLeaveProtection();
       renderAll();
+      setDirty(false);
 
     }catch(e){
       showErr('Errore inizializzazione preventivo: ' + (e?.message||e));
@@ -207,45 +237,51 @@
       .from('quote_items')
       .select('*')
       .eq('quote_id', quote.id)
-      .order('position', { ascending:true, nullsFirst:true });
+      .order('position', { ascending:true });
     if(error) throw error;
 
+    savedItemsByCode = new Map();
     itemsByCode = new Map();
     (data||[]).forEach(x=>{
       const code = x.rip_code || (String(x.description||'').trim().split(' ')[0] || '').trim();
       if(code){
-        itemsByCode.set(code, {
+        const item = {
           id: x.id,
           rip_code: code,
           description: x.description,
           unit_price_ex_vat: x.unit_price_ex_vat,
           qty: x.qty,
-          work_status: x.work_status || 'DA_FARE',
-          operator_department: x.operator_department || '',
-          started_at: x.started_at || '',
-          finished_at: x.finished_at || ''
-        });
+          work_status: x.work_status || 'DA_FARE'
+        };
+        savedItemsByCode.set(code, { ...item });
+        itemsByCode.set(code, { ...item });
       }
     });
   }
 
   function bindUI(){
-    $('btnBack')?.addEventListener('click', ()=> history.back());
+    $('btnBack')?.addEventListener('click', ()=>{ if(confirmLeaveIfDirty()) history.back(); });
     $('btnOpenRecord')?.addEventListener('click', ()=>{
       if(!quote?.record_id) return;
+      if(!confirmLeaveIfDirty()) return;
       location.href = `record.html?id=${encodeURIComponent(quote.record_id)}`;
     });
 
-    $('btnSave')?.addEventListener('click', saveAll);
+    $('btnSave')?.addEventListener('click', async ()=>{
+      if(!window.confirm('Confermi il salvataggio del preventivo?')) return;
+      await saveAll();
+    });
 
     $('status')?.addEventListener('change', ()=>{
       quote.status = $('status').value;
+      setDirty(true);
       renderQuoteHeader();
     });
 
     ['sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{
       $(id)?.addEventListener('change', ()=>{
         quote[id] = $(id).value || null;
+        setDirty(true);
         renderQuoteHeader();
       });
     });
@@ -304,6 +340,7 @@
         inp.addEventListener('input', ()=>{
           if(!itemsByCode.get(w.code)) return;
           itemsByCode.get(w.code).description = inp.value;
+          setDirty(true);
           recalcTotals();
         });
         tdDesc.appendChild(inp);
@@ -325,14 +362,14 @@
       cb.type = 'checkbox';
       cb.className = 'form-check-input';
       cb.checked = checked;
-      cb.addEventListener('change', async ()=>{
+      cb.addEventListener('change', ()=>{
         try{
           if(cb.checked){
-            await ensureItem(w, idx);
+            ensureDraftItem(w, idx);
           } else {
-            await removeItem(w.code);
+            removeDraftItem(w.code);
           }
-          await loadItems();
+          setDirty(true);
           renderTasks();
           recalcTotals();
         } catch(e){
@@ -356,6 +393,7 @@
         const it = itemsByCode.get(w.code);
         if(!it) return;
         it.unit_price_ex_vat = parseNum(price.value);
+        setDirty(true);
         recalcTotals();
       });
       price.addEventListener('blur', ()=>{
@@ -376,16 +414,15 @@
         o.textContent = s.label;
         sel.appendChild(o);
       });
-      sel.value = autoStatusFromDates(item);
+      sel.value = item?.work_status || 'DA_FARE';
       sel.disabled = !checked;
       sel.addEventListener('change', ()=>{
         const it = itemsByCode.get(w.code);
         if(!it) return;
         it.work_status = sel.value;
-        if(sel.value==='DA_FARE'){ it.started_at=''; it.finished_at=''; }
-        else if(sel.value==='IN_LAVORAZIONE'){ if(!it.started_at) it.started_at = new Date().toISOString().slice(0,10); it.finished_at=''; }
-        else if(sel.value==='COMPLETATA'){ if(!it.started_at) it.started_at = new Date().toISOString().slice(0,10); if(!it.finished_at) it.finished_at = new Date().toISOString().slice(0,10); }
+        setDirty(true);
         recalcTotals();
+        // aggiorna barra subito
         renderTasks();
       });
       tdSt.appendChild(sel);
@@ -393,7 +430,7 @@
 
       // avanzamento bar
       const tdProg = document.createElement('td');
-      const meta = statusMeta(autoStatusFromDates(item));
+      const meta = statusMeta(item?.work_status || 'DA_FARE');
       const pct = checked ? meta.pct : 0;
       const bar = document.createElement('div');
       bar.className = 'linebar';
@@ -410,123 +447,27 @@
       tr.appendChild(tdProg);
 
       tb.appendChild(tr);
-
-      if(checked){
-        const detailTr = document.createElement('tr');
-        detailTr.className = 'detail-row';
-        const detailTd = document.createElement('td');
-        detailTd.colSpan = 6;
-
-        const wrap = document.createElement('div');
-        wrap.className = 'detail-grid';
-
-        const colOp = document.createElement('div');
-        const labOp = document.createElement('label');
-        labOp.className = 'form-label';
-        labOp.textContent = 'Operatore / Reparto';
-        const inpOp = document.createElement('input');
-        inpOp.className = 'form-control';
-        inpOp.placeholder = 'Nome operatore o reparto';
-        inpOp.value = item?.operator_department || '';
-        inpOp.addEventListener('input', ()=>{
-          const it = itemsByCode.get(w.code);
-          if(!it) return;
-          it.operator_department = inpOp.value;
-        });
-        colOp.appendChild(labOp);
-        colOp.appendChild(inpOp);
-
-        const colStart = document.createElement('div');
-        const labStart = document.createElement('label');
-        labStart.className = 'form-label';
-        labStart.textContent = 'Data inizio';
-        const inpStart = document.createElement('input');
-        inpStart.type = 'date';
-        inpStart.className = 'form-control';
-        inpStart.value = item?.started_at || '';
-        inpStart.addEventListener('change', ()=>{
-          const it = itemsByCode.get(w.code);
-          if(!it) return;
-          it.started_at = inpStart.value || '';
-          if(!it.started_at) it.finished_at = '';
-          it.work_status = autoStatusFromDates(it);
-          recalcTotals();
-          renderTasks();
-        });
-        colStart.appendChild(labStart);
-        colStart.appendChild(inpStart);
-
-        const colEnd = document.createElement('div');
-        const labEnd = document.createElement('label');
-        labEnd.className = 'form-label';
-        labEnd.textContent = 'Data fine';
-        const inpEnd = document.createElement('input');
-        inpEnd.type = 'date';
-        inpEnd.className = 'form-control';
-        inpEnd.value = item?.finished_at || '';
-        inpEnd.min = item?.started_at || '';
-        inpEnd.addEventListener('change', ()=>{
-          const it = itemsByCode.get(w.code);
-          if(!it) return;
-          if(inpEnd.value && !it.started_at) it.started_at = inpEnd.value;
-          it.finished_at = inpEnd.value || '';
-          it.work_status = autoStatusFromDates(it);
-          recalcTotals();
-          renderTasks();
-        });
-        colEnd.appendChild(labEnd);
-        colEnd.appendChild(inpEnd);
-
-        wrap.appendChild(colOp);
-        wrap.appendChild(colStart);
-        wrap.appendChild(colEnd);
-        detailTd.appendChild(wrap);
-        detailTr.appendChild(detailTd);
-        tb.appendChild(detailTr);
-      }
     });
   }
 
-  async function ensureItem(w, idx){
+  function ensureDraftItem(w, idx){
     if(itemsByCode.get(w.code)) return;
 
     const desc = w.free ? '' : `${w.text}`;
-    const payload = {
-      quote_id: quote.id,
+    setDirty(true);
+    itemsByCode.set(w.code, {
+      id: null,
       position: idx,
       rip_code: w.code,
       description: desc,
-      qty: 1,
       unit_price_ex_vat: 0,
-      line_total_ex_vat: 0,
-      line_progress_percent: 0,
-      work_status: 'DA_FARE',
-      operator_department: '',
-      started_at: null,
-      finished_at: null
-    };
-
-    const { data, error } = await sb.from('quote_items').insert(payload).select().single();
-    if(error) throw error;
-
-    itemsByCode.set(w.code, {
-      id: data.id,
-      rip_code: w.code,
-      description: data.description,
-      unit_price_ex_vat: data.unit_price_ex_vat,
-      qty: data.qty,
-      work_status: data.work_status,
-      operator_department: data.operator_department || '',
-      started_at: data.started_at || '',
-      finished_at: data.finished_at || ''
+      qty: 1,
+      work_status: 'DA_FARE'
     });
   }
 
-  async function removeItem(code){
-    const it = itemsByCode.get(code);
-    if(!it) return;
-    const { error } = await sb.from('quote_items').delete().eq('id', it.id);
-    if(error) throw error;
+  function removeDraftItem(code){
+    setDirty(true);
     itemsByCode.delete(code);
   }
 
@@ -544,7 +485,7 @@
       const lineTotal = price * qty;
       subtotal += lineTotal;
 
-      const pct = statusMeta(autoStatusFromDates(it)).pct;
+      const pct = statusMeta(it.work_status).pct;
       wSum += lineTotal;
       wProg += lineTotal * (pct/100);
     });
@@ -572,6 +513,7 @@
 
   async function saveAll(){
     clearErr();
+    saving = true;
     try{
       // salva quote
       const qPayload = {
@@ -593,42 +535,55 @@
         if(error) throw error;
       }
 
-      // salva items selezionati
-      const updates = [];
-      WORKS.forEach((w, idx)=>{
-        const it = itemsByCode.get(w.code);
-        if(!it) return;
-        const currentStatus = autoStatusFromDates(it);
-        const pct = statusMeta(currentStatus).pct;
-        const lineTotal = Number(it.unit_price_ex_vat||0) * Number(it.qty||1);
-        updates.push({
-          id: it.id,
-          position: idx,
-          rip_code: w.code,
-          description: (w.free ? (it.description||`${w.code} ${w.text}`) : `${w.code} ${w.text}`),
+      // salva items selezionati SOLO quando premi Salva
+      const selectedCodes = new Set(Array.from(itemsByCode.keys()));
+      const savedCodes = new Set(Array.from(savedItemsByCode.keys()));
+
+      // 1) elimina dal DB le righe che hai deselezionato ma NON ancora salvate finora
+      for (const code of savedCodes) {
+        if (selectedCodes.has(code)) continue;
+        const saved = savedItemsByCode.get(code);
+        if (!saved?.id) continue;
+        const { error } = await sb.from('quote_items').delete().eq('id', saved.id);
+        if (error) throw error;
+      }
+
+      // 2) inserisce/aggiorna le righe attualmente selezionate
+      for (const [code, it] of itemsByCode.entries()) {
+        const w = WORKS.find(x => x.code === code) || { code, text: it.description || '' };
+        const pct = statusMeta(it.work_status).pct;
+        const lineTotal = Number(it.unit_price_ex_vat || 0) * Number(it.qty || 1);
+        const payload = {
+          quote_id: quote.id,
+          position: Number.isFinite(+it.position) ? +it.position : WORKS.findIndex(x => x.code === code),
+          rip_code: code,
+          description: (w.free ? (it.description || `${w.code} ${w.text}`) : `${w.code} ${w.text}`),
           qty: 1,
-          unit_price_ex_vat: Number(it.unit_price_ex_vat||0),
+          unit_price_ex_vat: Number(it.unit_price_ex_vat || 0),
           line_total_ex_vat: lineTotal,
           line_progress_percent: pct,
-          work_status: currentStatus,
-          operator_department: (it.operator_department || '').trim() || null,
-          started_at: it.started_at || null,
-          finished_at: it.finished_at || null
-        });
-      });
+          work_status: it.work_status || 'DA_FARE'
+        };
 
-      // aggiorna in batch
-      for(const u of updates){
-        const { error } = await sb.from('quote_items').update(u).eq('id', u.id);
-        if(error) throw error;
+        const saved = savedItemsByCode.get(code);
+        if (saved?.id) {
+          const { error } = await sb.from('quote_items').update(payload).eq('id', saved.id);
+          if (error) throw error;
+        } else {
+          const { error } = await sb.from('quote_items').insert(payload);
+          if (error) throw error;
+        }
       }
 
       showOk('Salvato');
       await loadItems();
       renderAll();
+      setDirty(false);
 
     }catch(e){
       showErr(e?.message||e);
+    } finally {
+      saving = false;
     }
   }
 
