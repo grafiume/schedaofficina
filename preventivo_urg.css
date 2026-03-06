@@ -1,0 +1,32 @@
+
+/* Pulsante URG compatto con quadratino */
+
+.urg-btn{
+display:inline-flex;
+align-items:center;
+gap:6px;
+padding:4px 10px;
+font-size:12px;
+font-weight:700;
+border-radius:14px;
+background:#fff1f2;
+color:#b42318;
+border:1px solid #f4c7cc;
+cursor:pointer;
+user-select:none;
+}
+
+.urg-btn::before{
+content:"";
+width:8px;
+height:8px;
+background:#b42318;
+border-radius:2px;
+display:inline-block;
+}
+
+.urg-btn.active{
+background:#b42318;
+color:white;
+border-color:#b42318;
+}
