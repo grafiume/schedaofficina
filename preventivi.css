@@ -1,0 +1,25 @@
+
+/* BADGE URGENTE CON QUADRATINO */
+
+.badge-urgent{
+display:inline-flex;
+align-items:center;
+gap:6px;
+padding:4px 10px;
+font-size:12px;
+font-weight:600;
+border-radius:14px;
+background:#fff3f3;
+color:#d32f2f;
+border:1px solid #f1a5a5;
+margin-left:6px;
+}
+
+.badge-urgent::before{
+content:"";
+width:8px;
+height:8px;
+background:#d32f2f;
+border-radius:2px;
+display:inline-block;
+}
