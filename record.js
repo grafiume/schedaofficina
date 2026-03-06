@@ -84,61 +84,6 @@
     return null;
   }
 
-
-  async function findBestQuoteIdForRecord(recordId){
-    // 1) preferisci ACCETTATO / INVIATO
-    {
-      const { data, error } = await db
-        .from('quotes')
-        .select('id,status,accepted_at,sent_at,created_at')
-        .eq('record_id', recordId)
-        .in('status', ['ACCETTATO','INVIATO'])
-        .order('accepted_at', { ascending:false, nullsFirst:false })
-        .order('sent_at', { ascending:false, nullsFirst:false })
-        .order('created_at', { ascending:false })
-        .limit(1);
-      if(error) throw error;
-      if(data && data.length) return data[0].id;
-    }
-
-    // 2) poi la BOZZA piu' compilata
-    {
-      const { data, error } = await db
-        .from('quotes')
-        .select('id,status,subtotal_ex_vat,grand_total,sent_at,accepted_at,delivery_date,delivery_days,notes,updated_at,created_at')
-        .eq('record_id', recordId)
-        .eq('status', 'BOZZA')
-        .order('updated_at', { ascending:false, nullsFirst:false })
-        .order('created_at', { ascending:false })
-        .limit(50);
-      if(error) throw error;
-      const drafts = data || [];
-      if(drafts.length){
-        const ids = drafts.map(x=>x.id);
-        const { data: items, error: itemsErr } = await db
-          .from('quote_items')
-          .select('quote_id')
-          .in('quote_id', ids)
-          .limit(1000);
-        if(itemsErr) throw itemsErr;
-        const itemCount = new Map();
-        (items || []).forEach(it=> itemCount.set(it.quote_id, (itemCount.get(it.quote_id)||0)+1));
-        drafts.sort((a,b)=>{
-          const score = q => ((itemCount.get(q.id)||0)>0 ? 1000 : 0)
-            + ((Number(q.subtotal_ex_vat||0)>0 || Number(q.grand_total||0)>0) ? 100 : 0)
-            + ((q.sent_at||q.accepted_at||q.delivery_date||q.delivery_days) ? 10 : 0)
-            + (String(q.notes||'').trim() ? 1 : 0);
-          const ds = score(b) - score(a);
-          if(ds) return ds;
-          return new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
-        });
-        if(drafts[0]) return drafts[0].id;
-      }
-    }
-
-    return null;
-  }
-
   async function run(){
     if(!id){ showAlert('warning','ID non specificato nell\'URL.'); return; }
     if(!db){ showAlert('danger','Supabase non inizializzato.'); return; }
@@ -168,22 +113,7 @@
     // Preventivo collegato
     try{
       const b=document.getElementById('btnQuote');
-      if(b){
-        b.onclick=async ()=>{
-          try{
-            b.disabled = true;
-            const bestId = await findBestQuoteIdForRecord(id);
-            location.href = bestId
-              ? ('preventivo.html?id=' + encodeURIComponent(bestId))
-              : ('preventivo.html?record_id=' + encodeURIComponent(id));
-          }catch(e){
-            console.warn('Apertura preventivo fallback', e);
-            location.href='preventivo.html?record_id=' + encodeURIComponent(id);
-          }finally{
-            b.disabled = false;
-          }
-        };
-      }
+      if(b){ b.onclick=()=>{ location.href='preventivo.html?record_id=' + encodeURIComponent(id); }; }
     }catch(e){}
 
     // Riempimento campi

@@ -29,6 +29,10 @@
       .w-actions{ width:170px; }
       .table thead th{ white-space:nowrap; }
       .clickable{ cursor:pointer; }
+      .detail-row td{ background:#fcfcfd; }
+      .detail-grid{ display:grid; grid-template-columns: minmax(220px,1.4fr) minmax(170px,.9fr) minmax(170px,.9fr); gap:.75rem; }
+      .detail-grid .form-label{ font-size:.85rem; color:#6c757d; margin-bottom:.2rem; }
+      @media (max-width: 768px){ .detail-grid{ grid-template-columns:1fr; } }
     </style>
   </head>
   <body>
@@ -112,7 +116,7 @@
       <div class="card shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center">
           <strong>Lavorazioni Riparazione</strong>
-          <div class="small text-muted">Seleziona le voci RIP e inserisci solo il prezzo (IVA esclusa).</div>
+          <div class="small text-muted">Seleziona le voci RIP e inserisci prezzo, operatore/reparto e date inizio/fine per ogni voce attiva.</div>
         </div>
         <div class="card-body">
           <div class="table-responsive">
@@ -148,6 +152,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="preventivo.js?v=26"></script>
+    <script src="preventivo.js?v=12"></script>
   </body>
 </html>
