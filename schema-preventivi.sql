@@ -61,6 +61,70 @@ create table if not exists public.quotes (
   updated_at timestamptz not null default now()
 );
 
+-- Se la tabella esiste già (vecchia prova), aggiungi colonne mancanti (idempotente)
+do $$
+begin
+  if exists (select 1 from information_schema.tables where table_schema='public' and table_name='quotes') then
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='status') then
+      alter table public.quotes add column status text not null default 'BOZZA';
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='sent_at') then
+      alter table public.quotes add column sent_at date;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='accepted_at') then
+      alter table public.quotes add column accepted_at date;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='delivery_days') then
+      alter table public.quotes add column delivery_days int;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='delivery_date') then
+      alter table public.quotes add column delivery_date date;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='notes') then
+      alter table public.quotes add column notes text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='subtotal_ex_vat') then
+      alter table public.quotes add column subtotal_ex_vat numeric not null default 0;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='vat_rate') then
+      alter table public.quotes add column vat_rate numeric not null default 22;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='vat_total') then
+      alter table public.quotes add column vat_total numeric not null default 0;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='grand_total') then
+      alter table public.quotes add column grand_total numeric not null default 0;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='progress_percent') then
+      alter table public.quotes add column progress_percent numeric not null default 0;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='created_at') then
+      alter table public.quotes add column created_at timestamptz not null default now();
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='updated_at') then
+      alter table public.quotes add column updated_at timestamptz not null default now();
+    end if;
+  end if;
+end $$;
+
+-- Necessario per i join supabase (schema cache): relazione quotes.record_id -> records.id
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'quotes_record_id_fkey'
+      and conrelid = 'public.quotes'::regclass
+  ) then
+    alter table public.quotes
+      add constraint quotes_record_id_fkey
+      foreign key (record_id) references public.records(id)
+      on delete cascade;
+  end if;
+exception when undefined_table then
+  null;
+end $$;
+
 create index if not exists quotes_record_idx on public.quotes(record_id);
 create index if not exists quotes_status_idx on public.quotes(status);
 create index if not exists quotes_accepted_idx on public.quotes(accepted_at);
@@ -70,14 +134,29 @@ create table if not exists public.quote_items (
   quote_id uuid not null references public.quotes(id) on delete cascade,
   position int not null default 0,
   task_id uuid references public.work_tasks(id) on delete set null,
+  rip_code text,
   description text not null,
   qty numeric not null default 1,
   unit_price_ex_vat numeric not null default 0,
   line_total_ex_vat numeric not null default 0,
   line_progress_percent numeric not null default 0,
+  work_status text not null default 'DA_FARE',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- idempotente: aggiungi colonne nuove se la tabella esiste già
+do $$
+begin
+  if exists (select 1 from information_schema.tables where table_schema='public' and table_name='quote_items') then
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quote_items' and column_name='rip_code') then
+      alter table public.quote_items add column rip_code text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quote_items' and column_name='work_status') then
+      alter table public.quote_items add column work_status text not null default 'DA_FARE';
+    end if;
+  end if;
+end $$;
 
 create index if not exists quote_items_quote_idx on public.quote_items(quote_id);
 create index if not exists quote_items_task_idx on public.quote_items(task_id);

@@ -57,12 +57,6 @@
 
   function statusMeta(v){ return STATUS.find(x=>x.v===v) || STATUS[0]; }
 
-  function autoStatusFromDates(item){
-    if(item?.finished_at) return 'COMPLETATA';
-    if(item?.started_at) return 'IN_LAVORAZIONE';
-    return item?.work_status || 'DA_FARE';
-  }
-
   function today0(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
   function fmtDateISO(d){
     const x = (d instanceof Date) ? d : new Date(d);
@@ -134,57 +128,36 @@
   }
 
   async function loadOrCreateQuoteForRecord(record_id){
-    // 1) Preferisci preventivo ACCETTATO / INVIATO più recente
+    // ✅ Dalla scheda record, se esiste un preventivo già "salvato" (INVIATO/ACCETTATO), apri quello.
+    // Altrimenti apri l'ultima BOZZA. Crea una nuova BOZZA solo se non esiste nulla.
+
+    // 1) Preferisci INVIATO/ACCETTATO (non ANNULLATO)
     {
       const { data, error } = await sb
         .from('quotes')
         .select('*')
         .eq('record_id', record_id)
         .in('status', ['INVIATO','ACCETTATO'])
-        .order('accepted_at', { ascending:false, nullsFirst:false })
-        .order('sent_at', { ascending:false, nullsFirst:false })
         .order('created_at', { ascending:false })
         .limit(1);
       if(error) throw error;
       if(data && data.length){ quote = data[0]; }
     }
 
-    // 2) Se non trovato, prendi il preventivo più compilato davvero (anche se BOZZA)
+    // 2) Se non trovato, prendi l'ultima BOZZA
     if(!quote){
-      const { data: quotes, error } = await sb
+      const { data, error } = await sb
         .from('quotes')
         .select('*')
         .eq('record_id', record_id)
-        .neq('status', 'ANNULLATO')
-        .order('created_at', { ascending:false });
+        .eq('status', 'BOZZA')
+        .order('created_at', { ascending:false })
+        .limit(1);
       if(error) throw error;
-
-      if(quotes && quotes.length){
-        const ids = quotes.map(q=>q.id).filter(Boolean);
-        let itemCount = {};
-        if(ids.length){
-          const { data: items, error: itemErr } = await sb.from('quote_items').select('quote_id').in('quote_id', ids);
-          if(itemErr) throw itemErr;
-          (items||[]).forEach(it=>{ itemCount[it.quote_id] = (itemCount[it.quote_id]||0)+1; });
-        }
-        const scored = quotes.map(q=>{
-          const count = itemCount[q.id] || 0;
-          const total = Number(q.grand_total || q.subtotal_ex_vat || 0);
-          const hasDates = !!(q.accepted_at || q.sent_at || q.delivery_date || q.delivery_days);
-          const hasNotes = !!(q.notes && String(q.notes).trim());
-          const score = (count>0 ? 1000 : 0) + (total>0 ? 500 : 0) + (hasDates ? 100 : 0) + (hasNotes ? 20 : 0);
-          return { q, score };
-        }).sort((a,b)=> b.score - a.score || String(b.q.created_at||'').localeCompare(String(a.q.created_at||'')));
-
-        if(scored[0]?.q?.id && scored[0].score > 0){
-          quote = scored[0].q;
-        } else if(quotes[0]?.id){
-          quote = quotes[0];
-        }
-      }
+      if(data && data.length){ quote = data[0]; }
     }
 
-    // 3) Solo se non esiste nulla crea BOZZA nuova
+    // 3) Altrimenti crea BOZZA nuova
     if(!quote){
       quote = await createNewQuote(record_id);
     }
@@ -241,10 +214,7 @@
           description: x.description,
           unit_price_ex_vat: x.unit_price_ex_vat,
           qty: x.qty,
-          work_status: x.work_status || 'DA_FARE',
-          operator_department: x.operator_department || '',
-          started_at: x.started_at || '',
-          finished_at: x.finished_at || ''
+          work_status: x.work_status || 'DA_FARE'
         });
       }
     });
@@ -397,16 +367,14 @@
         o.textContent = s.label;
         sel.appendChild(o);
       });
-      sel.value = autoStatusFromDates(item);
+      sel.value = item?.work_status || 'DA_FARE';
       sel.disabled = !checked;
       sel.addEventListener('change', ()=>{
         const it = itemsByCode.get(w.code);
         if(!it) return;
         it.work_status = sel.value;
-        if(sel.value==='DA_FARE'){ it.started_at=''; it.finished_at=''; }
-        else if(sel.value==='IN_LAVORAZIONE'){ if(!it.started_at) it.started_at = new Date().toISOString().slice(0,10); it.finished_at=''; }
-        else if(sel.value==='COMPLETATA'){ if(!it.started_at) it.started_at = new Date().toISOString().slice(0,10); if(!it.finished_at) it.finished_at = new Date().toISOString().slice(0,10); }
         recalcTotals();
+        // aggiorna barra subito
         renderTasks();
       });
       tdSt.appendChild(sel);
@@ -414,7 +382,7 @@
 
       // avanzamento bar
       const tdProg = document.createElement('td');
-      const meta = statusMeta(autoStatusFromDates(item));
+      const meta = statusMeta(item?.work_status || 'DA_FARE');
       const pct = checked ? meta.pct : 0;
       const bar = document.createElement('div');
       bar.className = 'linebar';
@@ -431,80 +399,6 @@
       tr.appendChild(tdProg);
 
       tb.appendChild(tr);
-
-      if(checked){
-        const detailTr = document.createElement('tr');
-        detailTr.className = 'detail-row';
-        const detailTd = document.createElement('td');
-        detailTd.colSpan = 6;
-
-        const wrap = document.createElement('div');
-        wrap.className = 'detail-grid';
-
-        const colOp = document.createElement('div');
-        const labOp = document.createElement('label');
-        labOp.className = 'form-label';
-        labOp.textContent = 'Operatore / Reparto';
-        const inpOp = document.createElement('input');
-        inpOp.className = 'form-control';
-        inpOp.placeholder = 'Nome operatore o reparto';
-        inpOp.value = item?.operator_department || '';
-        inpOp.addEventListener('input', ()=>{
-          const it = itemsByCode.get(w.code);
-          if(!it) return;
-          it.operator_department = inpOp.value;
-        });
-        colOp.appendChild(labOp);
-        colOp.appendChild(inpOp);
-
-        const colStart = document.createElement('div');
-        const labStart = document.createElement('label');
-        labStart.className = 'form-label';
-        labStart.textContent = 'Data inizio';
-        const inpStart = document.createElement('input');
-        inpStart.type = 'date';
-        inpStart.className = 'form-control';
-        inpStart.value = item?.started_at || '';
-        inpStart.addEventListener('change', ()=>{
-          const it = itemsByCode.get(w.code);
-          if(!it) return;
-          it.started_at = inpStart.value || '';
-          if(!it.started_at) it.finished_at = '';
-          it.work_status = autoStatusFromDates(it);
-          recalcTotals();
-          renderTasks();
-        });
-        colStart.appendChild(labStart);
-        colStart.appendChild(inpStart);
-
-        const colEnd = document.createElement('div');
-        const labEnd = document.createElement('label');
-        labEnd.className = 'form-label';
-        labEnd.textContent = 'Data fine';
-        const inpEnd = document.createElement('input');
-        inpEnd.type = 'date';
-        inpEnd.className = 'form-control';
-        inpEnd.value = item?.finished_at || '';
-        inpEnd.min = item?.started_at || '';
-        inpEnd.addEventListener('change', ()=>{
-          const it = itemsByCode.get(w.code);
-          if(!it) return;
-          if(inpEnd.value && !it.started_at) it.started_at = inpEnd.value;
-          it.finished_at = inpEnd.value || '';
-          it.work_status = autoStatusFromDates(it);
-          recalcTotals();
-          renderTasks();
-        });
-        colEnd.appendChild(labEnd);
-        colEnd.appendChild(inpEnd);
-
-        wrap.appendChild(colOp);
-        wrap.appendChild(colStart);
-        wrap.appendChild(colEnd);
-        detailTd.appendChild(wrap);
-        detailTr.appendChild(detailTd);
-        tb.appendChild(detailTr);
-      }
     });
   }
 
@@ -521,10 +415,7 @@
       unit_price_ex_vat: 0,
       line_total_ex_vat: 0,
       line_progress_percent: 0,
-      work_status: 'DA_FARE',
-      operator_department: '',
-      started_at: null,
-      finished_at: null
+      work_status: 'DA_FARE'
     };
 
     const { data, error } = await sb.from('quote_items').insert(payload).select().single();
@@ -536,10 +427,7 @@
       description: data.description,
       unit_price_ex_vat: data.unit_price_ex_vat,
       qty: data.qty,
-      work_status: data.work_status,
-      operator_department: data.operator_department || '',
-      started_at: data.started_at || '',
-      finished_at: data.finished_at || ''
+      work_status: data.work_status
     });
   }
 
@@ -565,7 +453,7 @@
       const lineTotal = price * qty;
       subtotal += lineTotal;
 
-      const pct = statusMeta(autoStatusFromDates(it)).pct;
+      const pct = statusMeta(it.work_status).pct;
       wSum += lineTotal;
       wProg += lineTotal * (pct/100);
     });
@@ -619,8 +507,7 @@
       WORKS.forEach((w, idx)=>{
         const it = itemsByCode.get(w.code);
         if(!it) return;
-        const currentStatus = autoStatusFromDates(it);
-        const pct = statusMeta(currentStatus).pct;
+        const pct = statusMeta(it.work_status).pct;
         const lineTotal = Number(it.unit_price_ex_vat||0) * Number(it.qty||1);
         updates.push({
           id: it.id,
@@ -631,10 +518,7 @@
           unit_price_ex_vat: Number(it.unit_price_ex_vat||0),
           line_total_ex_vat: lineTotal,
           line_progress_percent: pct,
-          work_status: currentStatus,
-          operator_department: (it.operator_department || '').trim() || null,
-          started_at: it.started_at || null,
-          finished_at: it.finished_at || null
+          work_status: it.work_status || 'DA_FARE'
         });
       });
 
