@@ -51,6 +51,7 @@ create table if not exists public.quotes (
   delivery_days int,
   delivery_date date,
   notes text,
+  is_urgent boolean not null default false,
   -- cache calcoli
   subtotal_ex_vat numeric not null default 0,
   vat_rate numeric not null default 22,
@@ -82,6 +83,9 @@ begin
     end if;
     if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='notes') then
       alter table public.quotes add column notes text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='is_urgent') then
+      alter table public.quotes add column is_urgent boolean not null default false;
     end if;
     if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quotes' and column_name='subtotal_ex_vat') then
       alter table public.quotes add column subtotal_ex_vat numeric not null default 0;
@@ -128,6 +132,7 @@ end $$;
 create index if not exists quotes_record_idx on public.quotes(record_id);
 create index if not exists quotes_status_idx on public.quotes(status);
 create index if not exists quotes_accepted_idx on public.quotes(accepted_at);
+create index if not exists quotes_urgent_idx on public.quotes(is_urgent);
 
 create table if not exists public.quote_items (
   id uuid primary key default gen_random_uuid(),
