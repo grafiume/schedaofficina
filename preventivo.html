@@ -10,35 +10,42 @@
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="styles.css">
     <style>
-      body{ background:#f8f9fa; }
-      .container-narrow{ max-width:1180px; }
-      .muted{ color:#6c757d; }
-      .progbar{ height:10px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
-      .progbar > div{ height:100%; background:#ff7a00; width:0%; }
-      .linebar{ height:8px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
-      .linebar > div{ height:100%; width:5%; }
+      body{ background:#f7f7f7; }
+      .container-narrow{ max-width:1200px; }
+      .smallmono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+      .progbar,.linebar{ height:8px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
+      .progbar>div,.linebar>div{ height:100%; width:0%; }
       .st-DA_FARE{ background:#dc3545; }
       .st-IN_LAVORAZIONE{ background:#ffc107; }
       .st-COMPLETATA{ background:#198754; }
-      .smallmono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-      .item-row td{ vertical-align:top; }
-      .table thead th{ white-space:nowrap; }
-      .clickable{ cursor:pointer; }
-      body:not(.edit-unlocked) input[data-editable="1"], body:not(.edit-unlocked) select[data-editable="1"]{ cursor:not-allowed; }
-      .work-main{ min-width:320px; }
-      .work-code{ display:inline-flex; align-items:center; padding:.18rem .5rem; border-radius:999px; background:#fff3e8; color:#c45a00; border:1px solid rgba(255,122,0,.25); font-size:.78rem; font-weight:700; }
-      .work-detail-box{ margin-top:.65rem; padding:.75rem; border:1px solid rgba(0,0,0,.08); border-radius:14px; background:#fcfcfd; }
-      .detail-grid{ display:grid; grid-template-columns: 1.1fr .9fr .9fr; gap:.55rem; }
-      .detail-label{ display:block; font-size:.75rem; color:#6c757d; margin-bottom:.18rem; }
-      .status-cell{ min-width:190px; }
-      .price-cell{ min-width:150px; }
-      .check-wrap{ display:flex; justify-content:center; padding-top:.4rem; }
-      .row-disabled{ opacity:.72; }
-      .urgent-note{ color:#b02a37; font-weight:600; }
-      @media (max-width: 900px){
-        .detail-grid{ grid-template-columns: 1fr; }
-        .work-main{ min-width:260px; }
-      }
+      .top-grid{ display:grid; grid-template-columns: repeat(6, minmax(120px,1fr)); gap:.65rem; }
+      .mini-field label{ display:block; font-size:.78rem; color:#6c757d; margin-bottom:.2rem; }
+      .mini-field input,.mini-field select{ height:38px; }
+      .mini-note input{ height:38px; }
+      .badge-urgent{ background:#dc3545; color:#fff; }
+      .table-compact thead th{ font-size:.82rem; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
+      .table-compact td{ vertical-align:top; padding:.45rem .5rem; }
+      .rip-main{ min-width:360px; }
+      .rip-title{ font-size:.92rem; font-weight:700; line-height:1.15; }
+      .rip-code{ display:inline-block; min-width:68px; padding:.1rem .38rem; border-radius:999px; background:#f1f3f5; color:#495057; font-size:.74rem; font-weight:700; margin-right:.4rem; }
+      .rip-meta{ display:grid; grid-template-columns: 1.2fr .9fr .9fr; gap:.35rem .5rem; margin-top:.35rem; }
+      .rip-meta .meta-box{ background:#fafafa; border:1px solid rgba(0,0,0,.08); border-radius:.55rem; padding:.3rem .42rem; }
+      .rip-meta .meta-box label{ display:block; font-size:.7rem; color:#6c757d; margin-bottom:.15rem; }
+      .rip-meta .meta-box input{ height:30px; font-size:.82rem; padding:.2rem .4rem; }
+      .row-status-pill{ font-size:.73rem; font-weight:700; border-radius:999px; padding:.18rem .5rem; display:inline-block; }
+      .row-status-DA_FARE{ background:#f8d7da; color:#842029; }
+      .row-status-IN_LAVORAZIONE{ background:#fff3cd; color:#664d03; }
+      .row-status-COMPLETATA{ background:#d1e7dd; color:#0f5132; }
+      .table-compact tr.row-urgent{ box-shadow: inset 4px 0 0 #dc3545; }
+      .table-compact tr.row-complete{ background:#fbfffc; }
+      .table-compact tr.row-working{ background:#fffdf7; }
+      .table-compact tr.row-todo{ background:#fffafb; }
+      .table-compact tr.row-off td{ opacity:.72; }
+      .price-input{ width:120px; min-width:120px; }
+      .status-select{ min-width:165px; }
+      .line-progress-wrap{ min-width:120px; }
+      .toolbar-badges{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.35rem; }
+      body:not(.edit-unlocked) [data-editable="1"]{ cursor:not-allowed; }
     </style>
   </head>
   <body>
@@ -63,7 +70,7 @@
 
       <div class="card shadow-sm mb-3">
         <div class="card-body">
-          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
             <div>
               <div class="small text-muted">Cliente</div>
               <div class="h5 mb-0" id="recCliente">—</div>
@@ -71,74 +78,83 @@
               <div class="small text-muted" id="recModel"></div>
             </div>
             <div class="text-end">
-              <div class="mb-2 d-flex flex-column align-items-end gap-1"><div>Stato: <span id="quoteStatusBadge" class="badge bg-secondary">BOZZA</span></div><div><span id="lockState" class="badge bg-secondary">SOLO LETTURA</span></div><div id="dirtyState" class="small text-muted">Salvato</div></div>
+              <div class="toolbar-badges mb-2">
+                <span id="quoteStatusBadge" class="badge bg-secondary">BOZZA</span>
+                <span id="urgentBadge" class="badge d-none badge-urgent">URGENTE</span>
+                <span id="lockState" class="badge bg-secondary">SOLO LETTURA</span>
+              </div>
+              <div id="dirtyState" class="small text-muted mb-1">Salvato</div>
               <div class="small text-muted">ID Preventivo</div>
               <div class="smallmono" id="quoteId">—</div>
             </div>
           </div>
 
-          <hr>
-
-          <div class="row g-2">
-            <div class="col-md-3">
-              <label class="form-label">Stato</label>
+          <div class="top-grid">
+            <div class="mini-field">
+              <label>Stato</label>
               <select id="status" class="form-select">
                 <option value="BOZZA">BOZZA</option>
                 <option value="INVIATO">INVIATO</option>
                 <option value="ACCETTATO">ACCETTATO</option>
-                <option value="URGENTE">URGENTE</option>
                 <option value="ANNULLATO">ANNULLATO</option>
               </select>
             </div>
-            <div class="col-md-3">
-              <label class="form-label">Data invio</label>
+            <div class="mini-field">
+              <label>Data invio</label>
               <input id="sent_at" type="date" class="form-control">
             </div>
-            <div class="col-md-3">
-              <label class="form-label">Data accettazione</label>
+            <div class="mini-field">
+              <label>Accettazione</label>
               <input id="accepted_at" type="date" class="form-control">
             </div>
-            <div class="col-md-3">
-              <label class="form-label">Tempi consegna (gg)</label>
+            <div class="mini-field">
+              <label>Consegna gg</label>
               <input id="delivery_days" type="number" min="0" step="1" class="form-control" placeholder="es. 10">
             </div>
-            <div class="col-md-3">
-              <label class="form-label">Data consegna (opz.)</label>
+            <div class="mini-field">
+              <label>Data scadenza</label>
               <input id="delivery_date" type="date" class="form-control">
-              <div class="form-text">Se compili la data, prevale sui giorni.</div>
             </div>
-            <div class="col-md-9">
-              <label class="form-label">Note</label>
-              <input id="notes" class="form-control" placeholder="Note interne / note al cliente…">
+            <div class="mini-field d-flex align-items-end">
+              <div class="form-check border rounded px-3 py-2 w-100 bg-light">
+                <input class="form-check-input" type="checkbox" id="is_urgent">
+                <label class="form-check-label fw-bold text-danger" for="is_urgent">URGENTE</label>
+              </div>
             </div>
+          </div>
+
+          <div class="mini-note mt-2">
+            <label class="form-label mb-1">Note</label>
+            <input id="notes" class="form-control" placeholder="Note interne / note al cliente…">
           </div>
 
           <div class="mt-3">
             <div class="d-flex justify-content-between small"><span>Avanzamento preventivo</span><span id="quoteProgressTxt">0%</span></div>
             <div class="progbar"><div id="quoteProgBar"></div></div>
-            <div class="small text-muted mt-1" id="dueLabel">—</div>
+            <div class="small mt-1" id="dueLabel">—</div>
           </div>
         </div>
       </div>
 
       <div class="card shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <strong>Lavorazioni Riparazione</strong>
-          <div class="small text-muted">Vista ottimizzata: dati RIP in alto, sotto operatore, data inizio e data fine.</div>
+          <strong>Voci RIP</strong>
+          <div class="small text-muted">Tabella compatta: sotto ogni voce trovi operatore, data inizio e data fine.</div>
         </div>
         <div class="card-body">
           <div class="table-responsive">
-            <table class="table table-app align-middle">
+            <table class="table table-app table-compact align-middle">
               <thead>
                 <tr>
-                  <th>Lavorazione RIP</th>
-                  <th style="width:56px;">Sel.</th>
-                  <th class="w-price text-end">Prezzo (IVA escl.)</th>
-                  <th style="min-width:210px;">Stato / Avanz.</th>
+                  <th style="width:40px;"></th>
+                  <th>Voce RIP</th>
+                  <th style="width:180px;">Stato</th>
+                  <th style="width:140px;">Prezzo</th>
+                  <th style="width:150px;">Avanz.</th>
                 </tr>
               </thead>
               <tbody id="taskRows">
-                <tr><td colspan="4" class="text-center py-4 text-muted">Caricamento…</td></tr>
+                <tr><td colspan="5" class="text-center py-4 text-muted">Caricamento…</td></tr>
               </tbody>
             </table>
           </div>
@@ -153,7 +169,6 @@
         </div>
       </div>
     </div>
-
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
