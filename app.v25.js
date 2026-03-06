@@ -459,36 +459,44 @@ function openEdit(id){
       try{
         const { data, error } = await sb
           .from('quotes')
-          .select('id,status,sent_at,accepted_at,updated_at,created_at')
+          .select('id,status,sent_at,accepted_at,updated_at,created_at,subtotal_ex_vat,grand_total')
           .eq('record_id', String(r.id));
         if(error) throw error;
         const rows = Array.isArray(data) ? data : [];
         const norm = (v)=> String(v || '').trim().toUpperCase();
         const active = rows.filter(x => norm(x.status) !== 'ANNULLATO');
-        const sortByPrimaryDateDesc = (a,b)=>{
-          const ta = new Date(a.accepted_at || a.sent_at || a.updated_at || a.created_at || 0).getTime();
-          const tb = new Date(b.accepted_at || b.sent_at || b.updated_at || b.created_at || 0).getTime();
-          return tb - ta;
-        };
-        const sortByUpdatedDesc = (a,b)=>{
-          const ta = new Date(a.updated_at || a.created_at || 0).getTime();
-          const tb = new Date(b.updated_at || b.created_at || 0).getTime();
-          return tb - ta;
-        };
+        const scoreDate = (x)=> new Date(x.accepted_at || x.sent_at || x.updated_at || x.created_at || 0).getTime();
+        const scoreDraftDate = (x)=> new Date(x.updated_at || x.created_at || 0).getTime();
 
         const sentOrAccepted = active
           .filter(x => ['INVIATO','ACCETTATO'].includes(norm(x.status)))
-          .sort(sortByPrimaryDateDesc);
+          .sort((a,b)=> scoreDate(b)-scoreDate(a));
         if(sentOrAccepted.length){
           location.href = 'preventivo.html?id=' + encodeURIComponent(sentOrAccepted[0].id);
           return;
         }
 
-        const drafts = active
-          .filter(x => norm(x.status) === 'BOZZA' || !norm(x.status))
-          .sort(sortByUpdatedDesc);
-        if(drafts.length){
-          location.href = 'preventivo.html?id=' + encodeURIComponent(drafts[0].id);
+        const ids = active.map(x=>x.id).filter(Boolean);
+        let counts = new Map();
+        if(ids.length){
+          const { data: itemsData } = await sb.from('quote_items').select('quote_id').in('quote_id', ids);
+          for(const row of (itemsData||[])){
+            counts.set(row.quote_id, (counts.get(row.quote_id)||0)+1);
+          }
+        }
+
+        const drafts = active.filter(x => norm(x.status) === 'BOZZA' || !norm(x.status));
+        const meaningfulDrafts = drafts
+          .filter(x => (counts.get(x.id)||0) > 0 || Number(x.subtotal_ex_vat||0) > 0 || Number(x.grand_total||0) > 0 || !!x.sent_at || !!x.accepted_at)
+          .sort((a,b)=> scoreDraftDate(b)-scoreDraftDate(a));
+        if(meaningfulDrafts.length){
+          location.href = 'preventivo.html?id=' + encodeURIComponent(meaningfulDrafts[0].id);
+          return;
+        }
+
+        const draftSorted = drafts.sort((a,b)=> scoreDraftDate(b)-scoreDraftDate(a));
+        if(draftSorted.length){
+          location.href = 'preventivo.html?id=' + encodeURIComponent(draftSorted[0].id);
           return;
         }
 

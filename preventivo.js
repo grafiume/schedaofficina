@@ -133,6 +133,52 @@
     quote = data;
   }
 
+
+  async function chooseBestQuoteForRecord(record_id){
+    const { data, error } = await sb
+      .from('quotes')
+      .select('*')
+      .eq('record_id', String(record_id));
+    if(error) throw error;
+
+    const rows = Array.isArray(data) ? data : [];
+    const norm = (v)=> String(v || '').trim().toUpperCase();
+    const active = rows.filter(r => norm(r.status) !== 'ANNULLATO');
+    if(!active.length) return null;
+
+    const scoreDate = (r)=> new Date(r.accepted_at || r.sent_at || r.updated_at || r.created_at || 0).getTime();
+    const scoreDraftDate = (r)=> new Date(r.updated_at || r.created_at || 0).getTime();
+
+    const sentOrAccepted = active
+      .filter(r => ['INVIATO','ACCETTATO'].includes(norm(r.status)))
+      .sort((a,b)=> scoreDate(b)-scoreDate(a));
+    if(sentOrAccepted.length) return sentOrAccepted[0];
+
+    const ids = active.map(r=>r.id).filter(Boolean);
+    let counts = new Map();
+    if(ids.length){
+      const { data: itemsData } = await sb
+        .from('quote_items')
+        .select('quote_id')
+        .in('quote_id', ids);
+      for(const row of (itemsData||[])){
+        const k = row.quote_id;
+        counts.set(k, (counts.get(k)||0)+1);
+      }
+    }
+
+    const isMeaningful = (r)=> {
+      const n = counts.get(r.id) || 0;
+      return n > 0 || Number(r.subtotal_ex_vat||0) > 0 || Number(r.grand_total||0) > 0 || !!r.sent_at || !!r.accepted_at;
+    };
+
+    const drafts = active.filter(r => norm(r.status) === 'BOZZA' || !norm(r.status));
+    const meaningfulDrafts = drafts.filter(isMeaningful).sort((a,b)=> scoreDraftDate(b)-scoreDraftDate(a));
+    if(meaningfulDrafts.length) return meaningfulDrafts[0];
+
+    return drafts.sort((a,b)=> scoreDraftDate(b)-scoreDraftDate(a))[0] || null;
+  }
+
   async function loadOrCreateQuoteForRecord(record_id){
     // Comportamento definitivo richiesto:
     // 1) Se esiste un preventivo INVIATO o ACCETTATO -> apri quello più recente
@@ -140,42 +186,7 @@
     // 3) Se non esiste nulla -> crea una nuova BOZZA
     // Nota: carichiamo tutte le righe del record e decidiamo in JS per evitare filtri DB troppo rigidi.
 
-    const { data, error } = await sb
-      .from('quotes')
-      .select('*')
-      .eq('record_id', record_id)
-      .order('updated_at', { ascending:false, nullsFirst:false })
-      .order('created_at', { ascending:false, nullsFirst:false });
-
-    if(error) throw error;
-
-    const rows = Array.isArray(data) ? data : [];
-    const norm = (v)=> String(v || '').trim().toUpperCase();
-    const active = rows.filter(r => norm(r.status) !== 'ANNULLATO');
-
-    // 1) Preferisci sempre INVIATO / ACCETTATO
-    const sentOrAccepted = active.filter(r => ['INVIATO','ACCETTATO'].includes(norm(r.status)));
-    if(sentOrAccepted.length){
-      sentOrAccepted.sort((a,b)=>{
-        const da = new Date(b.accepted_at || b.sent_at || b.updated_at || b.created_at || 0).getTime();
-        const db = new Date(a.accepted_at || a.sent_at || a.updated_at || a.created_at || 0).getTime();
-        return da - db;
-      });
-      quote = sentOrAccepted[0];
-    }
-
-    // 2) Se non c'è, apri l'ultima BOZZA esistente
-    if(!quote){
-      const drafts = active.filter(r => norm(r.status) === 'BOZZA' || !norm(r.status));
-      if(drafts.length){
-        drafts.sort((a,b)=>{
-          const da = new Date(b.updated_at || b.created_at || 0).getTime();
-          const db = new Date(a.updated_at || a.created_at || 0).getTime();
-          return da - db;
-        });
-        quote = drafts[0];
-      }
-    }
+    quote = await chooseBestQuoteForRecord(record_id);
 
     // 3) Se non esiste nulla, crea una BOZZA nuova
     if(!quote){
