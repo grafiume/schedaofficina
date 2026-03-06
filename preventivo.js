@@ -1,13 +1,18 @@
-/* Preventivo — editor (NUOVA IMPLEMENTAZIONE)
-   - Prezzi LIBERI (IVA esclusa)
-   - IVA fissa 22%
-   - Elenco lavorazioni RIP fisso (cliccabile)
-   - Stato riga (Opzione A): DA_FARE / IN_LAVORAZIONE / COMPLETATA
-   - Barra avanzamento per riga: ROSSA / GIALLA / VERDE
+/* Preventivo — editor
+   - Modifiche solo su SALVA
+   - Accesso in visualizzazione per tutti
+   - Modifica/salvataggio protetti da password frontend
+   - Operatore + data entrata + data fine per ogni lavorazione
+
+   NOTA SICUREZZA:
+   La password frontend evita modifiche accidentali lato UI, ma non sostituisce
+   una protezione server/RLS vera. Per blindare davvero il salvataggio serve
+   anche una policy Supabase dedicata.
 */
 
 (function(){
   const VAT_RATE = 22;
+  const EDIT_PASSWORD = String(window.QUOTE_EDIT_PASSWORD || '').trim();
 
   const WORKS = [
     { code:'RIP05', text:'SMONTAGGIO COMPLETO DEL MOTORE SISTEMATICO' },
@@ -41,7 +46,7 @@
   function qs(){ return new URLSearchParams(location.search); }
   function showErr(msg){ const el=$('errBanner'); if(el){ el.textContent=msg; el.classList.remove('d-none'); } console.error(msg); }
   function clearErr(){ const el=$('errBanner'); if(el){ el.classList.add('d-none'); el.textContent=''; } }
-  function showOk(msg){ const el=$('okBanner'); if(el){ el.textContent=msg; el.classList.remove('d-none'); setTimeout(()=>{ try{ el.classList.add('d-none'); }catch{} }, 1400); } }
+  function showOk(msg){ const el=$('okBanner'); if(el){ el.textContent=msg; el.classList.remove('d-none'); setTimeout(()=>{ try{ el.classList.add('d-none'); }catch{} }, 1600); } }
 
   function parseNum(v){
     if(v===null||v===undefined) return 0;
@@ -51,8 +56,7 @@
   }
 
   function fmtMoney(n){
-    const x = Number(n||0);
-    return x.toLocaleString('it-IT', { minimumFractionDigits:2, maximumFractionDigits:2 });
+    return Number(n||0).toLocaleString('it-IT', { minimumFractionDigits:2, maximumFractionDigits:2 });
   }
 
   function statusMeta(v){ return STATUS.find(x=>x.v===v) || STATUS[0]; }
@@ -88,10 +92,49 @@
     return `Fine lavori: scade oggi (${fmtDateISO(expected)})`;
   }
 
+  function cloneQuote(src){
+    return {
+      id: src?.id || null,
+      record_id: src?.record_id || null,
+      status: src?.status || 'BOZZA',
+      sent_at: src?.sent_at || null,
+      accepted_at: src?.accepted_at || null,
+      delivery_days: src?.delivery_days ?? null,
+      delivery_date: src?.delivery_date || null,
+      notes: src?.notes || '',
+      subtotal_ex_vat: Number(src?.subtotal_ex_vat || 0),
+      vat_rate: Number(src?.vat_rate || VAT_RATE),
+      vat_total: Number(src?.vat_total || 0),
+      grand_total: Number(src?.grand_total || 0),
+      progress_percent: Number(src?.progress_percent || 0),
+      created_at: src?.created_at || null,
+      updated_at: src?.updated_at || null,
+    };
+  }
+
+  function normalizeItem(x){
+    const code = x.rip_code || (String(x.description||'').trim().split(' ')[0] || '').trim();
+    return {
+      id: x.id || null,
+      rip_code: code,
+      description: x.description || '',
+      unit_price_ex_vat: Number(x.unit_price_ex_vat || 0),
+      qty: Number(x.qty || 1),
+      work_status: x.work_status || 'DA_FARE',
+      operatore: x.operatore || '',
+      started_at: x.started_at || null,
+      finished_at: x.finished_at || null,
+    };
+  }
+
   let sb;
   let quote=null;
   let record=null;
-  let itemsByCode = new Map(); // code -> item
+  let itemsByCode = new Map();
+  let dbItemIdsByCode = new Map();
+  let deletedItemIds = new Set();
+  let editUnlocked = false;
+  let dirty = false;
 
   async function init(){
     clearErr();
@@ -105,17 +148,17 @@
       if(id){
         await loadQuoteById(id);
       } else if(record_id){
-        await loadOrCreateQuoteForRecord(record_id);
+        await loadLatestQuoteOrDraft(record_id);
       } else {
         showErr('Manca id preventivo o record_id.');
         return;
       }
 
       await loadRecord();
-      await loadItems();
+      if(quote.id) await loadItems();
       bindUI();
       renderAll();
-
+      updateEditMode();
     }catch(e){
       showErr('Errore inizializzazione preventivo: ' + (e?.message||e));
     }
@@ -124,14 +167,12 @@
   async function loadQuoteById(id){
     const { data, error } = await sb.from('quotes').select('*').eq('id', id).single();
     if(error) throw error;
-    quote = data;
+    quote = cloneQuote(data);
   }
 
-  async function loadOrCreateQuoteForRecord(record_id){
-    // ✅ Dalla scheda record, se esiste un preventivo già "salvato" (INVIATO/ACCETTATO), apri quello.
-    // Altrimenti apri l'ultima BOZZA. Crea una nuova BOZZA solo se non esiste nulla.
+  async function loadLatestQuoteOrDraft(record_id){
+    let found = null;
 
-    // 1) Preferisci INVIATO/ACCETTATO (non ANNULLATO)
     {
       const { data, error } = await sb
         .from('quotes')
@@ -141,11 +182,10 @@
         .order('created_at', { ascending:false })
         .limit(1);
       if(error) throw error;
-      if(data && data.length){ quote = data[0]; }
+      if(data && data.length) found = data[0];
     }
 
-    // 2) Se non trovato, prendi l'ultima BOZZA
-    if(!quote){
+    if(!found){
       const { data, error } = await sb
         .from('quotes')
         .select('*')
@@ -154,24 +194,22 @@
         .order('created_at', { ascending:false })
         .limit(1);
       if(error) throw error;
-      if(data && data.length){ quote = data[0]; }
+      if(data && data.length) found = data[0];
     }
 
-    // 3) Altrimenti crea BOZZA nuova
-    if(!quote){
-      quote = await createNewQuote(record_id);
+    if(found){
+      quote = cloneQuote(found);
+      try{
+        const u = new URL(location.href);
+        u.searchParams.delete('record_id');
+        u.searchParams.set('id', quote.id);
+        history.replaceState({}, '', u.toString());
+      }catch{}
+      return;
     }
 
-    try{
-      const u = new URL(location.href);
-      u.searchParams.delete('record_id');
-      u.searchParams.set('id', quote.id);
-      history.replaceState({}, '', u.toString());
-    }catch{}
-  }
-
-  async function createNewQuote(record_id){
-    const payload = {
+    quote = cloneQuote({
+      id: null,
       record_id,
       status:'BOZZA',
       vat_rate: VAT_RATE,
@@ -180,10 +218,33 @@
       grand_total: 0,
       progress_percent: 0,
       notes: ''
+    });
+  }
+
+  async function createQuoteOnSave(){
+    const payload = {
+      record_id: quote.record_id,
+      status: quote.status || 'BOZZA',
+      sent_at: quote.sent_at || null,
+      accepted_at: quote.accepted_at || null,
+      delivery_days: quote.delivery_days ?? null,
+      delivery_date: quote.delivery_date || null,
+      notes: quote.notes || null,
+      subtotal_ex_vat: quote.subtotal_ex_vat || 0,
+      vat_rate: VAT_RATE,
+      vat_total: quote.vat_total || 0,
+      grand_total: quote.grand_total || 0,
+      progress_percent: quote.progress_percent || 0,
     };
     const { data, error } = await sb.from('quotes').insert(payload).select().single();
     if(error) throw error;
-    return data;
+    quote = cloneQuote(data);
+    try{
+      const u = new URL(location.href);
+      u.searchParams.delete('record_id');
+      u.searchParams.set('id', quote.id);
+      history.replaceState({}, '', u.toString());
+    }catch{}
   }
 
   async function loadRecord(){
@@ -205,17 +266,14 @@
     if(error) throw error;
 
     itemsByCode = new Map();
+    dbItemIdsByCode = new Map();
+    deletedItemIds = new Set();
+
     (data||[]).forEach(x=>{
-      const code = x.rip_code || (String(x.description||'').trim().split(' ')[0] || '').trim();
-      if(code){
-        itemsByCode.set(code, {
-          id: x.id,
-          rip_code: code,
-          description: x.description,
-          unit_price_ex_vat: x.unit_price_ex_vat,
-          qty: x.qty,
-          work_status: x.work_status || 'DA_FARE'
-        });
+      const item = normalizeItem(x);
+      if(item.rip_code){
+        itemsByCode.set(item.rip_code, item);
+        if(item.id) dbItemIdsByCode.set(item.rip_code, item.id);
       }
     });
   }
@@ -227,19 +285,94 @@
       location.href = `record.html?id=${encodeURIComponent(quote.record_id)}`;
     });
 
+    $('btnUnlock')?.addEventListener('click', onUnlockClick);
     $('btnSave')?.addEventListener('click', saveAll);
 
     $('status')?.addEventListener('change', ()=>{
+      if(!canEdit()) return renderQuoteHeader();
       quote.status = $('status').value;
+      markDirty();
       renderQuoteHeader();
     });
 
     ['sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{
-      $(id)?.addEventListener('change', ()=>{
+      $(id)?.addEventListener('input', ()=>{
+        if(!canEdit()) return renderQuoteHeader();
         quote[id] = $(id).value || null;
+        markDirty();
+        renderQuoteHeader();
+      });
+      $(id)?.addEventListener('change', ()=>{
+        if(!canEdit()) return renderQuoteHeader();
+        quote[id] = $(id).value || null;
+        markDirty();
         renderQuoteHeader();
       });
     });
+
+    window.addEventListener('beforeunload', (e)=>{
+      if(!dirty) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
+  }
+
+  function onUnlockClick(){
+    clearErr();
+    if(editUnlocked){
+      editUnlocked = false;
+      updateEditMode();
+      return;
+    }
+
+    if(!EDIT_PASSWORD){
+      editUnlocked = true;
+      updateEditMode();
+      showOk('Modifica sbloccata');
+      return;
+    }
+
+    const typed = window.prompt('Inserisci password preventivi');
+    if(typed === null) return;
+    if(String(typed) !== EDIT_PASSWORD){
+      showErr('Password errata.');
+      return;
+    }
+
+    editUnlocked = true;
+    updateEditMode();
+    showOk('Modifica sbloccata');
+  }
+
+  function canEdit(){
+    return !!editUnlocked;
+  }
+
+  function markDirty(){ dirty = true; }
+  function clearDirty(){ dirty = false; }
+
+  function updateEditMode(){
+    const locked = !canEdit();
+    document.body.classList.toggle('view-locked', locked);
+
+    const state = $('lockState');
+    if(state){
+      state.textContent = locked ? 'BLOCCATO' : 'SBLOCCATO';
+      state.className = 'badge lock-badge ' + (locked ? 'bg-secondary' : 'bg-success');
+    }
+
+    const btnUnlock = $('btnUnlock');
+    if(btnUnlock) btnUnlock.textContent = locked ? 'Sblocca modifiche' : 'Blocca modifiche';
+
+    const btnSave = $('btnSave');
+    if(btnSave) btnSave.disabled = locked;
+
+    ['status','sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{
+      const el = $(id);
+      if(el) el.disabled = locked;
+    });
+
+    renderTasks();
   }
 
   function renderAll(){
@@ -252,7 +385,7 @@
     $('recCliente').textContent = record?.cliente || '—';
     $('recDesc').textContent = record?.descrizione || '—';
     $('recModel').textContent = record?.modello ? `Modello: ${record.modello}` : '';
-    $('quoteId').textContent = quote?.id || '—';
+    $('quoteId').textContent = quote?.id || 'Nuovo preventivo (non salvato)';
 
     const st = quote?.status || 'BOZZA';
     $('status').value = st;
@@ -268,72 +401,80 @@
     $('delivery_days').value = (quote?.delivery_days ?? '');
     $('delivery_date').value = quote?.delivery_date || '';
     $('notes').value = quote?.notes || '';
-
     $('dueLabel').textContent = computeDueLabel(quote||{});
   }
 
   function renderTasks(){
     const tb = $('taskRows');
     if(!tb) return;
-
     tb.innerHTML = '';
 
     WORKS.forEach((w, idx)=>{
       const item = itemsByCode.get(w.code);
       const checked = !!item;
+      const locked = !canEdit();
 
       const tr = document.createElement('tr');
 
-      // lavorazione / descrizione (prima)
       const tdDesc = document.createElement('td');
       if(w.free){
         const inp = document.createElement('input');
         inp.className = 'form-control';
         inp.placeholder = 'Descrizione lavorazione libera…';
         inp.value = (item?.description ?? '') || '';
-        inp.disabled = !checked;
+        inp.disabled = locked || !checked;
         inp.addEventListener('input', ()=>{
-          if(!itemsByCode.get(w.code)) return;
-          itemsByCode.get(w.code).description = inp.value;
-          recalcTotals();
+          const it = itemsByCode.get(w.code);
+          if(!it || locked) return;
+          it.description = inp.value;
+          markDirty();
         });
         tdDesc.appendChild(inp);
       } else {
-        tdDesc.textContent = `${w.text}`;
+        tdDesc.textContent = w.text;
       }
       tr.appendChild(tdDesc);
 
-      // codice RIP (dopo descrizione)
       const tdCode = document.createElement('td');
       tdCode.className = 'text-muted fw-semibold nowrap';
       tdCode.textContent = w.code;
       tr.appendChild(tdCode);
 
-      // checkbox (dopo codice)
       const tdC = document.createElement('td');
       tdC.className = 'text-center';
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.className = 'form-check-input';
       cb.checked = checked;
-      cb.addEventListener('change', async ()=>{
-        try{
-          if(cb.checked){
-            await ensureItem(w, idx);
-          } else {
-            await removeItem(w.code);
-          }
-          await loadItems();
-          renderTasks();
-          recalcTotals();
-        } catch(e){
-          showErr(e?.message||e);
+      cb.disabled = locked;
+      cb.addEventListener('change', ()=>{
+        if(locked){ cb.checked = checked; return; }
+        if(cb.checked){
+          const baseDesc = w.free ? '' : w.text;
+          itemsByCode.set(w.code, {
+            id: dbItemIdsByCode.get(w.code) || null,
+            rip_code: w.code,
+            description: item?.description || baseDesc,
+            unit_price_ex_vat: Number(item?.unit_price_ex_vat || 0),
+            qty: 1,
+            work_status: item?.work_status || 'DA_FARE',
+            operatore: item?.operatore || '',
+            started_at: item?.started_at || null,
+            finished_at: item?.finished_at || null,
+          });
+          deletedItemIds.delete(dbItemIdsByCode.get(w.code));
+        } else {
+          const dbId = dbItemIdsByCode.get(w.code);
+          if(dbId) deletedItemIds.add(dbId);
+          itemsByCode.delete(w.code);
         }
+        markDirty();
+        renderTasks();
+        recalcTotals();
       });
       tdC.appendChild(cb);
       tr.appendChild(tdC);
 
-      // prezzo
       const tdPrice = document.createElement('td');
       tdPrice.className = 'text-end';
       const price = document.createElement('input');
@@ -342,11 +483,12 @@
       price.className = 'form-control text-end';
       price.placeholder = '0,00';
       price.value = item ? fmtMoney(item.unit_price_ex_vat) : '';
-      price.disabled = !checked;
+      price.disabled = locked || !checked;
       price.addEventListener('input', ()=>{
         const it = itemsByCode.get(w.code);
-        if(!it) return;
+        if(!it || locked) return;
         it.unit_price_ex_vat = parseNum(price.value);
+        markDirty();
         recalcTotals();
       });
       price.addEventListener('blur', ()=>{
@@ -357,7 +499,6 @@
       tdPrice.appendChild(price);
       tr.appendChild(tdPrice);
 
-      // stato select
       const tdSt = document.createElement('td');
       const sel = document.createElement('select');
       sel.className = 'form-select';
@@ -368,26 +509,71 @@
         sel.appendChild(o);
       });
       sel.value = item?.work_status || 'DA_FARE';
-      sel.disabled = !checked;
+      sel.disabled = locked || !checked;
       sel.addEventListener('change', ()=>{
         const it = itemsByCode.get(w.code);
-        if(!it) return;
+        if(!it || locked) return;
         it.work_status = sel.value;
+        markDirty();
         recalcTotals();
-        // aggiorna barra subito
         renderTasks();
       });
       tdSt.appendChild(sel);
       tr.appendChild(tdSt);
 
-      // avanzamento bar
+      const tdOper = document.createElement('td');
+      const oper = document.createElement('input');
+      oper.type = 'text';
+      oper.className = 'form-control';
+      oper.placeholder = 'Operatore';
+      oper.value = item?.operatore || '';
+      oper.disabled = locked || !checked;
+      oper.addEventListener('input', ()=>{
+        const it = itemsByCode.get(w.code);
+        if(!it || locked) return;
+        it.operatore = oper.value;
+        markDirty();
+      });
+      tdOper.appendChild(oper);
+      tr.appendChild(tdOper);
+
+      const tdStart = document.createElement('td');
+      const start = document.createElement('input');
+      start.type = 'date';
+      start.className = 'form-control';
+      start.value = item?.started_at || '';
+      start.disabled = locked || !checked;
+      start.addEventListener('change', ()=>{
+        const it = itemsByCode.get(w.code);
+        if(!it || locked) return;
+        it.started_at = start.value || null;
+        markDirty();
+      });
+      tdStart.appendChild(start);
+      tr.appendChild(tdStart);
+
+      const tdEnd = document.createElement('td');
+      const end = document.createElement('input');
+      end.type = 'date';
+      end.className = 'form-control';
+      end.value = item?.finished_at || '';
+      end.disabled = locked || !checked;
+      end.addEventListener('change', ()=>{
+        const it = itemsByCode.get(w.code);
+        if(!it || locked) return;
+        it.finished_at = end.value || null;
+        markDirty();
+      });
+      tdEnd.appendChild(end);
+      tr.appendChild(tdEnd);
+
       const tdProg = document.createElement('td');
       const meta = statusMeta(item?.work_status || 'DA_FARE');
       const pct = checked ? meta.pct : 0;
       const bar = document.createElement('div');
       bar.className = 'linebar';
       const fill = document.createElement('div');
-      const wPct = checked ? Math.max(5, pct) : 0; // visibile anche se DA_FARE
+      const wPct = checked ? Math.max(5, pct) : 0;
       fill.style.width = checked ? `${wPct}%` : '0%';
       fill.className = `st-${meta.v}`;
       bar.appendChild(fill);
@@ -402,45 +588,7 @@
     });
   }
 
-  async function ensureItem(w, idx){
-    if(itemsByCode.get(w.code)) return;
-
-    const desc = w.free ? '' : `${w.text}`;
-    const payload = {
-      quote_id: quote.id,
-      position: idx,
-      rip_code: w.code,
-      description: desc,
-      qty: 1,
-      unit_price_ex_vat: 0,
-      line_total_ex_vat: 0,
-      line_progress_percent: 0,
-      work_status: 'DA_FARE'
-    };
-
-    const { data, error } = await sb.from('quote_items').insert(payload).select().single();
-    if(error) throw error;
-
-    itemsByCode.set(w.code, {
-      id: data.id,
-      rip_code: w.code,
-      description: data.description,
-      unit_price_ex_vat: data.unit_price_ex_vat,
-      qty: data.qty,
-      work_status: data.work_status
-    });
-  }
-
-  async function removeItem(code){
-    const it = itemsByCode.get(code);
-    if(!it) return;
-    const { error } = await sb.from('quote_items').delete().eq('id', it.id);
-    if(error) throw error;
-    itemsByCode.delete(code);
-  }
-
   function recalcTotals(){
-    // subtotal
     let subtotal = 0;
     let wSum = 0;
     let wProg = 0;
@@ -460,18 +608,15 @@
 
     const vat = subtotal * (VAT_RATE/100);
     const grand = subtotal + vat;
-
     const prog = wSum>0 ? (wProg / wSum) * 100 : 0;
 
     $('subtotal').textContent = `€ ${fmtMoney(subtotal)}`;
     $('vat').textContent = `€ ${fmtMoney(vat)}`;
     $('grand').textContent = `€ ${fmtMoney(grand)}`;
-
     $('quoteProgressTxt').textContent = `${Math.round(prog)}%`;
     const pb = $('quoteProgBar');
     if(pb) pb.style.width = `${Math.max(0, Math.min(100, prog))}%`;
 
-    // aggiorna quote cache in memoria
     quote.subtotal_ex_vat = subtotal;
     quote.vat_rate = VAT_RATE;
     quote.vat_total = vat;
@@ -481,57 +626,83 @@
 
   async function saveAll(){
     clearErr();
-    try{
-      // salva quote
-      const qPayload = {
-        status: quote.status || 'BOZZA',
-        sent_at: $('sent_at').value || null,
-        accepted_at: $('accepted_at').value || null,
-        delivery_days: $('delivery_days').value ? parseInt($('delivery_days').value, 10) : null,
-        delivery_date: $('delivery_date').value || null,
-        notes: $('notes').value || null,
-        subtotal_ex_vat: quote.subtotal_ex_vat || 0,
-        vat_rate: VAT_RATE,
-        vat_total: quote.vat_total || 0,
-        grand_total: quote.grand_total || 0,
-        progress_percent: quote.progress_percent || 0,
-      };
+    if(!canEdit()){
+      showErr('Preventivo bloccato: serve password per salvare o modificare.');
+      return;
+    }
 
-      {
+    try{
+      quote.status = $('status').value || 'BOZZA';
+      quote.sent_at = $('sent_at').value || null;
+      quote.accepted_at = $('accepted_at').value || null;
+      quote.delivery_days = $('delivery_days').value ? parseInt($('delivery_days').value, 10) : null;
+      quote.delivery_date = $('delivery_date').value || null;
+      quote.notes = $('notes').value || null;
+      recalcTotals();
+
+      if(!quote.id){
+        await createQuoteOnSave();
+      } else {
+        const qPayload = {
+          status: quote.status || 'BOZZA',
+          sent_at: quote.sent_at || null,
+          accepted_at: quote.accepted_at || null,
+          delivery_days: quote.delivery_days ?? null,
+          delivery_date: quote.delivery_date || null,
+          notes: quote.notes || null,
+          subtotal_ex_vat: quote.subtotal_ex_vat || 0,
+          vat_rate: VAT_RATE,
+          vat_total: quote.vat_total || 0,
+          grand_total: quote.grand_total || 0,
+          progress_percent: quote.progress_percent || 0,
+        };
         const { error } = await sb.from('quotes').update(qPayload).eq('id', quote.id);
         if(error) throw error;
       }
 
-      // salva items selezionati
-      const updates = [];
-      WORKS.forEach((w, idx)=>{
-        const it = itemsByCode.get(w.code);
-        if(!it) return;
+      for(const id of deletedItemIds){
+        const { error } = await sb.from('quote_items').delete().eq('id', id);
+        if(error) throw error;
+      }
+      deletedItemIds = new Set();
+
+      for(const [code, it] of itemsByCode.entries()){
+        const w = WORKS.find(x=>x.code===code);
         const pct = statusMeta(it.work_status).pct;
         const lineTotal = Number(it.unit_price_ex_vat||0) * Number(it.qty||1);
-        updates.push({
-          id: it.id,
+        const idx = WORKS.findIndex(x=>x.code===code);
+        const description = w?.free ? (it.description || `${code} ${w.text}`) : `${code} ${w?.text || it.description || ''}`.trim();
+        const payload = {
+          quote_id: quote.id,
           position: idx,
-          rip_code: w.code,
-          description: (w.free ? (it.description||`${w.code} ${w.text}`) : `${w.code} ${w.text}`),
+          rip_code: code,
+          description,
           qty: 1,
           unit_price_ex_vat: Number(it.unit_price_ex_vat||0),
           line_total_ex_vat: lineTotal,
           line_progress_percent: pct,
-          work_status: it.work_status || 'DA_FARE'
-        });
-      });
+          work_status: it.work_status || 'DA_FARE',
+          operatore: it.operatore || null,
+          started_at: it.started_at || null,
+          finished_at: it.finished_at || null,
+        };
 
-      // aggiorna in batch
-      for(const u of updates){
-        const { error } = await sb.from('quote_items').update(u).eq('id', u.id);
-        if(error) throw error;
+        if(it.id){
+          const { error } = await sb.from('quote_items').update(payload).eq('id', it.id);
+          if(error) throw error;
+        } else {
+          const { data, error } = await sb.from('quote_items').insert(payload).select().single();
+          if(error) throw error;
+          it.id = data.id;
+          dbItemIdsByCode.set(code, data.id);
+        }
       }
 
-      showOk('Salvato');
       await loadItems();
+      recalcTotals();
       renderAll();
-
+      clearDirty();
+      showOk('Salvato');
     }catch(e){
       showErr(e?.message||e);
     }

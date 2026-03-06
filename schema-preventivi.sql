@@ -141,6 +141,9 @@ create table if not exists public.quote_items (
   line_total_ex_vat numeric not null default 0,
   line_progress_percent numeric not null default 0,
   work_status text not null default 'DA_FARE',
+  operatore text,
+  started_at date,
+  finished_at date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -154,6 +157,15 @@ begin
     end if;
     if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quote_items' and column_name='work_status') then
       alter table public.quote_items add column work_status text not null default 'DA_FARE';
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quote_items' and column_name='operatore') then
+      alter table public.quote_items add column operatore text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quote_items' and column_name='started_at') then
+      alter table public.quote_items add column started_at date;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='quote_items' and column_name='finished_at') then
+      alter table public.quote_items add column finished_at date;
     end if;
   end if;
 end $$;
