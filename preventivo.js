@@ -56,6 +56,12 @@
   }
 
   function statusMeta(v){ return STATUS.find(x=>x.v===v) || STATUS[0]; }
+  function deriveStatus(it){
+    if(!it) return 'DA_FARE';
+    if(it.finished_at) return 'COMPLETATA';
+    if(it.started_at) return 'IN_LAVORAZIONE';
+    return it.work_status || 'DA_FARE';
+  }
 
   function today0(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
   function fmtDateISO(d){
@@ -214,7 +220,10 @@
           description: x.description,
           unit_price_ex_vat: x.unit_price_ex_vat,
           qty: x.qty,
-          work_status: x.work_status || 'DA_FARE'
+          work_status: x.work_status || 'DA_FARE',
+          operator_department: x.operator_department || '',
+          started_at: x.started_at || '',
+          finished_at: x.finished_at || ''
         });
       }
     });
@@ -357,37 +366,77 @@
       tdPrice.appendChild(price);
       tr.appendChild(tdPrice);
 
-      // stato select
-      const tdSt = document.createElement('td');
-      const sel = document.createElement('select');
-      sel.className = 'form-select';
-      STATUS.forEach(s=>{
-        const o = document.createElement('option');
-        o.value = s.v;
-        o.textContent = s.label;
-        sel.appendChild(o);
-      });
-      sel.value = item?.work_status || 'DA_FARE';
-      sel.disabled = !checked;
-      sel.addEventListener('change', ()=>{
+      // operatore / reparto
+      const tdOp = document.createElement('td');
+      const op = document.createElement('input');
+      op.type = 'text';
+      op.className = 'form-control';
+      op.placeholder = 'Operatore / Reparto';
+      op.value = item?.operator_department || '';
+      op.disabled = !checked;
+      op.addEventListener('input', ()=>{
         const it = itemsByCode.get(w.code);
         if(!it) return;
-        it.work_status = sel.value;
-        recalcTotals();
-        // aggiorna barra subito
-        renderTasks();
+        it.operator_department = op.value;
       });
-      tdSt.appendChild(sel);
+      tdOp.appendChild(op);
+      tr.appendChild(tdOp);
+
+      // data inizio
+      const tdStart = document.createElement('td');
+      const startInp = document.createElement('input');
+      startInp.type = 'date';
+      startInp.className = 'form-control';
+      startInp.value = item?.started_at || '';
+      startInp.disabled = !checked;
+      startInp.addEventListener('change', ()=>{
+        const it = itemsByCode.get(w.code);
+        if(!it) return;
+        it.started_at = startInp.value || '';
+        if(it.finished_at && !it.started_at) it.started_at = it.finished_at;
+        it.work_status = deriveStatus(it);
+        renderTasks();
+        recalcTotals();
+      });
+      tdStart.appendChild(startInp);
+      tr.appendChild(tdStart);
+
+      // data fine
+      const tdEnd = document.createElement('td');
+      const endInp = document.createElement('input');
+      endInp.type = 'date';
+      endInp.className = 'form-control';
+      endInp.value = item?.finished_at || '';
+      endInp.disabled = !checked;
+      endInp.addEventListener('change', ()=>{
+        const it = itemsByCode.get(w.code);
+        if(!it) return;
+        it.finished_at = endInp.value || '';
+        if(it.finished_at && !it.started_at) it.started_at = it.finished_at;
+        it.work_status = deriveStatus(it);
+        renderTasks();
+        recalcTotals();
+      });
+      tdEnd.appendChild(endInp);
+      tr.appendChild(tdEnd);
+
+      // stato (derivato dalle date)
+      const tdSt = document.createElement('td');
+      const currentStatus = checked ? deriveStatus(item) : 'DA_FARE';
+      const stBadge = document.createElement('span');
+      stBadge.className = 'badge ' + (currentStatus==='COMPLETATA' ? 'bg-success' : currentStatus==='IN_LAVORAZIONE' ? 'text-dark bg-warning' : 'bg-danger');
+      stBadge.textContent = currentStatus.replaceAll('_',' ');
+      tdSt.appendChild(stBadge);
       tr.appendChild(tdSt);
 
       // avanzamento bar
       const tdProg = document.createElement('td');
-      const meta = statusMeta(item?.work_status || 'DA_FARE');
+      const meta = statusMeta(currentStatus);
       const pct = checked ? meta.pct : 0;
       const bar = document.createElement('div');
       bar.className = 'linebar';
       const fill = document.createElement('div');
-      const wPct = checked ? Math.max(5, pct) : 0; // visibile anche se DA_FARE
+      const wPct = checked ? Math.max(5, pct) : 0;
       fill.style.width = checked ? `${wPct}%` : '0%';
       fill.className = `st-${meta.v}`;
       bar.appendChild(fill);
@@ -415,7 +464,10 @@
       unit_price_ex_vat: 0,
       line_total_ex_vat: 0,
       line_progress_percent: 0,
-      work_status: 'DA_FARE'
+      work_status: 'DA_FARE',
+      operator_department: '',
+      started_at: null,
+      finished_at: null
     };
 
     const { data, error } = await sb.from('quote_items').insert(payload).select().single();
@@ -427,7 +479,10 @@
       description: data.description,
       unit_price_ex_vat: data.unit_price_ex_vat,
       qty: data.qty,
-      work_status: data.work_status
+      work_status: data.work_status,
+      operator_department: data.operator_department || '',
+      started_at: data.started_at || '',
+      finished_at: data.finished_at || ''
     });
   }
 
@@ -453,7 +508,7 @@
       const lineTotal = price * qty;
       subtotal += lineTotal;
 
-      const pct = statusMeta(it.work_status).pct;
+      const pct = statusMeta(deriveStatus(it)).pct;
       wSum += lineTotal;
       wProg += lineTotal * (pct/100);
     });
@@ -507,7 +562,7 @@
       WORKS.forEach((w, idx)=>{
         const it = itemsByCode.get(w.code);
         if(!it) return;
-        const pct = statusMeta(it.work_status).pct;
+        const pct = statusMeta(deriveStatus(it)).pct;
         const lineTotal = Number(it.unit_price_ex_vat||0) * Number(it.qty||1);
         updates.push({
           id: it.id,
