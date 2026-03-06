@@ -109,9 +109,7 @@
 
   function confirmLeaveIfDirty(){
     if(!dirty) return true;
-    return window.confirm('Hai modifiche non salvate.
-
-Premi OK per uscire senza salvare.');
+    return window.confirm('Hai modifiche non salvate.\n\nPremi OK per uscire senza salvare.');
   }
 
   function bindLeaveProtection(){
