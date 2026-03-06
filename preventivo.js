@@ -134,54 +134,50 @@
   }
 
   async function loadOrCreateQuoteForRecord(record_id){
-    // Dalla scheda record: apri SEMPRE il preventivo più recente già esistente per quel record.
-    // Priorità: ACCETTATO/INVIATO -> qualunque preventivo non ANNULLATO -> ultima BOZZA -> nuova BOZZA.
+    // Comportamento definitivo richiesto:
+    // 1) Se esiste un preventivo INVIATO o ACCETTATO -> apri quello più recente
+    // 2) Altrimenti, se esiste una BOZZA -> apri l'ultima BOZZA
+    // 3) Se non esiste nulla -> crea una nuova BOZZA
+    // Nota: carichiamo tutte le righe del record e decidiamo in JS per evitare filtri DB troppo rigidi.
 
-    // 1) Preferisci ACCETTATO / INVIATO
-    {
-      const { data, error } = await sb
-        .from('quotes')
-        .select('*')
-        .eq('record_id', record_id)
-        .in('status', ['INVIATO','ACCETTATO'])
-        .order('accepted_at', { ascending:false, nullsFirst:false })
-        .order('sent_at', { ascending:false, nullsFirst:false })
-        .order('updated_at', { ascending:false })
-        .order('created_at', { ascending:false })
-        .limit(1);
-      if(error) throw error;
-      if(data && data.length){ quote = data[0]; }
+    const { data, error } = await sb
+      .from('quotes')
+      .select('*')
+      .eq('record_id', record_id)
+      .order('updated_at', { ascending:false, nullsFirst:false })
+      .order('created_at', { ascending:false, nullsFirst:false });
+
+    if(error) throw error;
+
+    const rows = Array.isArray(data) ? data : [];
+    const norm = (v)=> String(v || '').trim().toUpperCase();
+    const active = rows.filter(r => norm(r.status) !== 'ANNULLATO');
+
+    // 1) Preferisci sempre INVIATO / ACCETTATO
+    const sentOrAccepted = active.filter(r => ['INVIATO','ACCETTATO'].includes(norm(r.status)));
+    if(sentOrAccepted.length){
+      sentOrAccepted.sort((a,b)=>{
+        const da = new Date(b.accepted_at || b.sent_at || b.updated_at || b.created_at || 0).getTime();
+        const db = new Date(a.accepted_at || a.sent_at || a.updated_at || a.created_at || 0).getTime();
+        return da - db;
+      });
+      quote = sentOrAccepted[0];
     }
 
-    // 2) Se non trovato, apri il più recente NON ANNULLATO (anche se ancora in BOZZA ma già salvato)
+    // 2) Se non c'è, apri l'ultima BOZZA esistente
     if(!quote){
-      const { data, error } = await sb
-        .from('quotes')
-        .select('*')
-        .eq('record_id', record_id)
-        .neq('status', 'ANNULLATO')
-        .order('updated_at', { ascending:false })
-        .order('created_at', { ascending:false })
-        .limit(1);
-      if(error) throw error;
-      if(data && data.length){ quote = data[0]; }
+      const drafts = active.filter(r => norm(r.status) === 'BOZZA' || !norm(r.status));
+      if(drafts.length){
+        drafts.sort((a,b)=>{
+          const da = new Date(b.updated_at || b.created_at || 0).getTime();
+          const db = new Date(a.updated_at || a.created_at || 0).getTime();
+          return da - db;
+        });
+        quote = drafts[0];
+      }
     }
 
-    // 3) Fallback: ultima BOZZA
-    if(!quote){
-      const { data, error } = await sb
-        .from('quotes')
-        .select('*')
-        .eq('record_id', record_id)
-        .eq('status', 'BOZZA')
-        .order('updated_at', { ascending:false })
-        .order('created_at', { ascending:false })
-        .limit(1);
-      if(error) throw error;
-      if(data && data.length){ quote = data[0]; }
-    }
-
-    // 4) Se non esiste nulla, crea BOZZA nuova
+    // 3) Se non esiste nulla, crea una BOZZA nuova
     if(!quote){
       quote = await createNewQuote(record_id);
     }
