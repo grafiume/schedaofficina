@@ -134,36 +134,54 @@
   }
 
   async function loadOrCreateQuoteForRecord(record_id){
-    // ✅ Dalla scheda record, se esiste un preventivo già "salvato" (INVIATO/ACCETTATO), apri quello.
-    // Altrimenti apri l'ultima BOZZA. Crea una nuova BOZZA solo se non esiste nulla.
+    // Dalla scheda record: apri SEMPRE il preventivo più recente già esistente per quel record.
+    // Priorità: ACCETTATO/INVIATO -> qualunque preventivo non ANNULLATO -> ultima BOZZA -> nuova BOZZA.
 
-    // 1) Preferisci INVIATO/ACCETTATO (non ANNULLATO)
+    // 1) Preferisci ACCETTATO / INVIATO
     {
       const { data, error } = await sb
         .from('quotes')
         .select('*')
         .eq('record_id', record_id)
         .in('status', ['INVIATO','ACCETTATO'])
+        .order('accepted_at', { ascending:false, nullsFirst:false })
+        .order('sent_at', { ascending:false, nullsFirst:false })
+        .order('updated_at', { ascending:false })
         .order('created_at', { ascending:false })
         .limit(1);
       if(error) throw error;
       if(data && data.length){ quote = data[0]; }
     }
 
-    // 2) Se non trovato, prendi l'ultima BOZZA
+    // 2) Se non trovato, apri il più recente NON ANNULLATO (anche se ancora in BOZZA ma già salvato)
+    if(!quote){
+      const { data, error } = await sb
+        .from('quotes')
+        .select('*')
+        .eq('record_id', record_id)
+        .neq('status', 'ANNULLATO')
+        .order('updated_at', { ascending:false })
+        .order('created_at', { ascending:false })
+        .limit(1);
+      if(error) throw error;
+      if(data && data.length){ quote = data[0]; }
+    }
+
+    // 3) Fallback: ultima BOZZA
     if(!quote){
       const { data, error } = await sb
         .from('quotes')
         .select('*')
         .eq('record_id', record_id)
         .eq('status', 'BOZZA')
+        .order('updated_at', { ascending:false })
         .order('created_at', { ascending:false })
         .limit(1);
       if(error) throw error;
       if(data && data.length){ quote = data[0]; }
     }
 
-    // 3) Altrimenti crea BOZZA nuova
+    // 4) Se non esiste nulla, crea BOZZA nuova
     if(!quote){
       quote = await createNewQuote(record_id);
     }
