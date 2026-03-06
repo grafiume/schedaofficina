@@ -24,18 +24,92 @@
       .mini-note input{ height:38px; }
       .top-meta-right{ display:flex; flex-direction:column; align-items:flex-end; gap:.32rem; }
       .status-line{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.32rem; align-items:center; }
-      .urgent-control-wrap{ display:flex; align-items:center; justify-content:flex-end; }
       .badge-chip{ display:inline-flex; align-items:center; gap:.4rem; padding:4px 10px; border-radius:14px; font-size:12px; font-weight:700; line-height:1; border:1px solid transparent; white-space:nowrap; }
       .badge-status-inviato{ background:#e8f1ff; color:#1e63d6; border-color:#c9dcff; }
       .badge-status-urgente{ background:#fff3f3; color:#d32f2f; border-color:#f1a5a5; }
       .badge-status-edit{ background:#e9f7ef; color:#1e874b; border-color:#bfe3cd; }
       .badge-status-readonly{ background:#f1f3f5; color:#5c6670; border-color:#d5d9dd; }
-      .urgent-chip{ display:inline-flex; align-items:center; gap:.38rem; padding:4px 10px; border-radius:14px; border:1px solid #f1a5a5; background:#fff3f3; color:#d32f2f; font-size:12px; font-weight:700; line-height:1; white-space:nowrap; }
-      .urgent-chip-box{ width:10px; height:10px; border-radius:2px; border:1px solid #dc3545; background:#fff; flex:0 0 auto; }
-      .urgent-toggle{ display:inline-flex; align-items:center; gap:.38rem; padding:4px 10px; border-radius:14px; border:1px solid #f1a5a5; background:#fff3f3; color:#d32f2f; font-size:12px; font-weight:700; line-height:1; white-space:nowrap; cursor:pointer; user-select:none; }
-      .urgent-toggle input{ position:absolute; opacity:0; pointer-events:none; width:1px; height:1px; }
-      .urgent-toggle.active .urgent-chip-box{ background:#dc3545; }
-            .table-compact thead th{ font-size:.82rem; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
+
+      .urgent-chip{
+        display:inline-flex;
+        align-items:center;
+        gap:.38rem;
+        padding:4px 10px;
+        border-radius:14px;
+        border:1px solid #f1a5a5;
+        background:#fff3f3;
+        color:#d32f2f;
+        font-size:12px;
+        font-weight:700;
+        line-height:1;
+        white-space:nowrap;
+      }
+
+      .urgent-chip-box{
+        width:10px;
+        height:10px;
+        border-radius:2px;
+        border:1px solid #dc3545;
+        background:#fff;
+        flex:0 0 auto;
+      }
+
+      .urg-inline{
+        display:flex;
+        align-items:end;
+        justify-content:space-between;
+        gap:.5rem;
+      }
+
+      .urg-inline .date-wrap{
+        flex:1 1 auto;
+      }
+
+      .urg-inline .date-wrap input{
+        width:100%;
+      }
+
+      #is_urgent{
+        position:absolute;
+        opacity:0;
+        pointer-events:none;
+        width:1px;
+        height:1px;
+      }
+
+      .urg-btn{
+        display:inline-flex;
+        align-items:center;
+        gap:.38rem;
+        padding:4px 10px;
+        border-radius:14px;
+        border:1px solid #f1a5a5;
+        background:#fff3f3;
+        color:#d32f2f;
+        font-size:12px;
+        font-weight:700;
+        line-height:1;
+        white-space:nowrap;
+        cursor:pointer;
+        user-select:none;
+        margin-bottom:1px;
+      }
+
+      .urg-btn::before{
+        content:"";
+        width:10px;
+        height:10px;
+        border-radius:2px;
+        border:1px solid #dc3545;
+        background:#fff;
+        flex:0 0 auto;
+      }
+
+      #is_urgent:checked + .urg-btn::before{
+        background:#dc3545;
+      }
+
+      .table-compact thead th{ font-size:.82rem; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
       .table-compact td{ vertical-align:top; padding:.32rem .42rem; }
       .rip-main{ min-width:360px; }
       .rip-title{ font-size:.92rem; font-weight:700; line-height:1.15; }
@@ -73,7 +147,7 @@
           <button class="btn btn-outline-secondary" id="btnBack">Indietro</button>
           <button class="btn btn-outline-secondary" id="btnOpenRecord">Scheda</button>
           <button class="btn btn-outline-secondary" id="btnUnlock">🔒 Sblocca modifiche</button>
-                    <button class="btn btn-sm btn-quiet" id="btnDelete" title="Cancella preventivo">🗑</button>
+          <button class="btn btn-sm btn-quiet" id="btnDelete" title="Cancella preventivo">🗑</button>
           <button class="btn btn-orange" id="btnSave">Salva</button>
         </div>
       </div>
@@ -131,19 +205,19 @@
             </div>
             <div class="mini-field">
               <label>Data scadenza</label>
-              <input id="delivery_date" type="date" class="form-control">
-              <label class="urg-btn">URG</label>
-<input type="checkbox" id="urgentFlag" hidden>
+              <div class="urg-inline">
+                <div class="date-wrap">
+                  <input id="delivery_date" type="date" class="form-control">
+                </div>
+                <div>
+                  <input type="checkbox" id="is_urgent" hidden>
+                  <label for="is_urgent" class="urg-btn">URG</label>
+                </div>
+              </div>
             </div>
-            <div class="mini-field urgent-control-wrap">
-              <label id="urgentMiniBanner" class="urgent-toggle" title="Segna preventivo urgente">
-                <input type="checkbox" id="is_urgent">
-                <span class="urgent-chip-box"></span>
-                <span>URGENTE</span>
-              </label>
+            <div class="mini-field">
             </div>
           </div>
-
 
           <div class="mini-note mt-2">
             <label class="form-label mb-1">Note</label>
@@ -196,7 +270,5 @@
     <script src="config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="preventivo.js"></script>
-    <link rel="stylesheet" href="preventivo_urg.css">
-<script src="preventivo_urg.js"></script>
   </body>
 </html>
