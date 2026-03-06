@@ -47,134 +47,25 @@
       .head-meta{ text-align:right; }
       .head-meta .label{ color:var(--elip-gray); font-size:.82rem; }
       .head-meta .value{ font-size:1.02rem; font-weight:700; }
-
-      .form-area{
-        margin-top:16px;
-        display:grid;
-        grid-template-columns:repeat(12, minmax(0,1fr));
-        gap:12px;
-        align-items:start;
-      }
-
-      .field-card{
-        background:#fafbfc;
-        border:1px solid var(--elip-line);
-        border-radius:16px;
-        padding:10px 12px 12px;
-        min-width:0;
-      }
-
-      .field-card label{
-        display:block;
-        margin-bottom:6px;
-        color:var(--elip-gray);
-        font-size:.78rem;
-        font-weight:700;
-        letter-spacing:.01em;
-      }
-
-      .field-card input,.field-card select{
-        height:42px;
-        border-radius:12px;
-        border-color:#d7dde5;
-        background:#fff;
-        min-width:0;
-      }
-
-      .field-card input:focus,.field-card select:focus,.note-box input:focus{
-        border-color:#ffb36b;
-        box-shadow:0 0 0 .2rem rgba(255,122,0,.12);
-      }
-
-      .col-2{ grid-column:span 2; }
-      .col-3{ grid-column:span 3; }
-      .col-4{ grid-column:span 4; }
-      .col-5{ grid-column:span 5; }
-      .col-6{ grid-column:span 6; }
-      .col-12{ grid-column:span 12; }
-
-      .deadline-wrap{
-        display:grid;
-        grid-template-columns:minmax(180px,1fr) auto;
-        gap:10px;
-        align-items:center;
-      }
-
-      #delivery_date,
-      #sent_at,
-      #accepted_at{
-        min-width:0;
-      }
-
-      #is_urgent{
-        position:absolute;
-        opacity:0;
-        pointer-events:none;
-        width:1px;
-        height:1px;
-      }
-
-      .urg-btn{
-        display:inline-flex;
-        align-items:center;
-        gap:10px;
-        height:42px;
-        padding:0 16px;
-        border-radius:12px;
-        border:1px solid #f0b2ac;
-        background:var(--elip-red-soft);
-        color:var(--elip-red);
-        font-size:.82rem;
-        font-weight:800;
-        cursor:pointer;
-        user-select:none;
-        white-space:nowrap;
-        transition:.18s ease;
-      }
-
-      .urg-btn::before{
-        content:"";
-        width:10px;
-        height:10px;
-        border-radius:2px;
-        background:#fff;
-        border:1px solid var(--elip-red);
-        display:inline-block;
-        flex:0 0 auto;
-      }
-
-      #is_urgent:checked + .urg-btn{
-        background:#ffe3e0;
-        border-color:#e08f86;
-      }
-
-      #is_urgent:checked + .urg-btn::before{
-        background:var(--elip-red);
-      }
-
-      .note-box input{
-        height:46px;
-        border-radius:14px;
-        border:1px solid #d7dde5;
-        background:#fff;
-      }
-
-      .progress-panel{
-        margin-top:14px;
-        background:#fafbfc;
-        border:1px solid var(--elip-line);
-        border-radius:18px;
-        padding:14px 16px;
-      }
-
-      .progress-head{
-        display:flex;
-        justify-content:space-between;
-        gap:10px;
-        align-items:center;
-        margin-bottom:8px;
-      }
-
+      .form-area{ margin-top:16px; display:grid; grid-template-columns:repeat(12,1fr); gap:12px; }
+      .field-card{ background:#fafbfc; border:1px solid var(--elip-line); border-radius:16px; padding:10px 12px 12px; }
+      .field-card label{ display:block; margin-bottom:6px; color:var(--elip-gray); font-size:.78rem; font-weight:700; letter-spacing:.01em; }
+      .field-card input,.field-card select{ height:42px; border-radius:12px; border-color:#d7dde5; background:#fff; }
+      .field-card input:focus,.field-card select:focus,.note-box input:focus{ border-color:#ffb36b; box-shadow:0 0 0 .2rem rgba(255,122,0,.12); }
+      .pcol-2{ grid-column:span 2; }
+      .pcol-3{ grid-column:span 3; }
+      .pcol-4{ grid-column:span 4; }
+      .pcol-6{ grid-column:span 6; }
+      .pcol-12{ grid-column:span 12; }
+      .deadline-wrap{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:end; }
+      #is_urgent{ position:absolute; opacity:0; pointer-events:none; width:1px; height:1px; }
+      .urg-btn{ display:inline-flex; align-items:center; gap:7px; height:42px; padding:0 14px; border-radius:12px; border:1px solid #f0b2ac; background:var(--elip-red-soft); color:var(--elip-red); font-size:.82rem; font-weight:800; cursor:pointer; user-select:none; white-space:nowrap; transition:.18s ease; }
+      .urg-btn::before{ content:""; width:10px; height:10px; border-radius:2px; background:#fff; border:1px solid var(--elip-red); display:inline-block; }
+      #is_urgent:checked + .urg-btn{ background:#ffe3e0; border-color:#e08f86; }
+      #is_urgent:checked + .urg-btn::before{ background:var(--elip-red); }
+      .note-box input{ height:46px; border-radius:14px; border:1px solid #d7dde5; background:#fff; }
+      .progress-panel{ margin-top:14px; background:#fafbfc; border:1px solid var(--elip-line); border-radius:18px; padding:14px 16px; }
+      .progress-head{ display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:8px; }
       .progress-title{ font-size:.95rem; font-weight:800; }
       .progress-right{ font-size:1rem; font-weight:800; }
       .progbar,.linebar{ height:10px; border-radius:999px; background:#e9edf2; overflow:hidden; }
@@ -183,29 +74,10 @@
       .st-DA_FARE{ background:#d92d20; }
       .st-IN_LAVORAZIONE{ background:#ffb020; }
       .st-COMPLETATA{ background:#12b76a; }
-
-      .due-banner{
-        margin-top:10px;
-        display:flex;
-        align-items:center;
-        gap:10px;
-        min-height:24px;
-        font-size:.92rem;
-        font-weight:700;
-      }
-
-      .grid-header{
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-        gap:10px;
-        padding:16px 18px 10px;
-        border-bottom:1px solid var(--elip-line);
-      }
-
+      .due-banner{ margin-top:10px; display:flex; align-items:center; gap:10px; min-height:24px; font-size:.92rem; font-weight:700; }
+      .grid-header{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:16px 18px 10px; border-bottom:1px solid var(--elip-line); }
       .grid-title{ font-size:1.15rem; font-weight:800; }
       .grid-sub{ color:var(--elip-gray); font-size:.9rem; }
-
       .repairs-table{ width:100%; border-collapse:separate; border-spacing:0 12px; }
       .repairs-table thead th{ padding:0 14px 4px; font-size:.8rem; color:var(--elip-gray); text-transform:uppercase; letter-spacing:.04em; font-weight:800; }
       .repairs-table tbody tr{ background:#fff; }
@@ -216,15 +88,7 @@
       .row-card.row-todo{ border-left:4px solid #d0d5dd; }
       .row-card.row-urgent{ box-shadow:inset 3px 0 0 var(--elip-red),0 4px 14px rgba(16,24,40,.03); }
       .row-card.row-off{ opacity:.72; }
-
-      .row-inner{
-        display:grid;
-        grid-template-columns:42px minmax(420px,1.7fr) 180px 130px 150px;
-        gap:10px;
-        align-items:start;
-        padding:12px 12px;
-      }
-
+      .row-inner{ display:grid; grid-template-columns:42px minmax(420px,1.7fr) 180px 130px 150px; gap:10px; align-items:start; padding:12px 12px; }
       .check-wrap{ display:flex; align-items:flex-start; justify-content:center; padding-top:14px; }
       .check-wrap input{ width:18px; height:18px; }
       .rip-main{ min-width:0; }
@@ -232,80 +96,26 @@
       .rip-code{ display:inline-flex; align-items:center; justify-content:center; min-width:64px; height:24px; padding:0 10px; border-radius:999px; background:#f2f4f7; color:#475467; font-size:.74rem; font-weight:800; }
       .rip-name{ font-size:1.02rem; font-weight:800; line-height:1.08; }
       .free-desc{ margin-top:2px; }
-
-      .mini-grid{
-        display:grid;
-        grid-template-columns:1.2fr .95fr .95fr;
-        gap:8px;
-      }
-
-      .mini-box{
-        background:#fafbfc;
-        border:1px solid var(--elip-line);
-        border-radius:14px;
-        padding:8px 10px;
-      }
-
-      .mini-box label{
-        display:block;
-        margin-bottom:4px;
-        color:var(--elip-gray);
-        font-size:.68rem;
-        font-weight:800;
-        text-transform:uppercase;
-        letter-spacing:.05em;
-      }
-
-      .mini-box input{
-        height:36px;
-        border-radius:10px;
-        font-size:.86rem;
-      }
-
+      .mini-grid{ display:grid; grid-template-columns:1.2fr .9fr .9fr; gap:8px; }
+      .mini-box{ background:#fafbfc; border:1px solid var(--elip-line); border-radius:14px; padding:8px 10px; }
+      .mini-box label{ display:block; margin-bottom:4px; color:var(--elip-gray); font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+      .mini-box input{ height:36px; border-radius:10px; font-size:.86rem; }
       .status-stack{ display:flex; flex-direction:column; gap:10px; padding-top:6px; }
       .status-select{ min-width:170px; border-radius:12px; height:40px; }
       .price-wrap{ padding-top:6px; }
       .price-input{ width:110px; min-width:110px; border-radius:12px; height:40px; }
       .progress-stack{ padding-top:8px; min-width:130px; }
       .progress-pct{ margin-top:8px; font-size:.82rem; color:var(--elip-gray); font-weight:700; }
-
-      .footer-totals{
-        margin-top:10px;
-        display:flex;
-        justify-content:flex-end;
-      }
-
-      .totals-box{
-        min-width:340px;
-        background:#fafbfc;
-        border:1px solid var(--elip-line);
-        border-radius:18px;
-        padding:14px 16px;
-      }
-
-      .total-line{
-        display:flex;
-        justify-content:space-between;
-        gap:12px;
-        margin-bottom:6px;
-      }
-
+      .footer-totals{ margin-top:10px; display:flex; justify-content:flex-end; }
+      .totals-box{ min-width:340px; background:#fafbfc; border:1px solid var(--elip-line); border-radius:18px; padding:14px 16px; }
+      .total-line{ display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; }
       .total-line .lbl{ color:var(--elip-gray); }
       .total-line .val{ font-weight:800; }
-
-      .total-line.final{
-        margin-top:8px;
-        padding-top:10px;
-        border-top:1px solid var(--elip-line);
-        font-size:1.15rem;
-      }
-
+      .total-line.final{ margin-top:8px; padding-top:10px; border-top:1px solid var(--elip-line); font-size:1.15rem; }
       .btn-quiet{ border-color:#d7dde5; color:#475467; background:#fff; }
       .btn-quiet:hover{ border-color:#c6ced8; color:#1f2937; background:#f8fafc; }
-
       body:not(.edit-unlocked) [data-editable="1"]{ cursor:not-allowed; }
       body:not(.edit-unlocked) .urg-btn{ pointer-events:none; opacity:.7; }
-
       @media (max-width: 1200px){
         .hero-top{ grid-template-columns:1fr; }
         .right-head{ align-items:flex-start; }
@@ -313,21 +123,15 @@
         .head-meta{ text-align:left; }
         .row-inner{ grid-template-columns:42px minmax(320px,1fr) 170px 120px 130px; }
       }
-
       @media (max-width: 980px){
-        .form-area{ grid-template-columns:repeat(6, minmax(0,1fr)); }
-        .col-2{ grid-column:span 2; }
-        .col-3{ grid-column:span 3; }
-        .col-4{ grid-column:span 3; }
-        .col-5{ grid-column:span 3; }
-        .col-6{ grid-column:span 6; }
+        .form-area{ grid-template-columns:repeat(6,1fr); }
+        .col-2,.col-3,.col-4,.col-6{ grid-column:span 3; }
         .row-inner{ grid-template-columns:42px 1fr; }
         .status-stack,.price-wrap,.progress-stack{ padding-top:0; }
       }
-
       @media (max-width: 640px){
         .form-area{ grid-template-columns:1fr; }
-        .col-2,.col-3,.col-4,.col-5,.col-6,.col-12{ grid-column:span 1; }
+        .col-2,.col-3,.col-4,.col-6,.col-12{ grid-column:span 1; }
         .deadline-wrap{ grid-template-columns:1fr; }
         .mini-grid{ grid-template-columns:1fr; }
         .hero-card .card-body,.grid-card .card-body{ padding:16px 14px; }
@@ -391,23 +195,19 @@
                   <option value="ANNULLATO">ANNULLATO</option>
                 </select>
               </div>
-
-              <div class="field-card col-3">
+              <div class="field-card col-2">
                 <label>Data invio</label>
                 <input id="sent_at" type="date" class="form-control">
               </div>
-
-              <div class="field-card col-3">
+              <div class="field-card col-2">
                 <label>Accettazione</label>
                 <input id="accepted_at" type="date" class="form-control">
               </div>
-
               <div class="field-card col-2">
                 <label>Consegna gg</label>
                 <input id="delivery_days" type="number" min="0" step="1" class="form-control" placeholder="es. 10">
               </div>
-
-              <div class="field-card col-2">
+              <div class="field-card col-4">
                 <label>Data scadenza</label>
                 <div class="deadline-wrap">
                   <input id="delivery_date" type="date" class="form-control">
@@ -417,7 +217,6 @@
                   </div>
                 </div>
               </div>
-
               <div class="col-12 note-box">
                 <label class="form-label mb-2" style="color:var(--elip-gray);font-size:.82rem;font-weight:800;">Note</label>
                 <input id="notes" class="form-control" placeholder="Note interne / note al cliente…">
