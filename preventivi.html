@@ -22,7 +22,9 @@
       .due-today{ background:#fff3cd; color:#664d03; }
       .due-tomorrow{ background:#fff7df; color:#8a5a00; }
       .due-ok{ background:#e9ecef; color:#495057; }
-    </style>
+      .dash-card{ border-radius:.9rem; }
+  .dash-card.active{ border-color:#fd7e14; box-shadow:0 0 0 .15rem rgba(253,126,20,.15); }
+</style>
   </head>
   <body>
     <nav class="navbar navbar-light bg-light border-bottom sticky-top">
@@ -90,6 +92,14 @@
         </div>
       </div>
 
+
+      <div class="row g-2 mt-1 mb-2" id="dashCards">
+        <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-due="overdue"><div class="small text-muted">Scaduti</div><div class="fs-5 fw-bold" id="dashOverdue">0</div></button></div>
+        <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-due="today"><div class="small text-muted">Oggi</div><div class="fs-5 fw-bold" id="dashToday">0</div></button></div>
+        <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-due="tomorrow"><div class="small text-muted">Domani</div><div class="fs-5 fw-bold" id="dashTomorrow">0</div></button></div>
+        <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-due="ontime"><div class="small text-muted">In tempo</div><div class="fs-5 fw-bold" id="dashOntime">0</div></button></div>
+      </div>
+
       <div class="table-responsive mt-3">
         <table class="table table-app align-middle">
           <thead>
@@ -98,19 +108,18 @@
               <th>Descrizione</th>
               <th class="nowrap">Stato</th>
               <th class="nowrap">Scadenza</th>
-              <th class="nowrap">Giorni</th>
-              <th class="nowrap">Avanz.</th>
+                            <th class="nowrap">Avanz.</th>
               <th class="text-end nowrap">Totale (IVA escl.)</th>
               <th class="text-end nowrap">Azioni</th>
             </tr>
           </thead>
           <tbody id="rows">
-            <tr><td colspan="8" class="text-center py-4 text-muted">Caricamento…</td></tr>
+            <tr><td colspan="7" class="text-center py-4 text-muted">Caricamento…</td></tr>
           </tbody>
         </table>
       </div>
 
-      <div class="small text-muted mt-2">Le bozze vuote non vengono mostrate per evitare falsi preventivi generati da modifiche involontarie. La colonna giorni evidenzia automaticamente scaduto, oggi e domani.</div>
+      <div class="small text-muted mt-2">Le bozze vuote non vengono mostrate per evitare falsi preventivi generati da modifiche involontarie. La scadenza evidenzia automaticamente scaduto, oggi e domani.</div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

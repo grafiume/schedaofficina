@@ -25,11 +25,10 @@
       .badge-urgent{ background:#dc3545; color:#fff; }
       .top-meta-right{ display:flex; flex-direction:column; align-items:flex-end; gap:.32rem; }
       .status-line{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.32rem; align-items:center; }
-      .urgent-mini-banner{ display:none; align-items:center; gap:.34rem; padding:.12rem .42rem; border-radius:.5rem; border:1px solid #f1b6be; background:#fff5f5; color:#9f1239; font-size:.69rem; font-weight:700; line-height:1; white-space:nowrap; }
+      .urgent-mini-banner{ display:none; align-items:center; gap:.32rem; padding:.1rem .38rem; border-radius:999px; border:1px solid #f3c1c7; background:#fff7f8; color:#b42318; font-size:.67rem; font-weight:800; line-height:1; white-space:nowrap; margin-top:.15rem; }
       .urgent-mini-banner.show{ display:inline-flex; }
       .urgent-flag-box{ width:9px; height:9px; border-radius:2px; background:#dc3545; box-shadow:0 0 0 1px rgba(220,53,69,.12); flex:0 0 auto; }
-      .urgent-mini-banner .mini-sub{ color:#7f1d1d; font-weight:700; }
-      .table-compact thead th{ font-size:.82rem; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
+            .table-compact thead th{ font-size:.82rem; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
       .table-compact td{ vertical-align:top; padding:.32rem .42rem; }
       .rip-main{ min-width:360px; }
       .rip-title{ font-size:.92rem; font-weight:700; line-height:1.15; }
@@ -89,7 +88,10 @@
             <div class="top-meta-right">
               <div class="status-line">
                 <span id="quoteStatusBadge" class="badge bg-secondary">BOZZA</span>
-                <span id="urgentBadge" class="badge d-none badge-urgent">URGENTE</span>
+                <label for="is_urgent" id="urgentMiniBanner" class="urgent-mini-banner">
+                  <span class="urgent-flag-box"></span>
+                  <span>URGENTE</span>
+                </label>
                 <span id="lockState" class="badge bg-secondary">SOLO LETTURA</span>
               </div>
               <div id="dirtyState" class="small text-muted">Salvato</div>
@@ -125,12 +127,9 @@
               <input id="delivery_date" type="date" class="form-control">
             </div>
             <div class="mini-field d-flex align-items-end justify-content-end">
-              <label for="is_urgent" id="urgentMiniBanner" class="urgent-mini-banner">
-                <span class="urgent-flag-box"></span>
-                <span>URGENTE</span>
-                <span id="urgentMiniText" class="mini-sub">attenzione scadenza</span>
-              </label>
-              <input class="form-check-input d-none" type="checkbox" id="is_urgent">
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" id="is_urgent">
+              </div>
             </div>
           </div>
 

@@ -11,19 +11,19 @@
     const now=today0(); let expected=null;
     if(q.delivery_date){ expected=new Date(q.delivery_date); expected.setHours(0,0,0,0); }
     else if(Number.isFinite(+q.delivery_days) && +q.delivery_days>0){ const base=q.accepted_at||q.sent_at||q.created_at||new Date().toISOString(); expected=new Date(base); expected.setHours(0,0,0,0); expected.setDate(expected.getDate()+(+q.delivery_days)); }
-    if(!expected || isNaN(expected.getTime())) return {label:'—', sub:'', urgent:false, days:null, tone:'due-ok', chip:'—'};
+    if(!expected || isNaN(expected.getTime())) return {label:'—', sub:'', urgent:false, days:null, tone:'due-ok'};
     const diff=Math.round((expected.getTime()-now.getTime())/(1000*60*60*24));
-    if(diff<0) return {label:`${q.is_urgent?'URGENTE • ':''}ritardo ${Math.abs(diff)} gg`, sub:fmtDate(expected), urgent:true, days:diff, tone:'due-over', chip:'SCADUTO'};
-    if(diff===0) return {label:`${q.is_urgent?'URGENTE • ':''}scade oggi`, sub:fmtDate(expected), urgent:!!q.is_urgent, days:0, tone:'due-today', chip:'OGGI'};
-    if(diff===1) return {label:`${q.is_urgent?'URGENTE • ':''}scade domani`, sub:fmtDate(expected), urgent:!!q.is_urgent, days:1, tone:'due-tomorrow', chip:'DOMANI'};
-    return {label:`${q.is_urgent?'URGENTE • ':''}mancano ${diff} gg`, sub:fmtDate(expected), urgent:!!q.is_urgent, days:diff, tone:'due-ok', chip:`${diff} gg`};
+    if(diff<0) return {label:'SCADUTO', sub:fmtDate(expected), urgent:true, days:diff, tone:'due-over'};
+    if(diff===0) return {label:'OGGI', sub:fmtDate(expected), urgent:!!q.is_urgent, days:0, tone:'due-today'};
+    if(diff===1) return {label:'DOMANI', sub:fmtDate(expected), urgent:!!q.is_urgent, days:1, tone:'due-tomorrow'};
+    return {label:fmtDate(expected), sub:'', urgent:!!q.is_urgent, days:diff, tone:'due-ok'};
   }
   function badge(status){ const s=(status||'').toUpperCase(); if(s==='ACCETTATO') return '<span class="badge bg-success">ACCETTATO</span>'; if(s==='INVIATO') return '<span class="badge bg-primary">INVIATO</span>'; if(s==='BOZZA') return '<span class="badge bg-secondary">BOZZA</span>'; if(s==='ANNULLATO') return '<span class="badge bg-danger">ANNULLATO</span>'; return `<span class="badge bg-secondary">${escapeHtml(s||'—')}</span>`; }
   function isMeaningfulQuote(q){ return Number(q.subtotal_ex_vat||0) > 0 || !!q.notes || !!q.sent_at || !!q.accepted_at || !!q.delivery_days || !!q.delivery_date || !!q.is_urgent || ((q.status||'') !== 'BOZZA'); }
   let sb;
   async function load(){
     clearErr();
-    const tbody=$('rows'); if(tbody) tbody.innerHTML='<tr><td colspan="7" class="text-center py-4 text-muted">Caricamento…</td></tr>';
+    const tbody=$('rows'); if(tbody) tbody.innerHTML='<tr><td colspan="7" class="text-center py-4 text-muted">Caricamento…</td></tr>'; updateDashboard([]);
     try{
       if(!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){ showErr('Config Supabase mancante.'); return; }
       sb = sb || window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -47,12 +47,12 @@
       if(urgentFilter==='normal') rows=rows.filter(x=>!x.is_urgent);
       if(dueFilter){ rows=rows.filter(x=>{ const d=computeDue(x); if(dueFilter==='overdue') return d.days !== null && d.days < 0; if(dueFilter==='today') return d.days === 0; if(dueFilter==='tomorrow') return d.days === 1; if(dueFilter==='ontime') return d.days !== null && d.days > 1; return true; }); }
       if(order==='urgent_first') rows.sort((a,b)=> (Number(b.is_urgent)-Number(a.is_urgent)) || ((computeDue(a).days??99999)-(computeDue(b).days??99999)) || (new Date(b.created_at)-new Date(a.created_at)) );
-      render(rows);
+      render(rows); updateDashboard(rows);
     }catch(e){ showErr('Errore caricamento preventivi: ' + (e?.message||e)); if(tbody) tbody.innerHTML='<tr><td colspan="8" class="text-center py-4 text-muted">Nessun dato</td></tr>'; }
   }
   function render(list){
     const tbody=$('rows'); if(!tbody) return;
-    if(!list.length){ tbody.innerHTML='<tr><td colspan="8" class="text-center py-4 text-muted">Nessun preventivo trovato</td></tr>'; return; }
+    if(!list.length){ tbody.innerHTML='<tr><td colspan="7" class="text-center py-4 text-muted">Nessun preventivo trovato</td></tr>'; return; }
     tbody.innerHTML='';
     list.forEach(q=>{
       const prog=Math.max(0,Math.min(100,Number(q.progress_percent||0)));
@@ -63,8 +63,7 @@
         <td><div class="fw-semibold">${q.is_urgent?'<span class="mini-badge mini-urgent me-1">URGENTE</span>':''}${escapeHtml(q.cliente)}</div><div class="small text-muted">${escapeHtml(q.modello||'')}</div></td>
         <td><div>${escapeHtml(q.descrizione)}</div><div class="small text-muted">creato ${fmtDate(q.created_at)}</div></td>
         <td class="nowrap">${badge(q.status)}</td>
-        <td class="nowrap"><div class="small ${due.urgent?'text-danger fw-semibold':'text-muted'}">${escapeHtml(due.label)}</div><div class="small text-muted">${escapeHtml(due.sub)}</div></td>
-        <td class="nowrap"><span class="due-pill ${due.tone}">${escapeHtml(due.chip)}</span></td>
+        <td class="nowrap"><div class="small ${due.tone==='due-over'?'text-danger fw-semibold':due.tone==='due-today'?'text-warning fw-semibold':due.tone==='due-tomorrow'?'text-primary fw-semibold':'text-muted'}">${escapeHtml(due.label)}</div><div class="small text-muted">${escapeHtml(due.sub)}</div></td>
         <td class="nowrap" style="min-width:160px;"><div class="d-flex justify-content-between small"><span>${Math.round(prog)}%</span><span class="text-muted">lavoro</span></div><div class="progbar"><div style="width:${prog}%;"></div></div></td>
         <td class="text-end nowrap"><span class="fw-semibold">€ ${money(q.subtotal_ex_vat||0)}</span></td>
         <td class="text-end nowrap"><button class="btn btn-sm btn-outline-primary" data-open="${q.id}">Apri</button> <button class="btn btn-sm btn-outline-secondary" data-rec="${q.record_id}">Scheda</button></td>`;
@@ -73,5 +72,25 @@
     tbody.querySelectorAll('button[data-open]').forEach(b=>b.addEventListener('click',()=>location.href='preventivo.html?id='+encodeURIComponent(b.getAttribute('data-open'))));
     tbody.querySelectorAll('button[data-rec]').forEach(b=>b.addEventListener('click',()=>location.href='record.html?id='+encodeURIComponent(b.getAttribute('data-rec'))));
   }
-  document.addEventListener('DOMContentLoaded', ()=>{ $('btnHome')?.addEventListener('click', ()=>location.href='index.html'); $('btnRefresh')?.addEventListener('click', load); $('btnApply')?.addEventListener('click', load); load(); });
+
+  function updateDashboard(rows){
+    const counts={overdue:0,today:0,tomorrow:0,ontime:0};
+    (rows||[]).forEach(x=>{ const d=computeDue(x); if(d.days===null) return; if(d.days<0) counts.overdue++; else if(d.days===0) counts.today++; else if(d.days===1) counts.tomorrow++; else counts.ontime++; });
+    if($('dashOverdue')) $('dashOverdue').textContent=String(counts.overdue);
+    if($('dashToday')) $('dashToday').textContent=String(counts.today);
+    if($('dashTomorrow')) $('dashTomorrow').textContent=String(counts.tomorrow);
+    if($('dashOntime')) $('dashOntime').textContent=String(counts.ontime);
+    document.querySelectorAll('.dash-card').forEach(btn=>btn.classList.toggle('active', ($('dueFilter')?.value||'')===btn.dataset.due));
+  }
+  function bindDashboard(){
+    document.querySelectorAll('.dash-card').forEach(btn=>btn.addEventListener('click', ()=>{
+      const val=btn.dataset.due||'';
+      const sel=$('dueFilter');
+      if(!sel) return;
+      sel.value = sel.value===val ? '' : val;
+      load();
+    }));
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{ $('btnHome')?.addEventListener('click', ()=>location.href='index.html'); $('btnRefresh')?.addEventListener('click', load); $('btnApply')?.addEventListener('click', load); bindDashboard(); load(); });
 })();
