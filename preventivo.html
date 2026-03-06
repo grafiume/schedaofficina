@@ -11,26 +11,34 @@
     <link rel="stylesheet" href="styles.css">
     <style>
       body{ background:#f8f9fa; }
-      .container-narrow{ max-width:1100px; }
+      .container-narrow{ max-width:1180px; }
       .muted{ color:#6c757d; }
       .progbar{ height:10px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
       .progbar > div{ height:100%; background:#ff7a00; width:0%; }
-      .linebar{ height:10px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
+      .linebar{ height:8px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
       .linebar > div{ height:100%; width:5%; }
       .st-DA_FARE{ background:#dc3545; }
       .st-IN_LAVORAZIONE{ background:#ffc107; }
       .st-COMPLETATA{ background:#198754; }
       .smallmono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-      .item-row td{ vertical-align:middle; }
-      .phase-pill{ display:inline-flex; align-items:center; gap:.4rem; padding:.2rem .5rem; border-radius:999px; border:1px solid rgba(0,0,0,.12); background:#fff; font-size:.85rem; }
-      .phase-pill input{ margin-top:0; }
-      .w-qty{ width:90px; }
-      .w-price{ width:140px; }
-      .w-actions{ width:170px; }
+      .item-row td{ vertical-align:top; }
       .table thead th{ white-space:nowrap; }
       .clickable{ cursor:pointer; }
-      .lock-badge{ font-size:.82rem; padding:.35rem .55rem; border-radius:999px; }
-      .view-locked .editable-hint{ opacity:.7; }
+      body:not(.edit-unlocked) input[data-editable="1"], body:not(.edit-unlocked) select[data-editable="1"]{ cursor:not-allowed; }
+      .work-main{ min-width:320px; }
+      .work-code{ display:inline-flex; align-items:center; padding:.18rem .5rem; border-radius:999px; background:#fff3e8; color:#c45a00; border:1px solid rgba(255,122,0,.25); font-size:.78rem; font-weight:700; }
+      .work-detail-box{ margin-top:.65rem; padding:.75rem; border:1px solid rgba(0,0,0,.08); border-radius:14px; background:#fcfcfd; }
+      .detail-grid{ display:grid; grid-template-columns: 1.1fr .9fr .9fr; gap:.55rem; }
+      .detail-label{ display:block; font-size:.75rem; color:#6c757d; margin-bottom:.18rem; }
+      .status-cell{ min-width:190px; }
+      .price-cell{ min-width:150px; }
+      .check-wrap{ display:flex; justify-content:center; padding-top:.4rem; }
+      .row-disabled{ opacity:.72; }
+      .urgent-note{ color:#b02a37; font-weight:600; }
+      @media (max-width: 900px){
+        .detail-grid{ grid-template-columns: 1fr; }
+        .work-main{ min-width:260px; }
+      }
     </style>
   </head>
   <body>
@@ -43,8 +51,8 @@
         <div class="d-flex gap-2">
           <button class="btn btn-outline-secondary" id="btnBack">Indietro</button>
           <button class="btn btn-outline-secondary" id="btnOpenRecord">Scheda</button>
-          <button class="btn btn-outline-dark" id="btnUnlock">Sblocca modifiche</button>
-          <button class="btn btn-orange" id="btnSave" disabled>Salva</button>
+          <button class="btn btn-outline-secondary" id="btnUnlock">🔒 Sblocca modifiche</button>
+          <button class="btn btn-orange" id="btnSave">Salva</button>
         </div>
       </div>
     </nav>
@@ -52,13 +60,6 @@
     <div class="container container-narrow py-3">
       <div id="errBanner" class="alert alert-warning d-none"></div>
       <div id="okBanner" class="alert alert-success d-none"></div>
-      <div id="lockBanner" class="alert alert-info d-flex justify-content-between align-items-center gap-2">
-        <div>
-          <strong>Modalità visualizzazione</strong>
-          <div class="small">Tutti possono aprire i preventivi. Per modificare e salvare serve password.</div>
-        </div>
-        <span id="lockState" class="badge bg-secondary lock-badge">BLOCCATO</span>
-      </div>
 
       <div class="card shadow-sm mb-3">
         <div class="card-body">
@@ -70,7 +71,7 @@
               <div class="small text-muted" id="recModel"></div>
             </div>
             <div class="text-end">
-              <div class="mb-2">Stato: <span id="quoteStatusBadge" class="badge bg-secondary">BOZZA</span></div>
+              <div class="mb-2 d-flex flex-column align-items-end gap-1"><div>Stato: <span id="quoteStatusBadge" class="badge bg-secondary">BOZZA</span></div><div><span id="lockState" class="badge bg-secondary">SOLO LETTURA</span></div><div id="dirtyState" class="small text-muted">Salvato</div></div>
               <div class="small text-muted">ID Preventivo</div>
               <div class="smallmono" id="quoteId">—</div>
             </div>
@@ -85,6 +86,7 @@
                 <option value="BOZZA">BOZZA</option>
                 <option value="INVIATO">INVIATO</option>
                 <option value="ACCETTATO">ACCETTATO</option>
+                <option value="URGENTE">URGENTE</option>
                 <option value="ANNULLATO">ANNULLATO</option>
               </select>
             </div>
@@ -122,26 +124,21 @@
       <div class="card shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center">
           <strong>Lavorazioni Riparazione</strong>
-          <div class="small text-muted">Seleziona le voci RIP e inserisci solo il prezzo (IVA esclusa).</div>
+          <div class="small text-muted">Vista ottimizzata: dati RIP in alto, sotto operatore, data inizio e data fine.</div>
         </div>
         <div class="card-body">
           <div class="table-responsive">
             <table class="table table-app align-middle">
               <thead>
                 <tr>
-                  <th>Lavorazione</th>
-                  <th style="width:90px;">Cod.</th>
-                  <th style="width:44px;"></th>
+                  <th>Lavorazione RIP</th>
+                  <th style="width:56px;">Sel.</th>
                   <th class="w-price text-end">Prezzo (IVA escl.)</th>
-                  <th style="width:190px;">Stato</th>
-                  <th style="min-width:180px;">Operatore</th>
-                  <th style="min-width:150px;">Data entrata</th>
-                  <th style="min-width:150px;">Data fine</th>
-                  <th style="min-width:170px;">Avanz.</th>
+                  <th style="min-width:210px;">Stato / Avanz.</th>
                 </tr>
               </thead>
               <tbody id="taskRows">
-                <tr><td colspan="9" class="text-center py-4 text-muted">Caricamento…</td></tr>
+                <tr><td colspan="4" class="text-center py-4 text-muted">Caricamento…</td></tr>
               </tbody>
             </table>
           </div>
