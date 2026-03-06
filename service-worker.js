@@ -13,7 +13,7 @@ self.addEventListener('install', (event) => {
       './preventivi.html',
       './preventivi.js',
       './preventivo.html',
-      './preventivo.js',
+      './preventivo.js?v=13-nosave',
       './styles.css',
       './app-core.js',
       './app-supabase.js',
@@ -67,3 +67,5 @@ self.addEventListener('fetch', (event) => {
     catch(e) { return await caches.match(req); }
   })());
 });
+
+// v14-unsaved-confirm
