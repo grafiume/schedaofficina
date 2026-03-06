@@ -11,12 +11,12 @@
     const now=today0(); let expected=null;
     if(q.delivery_date){ expected=new Date(q.delivery_date); expected.setHours(0,0,0,0); }
     else if(Number.isFinite(+q.delivery_days) && +q.delivery_days>0){ const base=q.accepted_at||q.sent_at||q.created_at||new Date().toISOString(); expected=new Date(base); expected.setHours(0,0,0,0); expected.setDate(expected.getDate()+(+q.delivery_days)); }
-    if(!expected || isNaN(expected.getTime())) return {label:'—', sub:'', urgent:false, days:null, tone:'due-ok'};
+    if(!expected || isNaN(expected.getTime())) return {label:'—', sub:'', statusLabel:'', urgent:false, days:null, tone:'due-ok'};
     const diff=Math.round((expected.getTime()-now.getTime())/(1000*60*60*24));
-    if(diff<0) return {label:'SCADUTO', sub:fmtDate(expected), urgent:true, days:diff, tone:'due-over'};
-    if(diff===0) return {label:'OGGI', sub:fmtDate(expected), urgent:!!q.is_urgent, days:0, tone:'due-today'};
-    if(diff===1) return {label:'DOMANI', sub:fmtDate(expected), urgent:!!q.is_urgent, days:1, tone:'due-tomorrow'};
-    return {label:fmtDate(expected), sub:'', urgent:!!q.is_urgent, days:diff, tone:'due-ok'};
+    if(diff<0) return {label:fmtDate(expected), sub:`SCADUTO · ${Math.abs(diff)} gg`, statusLabel:'SCADUTO', urgent:true, days:diff, tone:'due-over'};
+    if(diff===0) return {label:fmtDate(expected), sub:'OGGI · 0 gg', statusLabel:'OGGI', urgent:!!q.is_urgent, days:0, tone:'due-today'};
+    if(diff===1) return {label:fmtDate(expected), sub:'DOMANI · 1 gg', statusLabel:'DOMANI', urgent:!!q.is_urgent, days:1, tone:'due-tomorrow'};
+    return {label:fmtDate(expected), sub:`mancano ${diff} gg`, statusLabel:'', urgent:!!q.is_urgent, days:diff, tone:'due-ok'};
   }
   function badge(status){ const s=(status||'').toUpperCase(); if(s==='ACCETTATO') return '<span class="badge bg-success">ACCETTATO</span>'; if(s==='INVIATO') return '<span class="badge bg-primary">INVIATO</span>'; if(s==='BOZZA') return '<span class="badge bg-secondary">BOZZA</span>'; if(s==='ANNULLATO') return '<span class="badge bg-danger">ANNULLATO</span>'; return `<span class="badge bg-secondary">${escapeHtml(s||'—')}</span>`; }
   function isMeaningfulQuote(q){ return Number(q.subtotal_ex_vat||0) > 0 || !!q.notes || !!q.sent_at || !!q.accepted_at || !!q.delivery_days || !!q.delivery_date || !!q.is_urgent || ((q.status||'') !== 'BOZZA'); }
@@ -60,10 +60,10 @@
       const tr=document.createElement('tr');
       if(q.is_urgent) tr.className='row-urgent';
       tr.innerHTML=`
-        <td><div class="fw-semibold">${q.is_urgent?'<span class="mini-badge mini-urgent me-1">URGENTE</span>':''}${escapeHtml(q.cliente)}</div><div class="small text-muted">${escapeHtml(q.modello||'')}</div></td>
+        <td><div class="fw-semibold">${q.is_urgent?'<span class="urgent-tag me-1">URGENTE</span>':''}${escapeHtml(q.cliente)}</div><div class="small text-muted">${escapeHtml(q.modello||'')}</div></td>
         <td><div>${escapeHtml(q.descrizione)}</div><div class="small text-muted">creato ${fmtDate(q.created_at)}</div></td>
         <td class="nowrap">${badge(q.status)}</td>
-        <td class="nowrap"><div class="small ${due.tone==='due-over'?'text-danger fw-semibold':due.tone==='due-today'?'text-warning fw-semibold':due.tone==='due-tomorrow'?'text-primary fw-semibold':'text-muted'}">${escapeHtml(due.label)}</div><div class="small text-muted">${escapeHtml(due.sub)}</div></td>
+        <td class="nowrap"><div class="small fw-semibold ${due.tone==='due-over'?'text-danger':due.tone==='due-today'?'text-warning':due.tone==='due-tomorrow'?'text-primary':'text-body'}">${escapeHtml(due.label)}</div><div class="small ${due.tone==='due-over'?'text-danger':due.tone==='due-today'?'text-warning':due.tone==='due-tomorrow'?'text-primary':'text-muted'}">${escapeHtml(due.sub)}</div></td>
         <td class="nowrap" style="min-width:160px;"><div class="d-flex justify-content-between small"><span>${Math.round(prog)}%</span><span class="text-muted">lavoro</span></div><div class="progbar"><div style="width:${prog}%;"></div></div></td>
         <td class="text-end nowrap"><span class="fw-semibold">€ ${money(q.subtotal_ex_vat||0)}</span></td>
         <td class="text-end nowrap"><button class="btn btn-sm btn-outline-primary" data-open="${q.id}">Apri</button> <button class="btn btn-sm btn-outline-secondary" data-rec="${q.record_id}">Scheda</button></td>`;
@@ -74,20 +74,60 @@
   }
 
   function updateDashboard(rows){
-    const counts={overdue:0,today:0,tomorrow:0,ontime:0};
-    (rows||[]).forEach(x=>{ const d=computeDue(x); if(d.days===null) return; if(d.days<0) counts.overdue++; else if(d.days===0) counts.today++; else if(d.days===1) counts.tomorrow++; else counts.ontime++; });
+    const counts={overdue:0,today:0,urgent:0,accepted:0};
+    (rows||[]).forEach(x=>{
+      const d=computeDue(x);
+      if(d.days!==null){ if(d.days<0) counts.overdue++; else if(d.days===0) counts.today++; }
+      if(x.is_urgent) counts.urgent++;
+      if(String(x.status||'').toUpperCase()==='ACCETTATO') counts.accepted++;
+    });
     if($('dashOverdue')) $('dashOverdue').textContent=String(counts.overdue);
     if($('dashToday')) $('dashToday').textContent=String(counts.today);
-    if($('dashTomorrow')) $('dashTomorrow').textContent=String(counts.tomorrow);
-    if($('dashOntime')) $('dashOntime').textContent=String(counts.ontime);
-    document.querySelectorAll('.dash-card').forEach(btn=>btn.classList.toggle('active', ($('dueFilter')?.value||'')===btn.dataset.due));
+    if($('dashUrgent')) $('dashUrgent').textContent=String(counts.urgent);
+    if($('dashAccepted')) $('dashAccepted').textContent=String(counts.accepted);
+
+    const currentDashboard = (()=>{
+      const st=($('status')?.value||'').toUpperCase();
+      const urg=$('urgentFilter')?.value||'';
+      const due=$('dueFilter')?.value||'';
+      if(urg==='urgent' && !due && !st) return 'urgent';
+      if(st==='ACCETTATO' && !due && !urg) return 'accepted';
+      if(due==='overdue' && !urg && !st) return 'overdue';
+      if(due==='today' && !urg && !st) return 'today';
+      return '';
+    })();
+    document.querySelectorAll('.dash-card').forEach(btn=>btn.classList.toggle('active', currentDashboard===btn.dataset.dashboard));
   }
   function bindDashboard(){
     document.querySelectorAll('.dash-card').forEach(btn=>btn.addEventListener('click', ()=>{
-      const val=btn.dataset.due||'';
-      const sel=$('dueFilter');
-      if(!sel) return;
-      sel.value = sel.value===val ? '' : val;
+      const mode=btn.dataset.dashboard||'';
+      const status=$('status');
+      const urgent=$('urgentFilter');
+      const due=$('dueFilter');
+      if(!status || !urgent || !due) return;
+
+      const current = (()=>{
+        const st=(status.value||'').toUpperCase();
+        if(urgent.value==='urgent' && !due.value && !st) return 'urgent';
+        if(st==='ACCETTATO' && !due.value && !urgent.value) return 'accepted';
+        if(due.value==='overdue' && !urgent.value && !st) return 'overdue';
+        if(due.value==='today' && !urgent.value && !st) return 'today';
+        return '';
+      })();
+
+      if(current===mode){
+        status.value='';
+        urgent.value='';
+        due.value='';
+      }else{
+        status.value='';
+        urgent.value='';
+        due.value='';
+        if(mode==='urgent') urgent.value='urgent';
+        else if(mode==='accepted') status.value='ACCETTATO';
+        else if(mode==='overdue') due.value='overdue';
+        else if(mode==='today') due.value='today';
+      }
       load();
     }));
   }
