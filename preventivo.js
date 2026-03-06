@@ -55,7 +55,7 @@
   function emptyQuoteState(recordId){ return { id:null, record_id:recordId, status:'BOZZA', sent_at:'', accepted_at:'', delivery_days:'', delivery_date:'', notes:'', is_urgent:false, subtotal_ex_vat:0, vat_rate:VAT_RATE, vat_total:0, grand_total:0, progress_percent:0, items:{} }; }
   function isDirty(){ return JSON.stringify(quoteState) !== JSON.stringify(originalState); }
   function getSelectedItems(){ return WORKS.map(w => quoteState.items[w.code]).filter(Boolean); }
-  function hasMeaningfulData(state){ const items=Object.values(state?.items||{}).length; return items>0 || !!state.notes || !!state.sent_at || !!state.accepted_at || !!state.delivery_days || !!state.delivery_date || !!state.is_urgent || ((state.status||'BOZZA')!=='BOZZA'); }
+  function hasMeaningfulData(state){ const items=Object.values(state?.items||{}).filter(it => Number(it?.unit_price_ex_vat||0)>0 || !!it?.operatore || !!it?.started_at || !!it?.finished_at || !!it?.description).length; return items>0 || !!state.notes || !!state.sent_at || !!state.accepted_at || !!state.delivery_days || !!state.delivery_date || !!state.is_urgent || Number(state?.subtotal_ex_vat||0)>0 || ((state.status||'BOZZA')!=='BOZZA'); }
 
   async function init(){
     try{
@@ -81,7 +81,7 @@
     await loadRecordData(recordId);
     const { data, error } = await sb.from('quotes').select('*, quote_items(id)').eq('record_id', recordId).order('created_at',{ascending:false}).limit(20);
     if(error) throw error;
-    const meaningful=(data||[]).find(q => (Array.isArray(q.quote_items)&&q.quote_items.length>0) || Number(q.subtotal_ex_vat||0)>0 || !!q.notes || !!q.sent_at || !!q.accepted_at || !!q.delivery_days || !!q.delivery_date || !!q.is_urgent || ((q.status||'BOZZA')!=='BOZZA'));
+    const meaningful=(data||[]).find(q => Number(q.subtotal_ex_vat||0)>0 || !!q.notes || !!q.sent_at || !!q.accepted_at || !!q.delivery_days || !!q.delivery_date || !!q.is_urgent || ((q.status||'BOZZA')!=='BOZZA') || (Array.isArray(q.quote_items)&&q.quote_items.length>0));
     if(meaningful){ currentQuoteId=meaningful.id; quoteState=await buildStateFromQuoteRow(meaningful); originalState=clone(quoteState); try{ const u=new URL(location.href); u.searchParams.delete('record_id'); u.searchParams.set('id', meaningful.id); history.replaceState({},'',u.toString()); }catch{} return; }
     currentQuoteId=null; quoteState=emptyQuoteState(recordId); originalState=clone(quoteState);
   }
@@ -91,16 +91,17 @@
     $('btnBack')?.addEventListener('click', ()=>history.back());
     $('btnOpenRecord')?.addEventListener('click', ()=>{ if(record?.id) location.href=`record.html?id=${encodeURIComponent(record.id)}`; });
     $('btnSave')?.addEventListener('click', saveAll);
+    $('btnDelete')?.addEventListener('click', deleteQuote);
     $('btnUnlock')?.addEventListener('click', ()=>{ const p=prompt('Inserisci password per modificare il preventivo'); if(p===null) return; if(String(p)!==EDIT_PASSWORD){ alert('Password errata'); return; } isEditUnlocked=true; renderEditState(); showOk('Modifica sbloccata'); });
     ['status','sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{ $(id)?.addEventListener('input', ()=>{ quoteState[id]=$(id).value||''; touch(); }); $(id)?.addEventListener('change', ()=>{ quoteState[id]=$(id).value||''; touch(); }); });
     $('is_urgent')?.addEventListener('change', ()=>{ quoteState.is_urgent=!!$('is_urgent').checked; touch(); renderTasks(); });
     window.addEventListener('beforeunload', ev=>{ if(isSaving || !isDirty()) return; ev.preventDefault(); ev.returnValue=''; });
   }
-  function renderEditState(){ document.body.classList.toggle('edit-unlocked', isEditUnlocked); $('btnSave').disabled=!isEditUnlocked; $('btnUnlock').textContent=isEditUnlocked?'🔓 Modifica attiva':'🔒 Sblocca modifiche'; $('lockState').textContent=isEditUnlocked?'MODIFICA ATTIVA':'SOLO LETTURA'; $('lockState').className='badge '+(isEditUnlocked?'bg-success':'bg-secondary'); ['status','sent_at','accepted_at','delivery_days','delivery_date','notes','is_urgent'].forEach(id=>{ const el=$(id); if(!el) return; el.disabled=!isEditUnlocked; }); document.querySelectorAll('[data-editable="1"]').forEach(el=>{ el.disabled=!isEditUnlocked; }); }
+  function renderEditState(){ document.body.classList.toggle('edit-unlocked', isEditUnlocked); $('btnSave').disabled=!isEditUnlocked; if($('btnDelete')) $('btnDelete').disabled=!currentQuoteId || !isEditUnlocked; if($('btnDuplicate')) $('btnDuplicate').disabled=!currentQuoteId || !isEditUnlocked; $('btnUnlock').textContent=isEditUnlocked?'🔓 Modifica attiva':'🔒 Sblocca modifiche'; $('lockState').textContent=isEditUnlocked?'MODIFICA ATTIVA':'SOLO LETTURA'; $('lockState').className='badge '+(isEditUnlocked?'bg-success':'bg-secondary'); ['status','sent_at','accepted_at','delivery_days','delivery_date','notes','is_urgent'].forEach(id=>{ const el=$(id); if(!el) return; el.disabled=!isEditUnlocked; }); document.querySelectorAll('[data-editable="1"]').forEach(el=>{ el.disabled=!isEditUnlocked; }); }
   function touch(){ recalcTotals(); renderQuoteHeader(); renderDirtyState(); }
   function renderDirtyState(){ const dirty=isDirty(); $('dirtyState').textContent=dirty?'Modifiche non salvate':'Salvato'; $('dirtyState').className='small '+(dirty?'text-danger':'text-muted'); }
   function renderAll(){ renderQuoteHeader(); renderTasks(); renderEditState(); renderDirtyState(); }
-  function renderQuoteHeader(){ $('recCliente').textContent=record?.cliente||'—'; $('recDesc').textContent=record?.descrizione||'—'; $('recModel').textContent=record?.modello?`Modello: ${record.modello}`:''; $('quoteId').textContent=quoteState?.id||'NUOVO (non ancora salvato)'; const st=quoteState?.status||'BOZZA'; $('status').value=st; $('quoteStatusBadge').textContent=st; $('quoteStatusBadge').className='badge '+(st==='ACCETTATO'?'bg-success':st==='INVIATO'?'bg-primary':st==='ANNULLATO'?'bg-danger':'bg-secondary'); $('urgentBadge').classList.toggle('d-none', !quoteState?.is_urgent); $('sent_at').value=quoteState?.sent_at||''; $('accepted_at').value=quoteState?.accepted_at||''; $('delivery_days').value=quoteState?.delivery_days??''; $('delivery_date').value=quoteState?.delivery_date||''; $('notes').value=quoteState?.notes||''; $('is_urgent').checked=!!quoteState?.is_urgent; const d=computeDueInfo(quoteState||{}); $('dueLabel').textContent=d.text; $('dueLabel').className='small mt-1 '+d.cls; }
+  function renderQuoteHeader(){ $('recCliente').textContent=record?.cliente||'—'; $('recDesc').textContent=record?.descrizione||'—'; $('recModel').textContent=record?.modello?`Modello: ${record.modello}`:''; $('quoteId').textContent=quoteState?.id||'NUOVO (non ancora salvato)'; const st=quoteState?.status||'BOZZA'; $('status').value=st; $('quoteStatusBadge').textContent=st; $('quoteStatusBadge').className='badge '+(st==='ACCETTATO'?'bg-success':st==='INVIATO'?'bg-primary':st==='ANNULLATO'?'bg-danger':'bg-secondary'); $('urgentBadge').classList.toggle('d-none', !quoteState?.is_urgent); $('sent_at').value=quoteState?.sent_at||''; $('accepted_at').value=quoteState?.accepted_at||''; $('delivery_days').value=quoteState?.delivery_days??''; $('delivery_date').value=quoteState?.delivery_date||''; $('notes').value=quoteState?.notes||''; $('is_urgent').checked=!!quoteState?.is_urgent; const d=computeDueInfo(quoteState||{}); $('dueLabel').textContent=d.text; $('dueLabel').className='small mt-1 '+d.cls; const mini=$('urgentMiniBanner'); const miniTxt=$('urgentMiniText'); if(mini){ mini.classList.toggle('show', !!quoteState?.is_urgent); } if(miniTxt){ miniTxt.textContent = d.text && d.text !== 'Nessuna scadenza impostata' ? d.text.replace(/^URGENTE • /,'') : 'rispettare la scadenza'; } }
   function ensureLocalItem(work, idx){ const existing=quoteState.items[work.code]; if(existing) return existing; const item={ id:null, rip_code:work.code, position:idx, description:work.free?'':work.text, qty:1, unit_price_ex_vat:0, line_total_ex_vat:0, line_progress_percent:0, work_status:'DA_FARE', operatore:'', started_at:'', finished_at:'' }; quoteState.items[work.code]=item; return item; }
   function renderTasks(){
     const tb=$('taskRows'); tb.innerHTML='';
@@ -119,6 +120,43 @@
     });
   }
   function recalcTotals(){ let subtotal=0, weightedProg=0, weightedBase=0; getSelectedItems().forEach(it=>{ const line=Number(it.unit_price_ex_vat||0)*Number(it.qty||1); it.line_total_ex_vat=line; it.line_progress_percent=statusMeta(it.work_status).pct; subtotal+=line; weightedBase+=line; weightedProg+=line*(it.line_progress_percent/100); }); const vat=subtotal*(VAT_RATE/100); const grand=subtotal+vat; const prog=weightedBase>0?(weightedProg/weightedBase)*100:0; quoteState.subtotal_ex_vat=subtotal; quoteState.vat_rate=VAT_RATE; quoteState.vat_total=vat; quoteState.grand_total=grand; quoteState.progress_percent=prog; $('subtotal').textContent=`€ ${fmtMoney(subtotal)}`; $('vat').textContent=`€ ${fmtMoney(vat)}`; $('grand').textContent=`€ ${fmtMoney(grand)}`; $('quoteProgressTxt').textContent=`${Math.round(prog)}%`; $('quoteProgBar').style.width=`${Math.max(0, Math.min(100, prog))}%`; }
+
+  async function duplicateQuote(){
+    if(!currentQuoteId){ showErr('Salva prima il preventivo da duplicare.'); return; }
+    if(!isEditUnlocked){ showErr('Prima sblocca le modifiche con la password.'); return; }
+    clearErr();
+    try{
+      recalcTotals();
+      const suffix = (quoteState.notes||'').includes('[VARIANTE]') ? '' : (quoteState.notes ? ' [VARIANTE]' : '[VARIANTE]');
+      const qPayload={ record_id:quoteState.record_id, status:'BOZZA', sent_at:null, accepted_at:null, delivery_days:quoteState.delivery_days===''?null:parseInt(quoteState.delivery_days,10), delivery_date:quoteState.delivery_date||null, notes:(quoteState.notes||'') + suffix, is_urgent:!!quoteState.is_urgent, subtotal_ex_vat:Number(quoteState.subtotal_ex_vat||0), vat_rate:VAT_RATE, vat_total:Number(quoteState.vat_total||0), grand_total:Number(quoteState.grand_total||0), progress_percent:Number(quoteState.progress_percent||0) };
+      const { data: newQuote, error: e1 } = await sb.from('quotes').insert(qPayload).select().single();
+      if(e1) throw e1;
+      const currentItems=WORKS.map((w,idx)=>{ const it=quoteState.items[w.code]; if(!it) return null; return { quote_id:newQuote.id, position:idx, rip_code:w.code, description:w.free?(it.description||''):w.text, qty:1, unit_price_ex_vat:Number(it.unit_price_ex_vat||0), line_total_ex_vat:Number(it.line_total_ex_vat||0), line_progress_percent:Number(it.line_progress_percent||0), work_status:it.work_status||'DA_FARE', operatore:it.operatore||null, started_at:it.started_at||null, finished_at:it.finished_at||null }; }).filter(Boolean);
+      if(currentItems.length){ const { error: e2 } = await sb.from('quote_items').insert(currentItems); if(e2) throw e2; }
+      showOk('Preventivo duplicato');
+      location.href='preventivo.html?id='+encodeURIComponent(newQuote.id);
+    }catch(e){ showErr('Errore duplicazione preventivo: ' + (e?.message||e)); }
+  }
+
+  async function deleteQuote(){
+    if(!currentQuoteId){ showErr('Questo preventivo non è ancora salvato.'); return; }
+    if(!isEditUnlocked){ showErr('Prima sblocca le modifiche con la password.'); return; }
+    const ok = confirm('Vuoi cancellare definitivamente questo preventivo?');
+    if(!ok) return;
+    clearErr();
+    try{
+      const { error: e1 } = await sb.from('quote_items').delete().eq('quote_id', currentQuoteId); if(e1) throw e1;
+      const { error: e2 } = await sb.from('quotes').delete().eq('id', currentQuoteId); if(e2) throw e2;
+      showOk('Preventivo cancellato');
+      const recId = quoteState?.record_id || record?.id;
+      currentQuoteId = null;
+      quoteState = emptyQuoteState(recId);
+      originalState = clone(quoteState);
+      renderAll();
+      setTimeout(()=>{ if(recId) location.href='preventivo.html?record_id='+encodeURIComponent(recId); else history.back(); }, 500);
+    }catch(e){ showErr('Errore cancellazione preventivo: ' + (e?.message||e)); }
+  }
+
   async function saveAll(){
     if(!isEditUnlocked){ showErr('Prima sblocca le modifiche con la password.'); return; }
     clearErr(); isSaving=true;

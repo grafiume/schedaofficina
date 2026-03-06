@@ -23,15 +23,21 @@
       .mini-field input,.mini-field select{ height:38px; }
       .mini-note input{ height:38px; }
       .badge-urgent{ background:#dc3545; color:#fff; }
+      .top-meta-right{ display:flex; flex-direction:column; align-items:flex-end; gap:.4rem; }
+      .urgent-mini-banner{ display:none; padding:.18rem .48rem; border-radius:999px; border:1px solid #f1aeb5; background:#fff5f5; color:#b02a37; font-size:.73rem; font-weight:700; line-height:1.1; }
+      .urgent-mini-banner.show{ display:inline-flex; align-items:center; gap:.38rem; max-width:260px; }
+      .urgent-mini-banner .mini-left{ display:inline-flex; align-items:center; gap:.32rem; }
+      .urgent-dot{ width:7px; height:7px; border-radius:999px; background:#dc3545; box-shadow:0 0 0 2px rgba(220,53,69,.10); flex:0 0 auto; }
+      .urgent-mini-banner .mini-sub{ color:#842029; font-weight:600; }
       .table-compact thead th{ font-size:.82rem; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
-      .table-compact td{ vertical-align:top; padding:.45rem .5rem; }
+      .table-compact td{ vertical-align:top; padding:.32rem .42rem; }
       .rip-main{ min-width:360px; }
       .rip-title{ font-size:.92rem; font-weight:700; line-height:1.15; }
       .rip-code{ display:inline-block; min-width:68px; padding:.1rem .38rem; border-radius:999px; background:#f1f3f5; color:#495057; font-size:.74rem; font-weight:700; margin-right:.4rem; }
-      .rip-meta{ display:grid; grid-template-columns: 1.2fr .9fr .9fr; gap:.35rem .5rem; margin-top:.35rem; }
-      .rip-meta .meta-box{ background:#fafafa; border:1px solid rgba(0,0,0,.08); border-radius:.55rem; padding:.3rem .42rem; }
-      .rip-meta .meta-box label{ display:block; font-size:.7rem; color:#6c757d; margin-bottom:.15rem; }
-      .rip-meta .meta-box input{ height:30px; font-size:.82rem; padding:.2rem .4rem; }
+      .rip-meta{ display:grid; grid-template-columns: 1.1fr .85fr .85fr; gap:.18rem .38rem; margin-top:.22rem; }
+      .rip-meta .meta-box{ background:#fafafa; border:1px solid rgba(0,0,0,.06); border-radius:.45rem; padding:.18rem .32rem; }
+      .rip-meta .meta-box label{ display:block; font-size:.65rem; color:#6c757d; margin-bottom:.08rem; text-transform:uppercase; letter-spacing:.02em; }
+      .rip-meta .meta-box input{ height:28px; font-size:.78rem; padding:.15rem .32rem; }
       .row-status-pill{ font-size:.73rem; font-weight:700; border-radius:999px; padding:.18rem .5rem; display:inline-block; }
       .row-status-DA_FARE{ background:#f8d7da; color:#842029; }
       .row-status-IN_LAVORAZIONE{ background:#fff3cd; color:#664d03; }
@@ -41,10 +47,12 @@
       .table-compact tr.row-working{ background:#fffdf7; }
       .table-compact tr.row-todo{ background:#fffafb; }
       .table-compact tr.row-off td{ opacity:.72; }
-      .price-input{ width:120px; min-width:120px; }
-      .status-select{ min-width:165px; }
+      .price-input{ width:110px; min-width:110px; }
+      .status-select{ min-width:155px; }
       .line-progress-wrap{ min-width:120px; }
-      .toolbar-badges{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.35rem; }
+      .toolbar-badges{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.3rem; }
+      .btn-quiet{ border-color:rgba(0,0,0,.12); color:#6c757d; background:#fff; }
+      .btn-quiet:hover{ border-color:rgba(0,0,0,.22); color:#212529; background:#f8f9fa; }
       body:not(.edit-unlocked) [data-editable="1"]{ cursor:not-allowed; }
     </style>
   </head>
@@ -55,10 +63,12 @@
           <img src="logo-elip.jpg" class="brand-logo" alt="ELIP">
           <span class="navbar-brand mb-0 h1">PREVENTIVO</span>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
           <button class="btn btn-outline-secondary" id="btnBack">Indietro</button>
           <button class="btn btn-outline-secondary" id="btnOpenRecord">Scheda</button>
           <button class="btn btn-outline-secondary" id="btnUnlock">🔒 Sblocca modifiche</button>
+          <button class="btn btn-sm btn-quiet" id="btnDuplicate" title="Duplica preventivo per variante">Duplica</button>
+          <button class="btn btn-sm btn-quiet" id="btnDelete" title="Cancella preventivo">🗑</button>
           <button class="btn btn-orange" id="btnSave">Salva</button>
         </div>
       </div>
@@ -77,13 +87,17 @@
               <div class="text-muted" id="recDesc">—</div>
               <div class="small text-muted" id="recModel"></div>
             </div>
-            <div class="text-end">
-              <div class="toolbar-badges mb-2">
+            <div class="top-meta-right">
+              <div class="toolbar-badges">
                 <span id="quoteStatusBadge" class="badge bg-secondary">BOZZA</span>
                 <span id="urgentBadge" class="badge d-none badge-urgent">URGENTE</span>
                 <span id="lockState" class="badge bg-secondary">SOLO LETTURA</span>
               </div>
-              <div id="dirtyState" class="small text-muted mb-1">Salvato</div>
+              <div id="urgentMiniBanner" class="urgent-mini-banner">
+                <span class="mini-left"><span class="urgent-dot"></span><span>Urgente</span></span>
+                <span id="urgentMiniText" class="mini-sub">rispettare la scadenza</span>
+              </div>
+              <div id="dirtyState" class="small text-muted">Salvato</div>
               <div class="small text-muted">ID Preventivo</div>
               <div class="smallmono" id="quoteId">—</div>
             </div>
@@ -122,6 +136,7 @@
               </div>
             </div>
           </div>
+
 
           <div class="mini-note mt-2">
             <label class="form-label mb-1">Note</label>
