@@ -470,7 +470,23 @@
       finished_at: null
     };
 
-    const { data, error } = await sb.from('quote_items').insert(payload).select().single();
+    let data, error;
+    ({ data, error } = await sb.from('quote_items').insert(payload).select().single());
+    if(error){
+      // compatibilità con DB non ancora aggiornato: ritenta senza le colonne nuove
+      const fallback = {
+        quote_id: quote.id,
+        position: idx,
+        rip_code: w.code,
+        description: desc,
+        qty: 1,
+        unit_price_ex_vat: 0,
+        line_total_ex_vat: 0,
+        line_progress_percent: 0,
+        work_status: 'DA_FARE'
+      };
+      ({ data, error } = await sb.from('quote_items').insert(fallback).select().single());
+    }
     if(error) throw error;
 
     itemsByCode.set(w.code, {
@@ -573,17 +589,33 @@
           unit_price_ex_vat: Number(it.unit_price_ex_vat||0),
           line_total_ex_vat: lineTotal,
           line_progress_percent: pct,
-          work_status: it.work_status || 'DA_FARE'
+          work_status: deriveStatus(it),
+          operator_department: it.operator_department || null,
+          started_at: it.started_at || null,
+          finished_at: it.finished_at || null
         });
       });
 
       // aggiorna in batch
       for(const u of updates){
-        const { error } = await sb.from('quote_items').update(u).eq('id', u.id);
+        let { error } = await sb.from('quote_items').update(u).eq('id', u.id);
+        if(error){
+          const fallback = {
+            position: u.position,
+            rip_code: u.rip_code,
+            description: u.description,
+            qty: u.qty,
+            unit_price_ex_vat: u.unit_price_ex_vat,
+            line_total_ex_vat: u.line_total_ex_vat,
+            line_progress_percent: u.line_progress_percent,
+            work_status: u.work_status
+          };
+          ({ error } = await sb.from('quote_items').update(fallback).eq('id', u.id));
+        }
         if(error) throw error;
       }
 
-      showOk('Salvato');
+      showOk('Salvato correttamente');
       await loadItems();
       renderAll();
 
