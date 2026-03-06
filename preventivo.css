@@ -20,14 +20,23 @@ border-color:#c9dcff;
 
 /* urgente */
 .badge-urgente{
+display:inline-flex;
+align-items:center;
+gap:6px;
+padding:4px 10px;
+font-size:12px;
+font-weight:600;
+border-radius:14px;
 background:#fff3f3;
 color:#d32f2f;
-border-color:#f1a5a5;
+border:1px solid #f1a5a5;
 }
 
-/* modifica */
-.badge-modifica{
-background:#e9f7ef;
-color:#1e874b;
-border-color:#bfe3cd;
+.badge-urgente::before{
+content:"";
+width:8px;
+height:8px;
+background:#d32f2f;
+border-radius:2px;
+display:inline-block;
 }
