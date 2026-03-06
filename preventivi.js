@@ -42,12 +42,13 @@
         cliente:q.records?.cliente||'—', descrizione:q.records?.descrizione||'—', modello:q.records?.modello||''
       }));
       rows=rows.filter(isMeaningfulQuote);
+      const dashboardRows = rows.slice();
       if(qTxt){ rows=rows.filter(x=>norm(`${x.cliente} ${x.descrizione} ${x.modello}`).includes(qTxt)); }
       if(urgentFilter==='urgent') rows=rows.filter(x=>x.is_urgent);
       if(urgentFilter==='normal') rows=rows.filter(x=>!x.is_urgent);
       if(dueFilter){ rows=rows.filter(x=>{ const d=computeDue(x); if(dueFilter==='overdue') return d.days !== null && d.days < 0; if(dueFilter==='today') return d.days === 0; if(dueFilter==='tomorrow') return d.days === 1; if(dueFilter==='ontime') return d.days !== null && d.days > 1; return true; }); }
       if(order==='urgent_first') rows.sort((a,b)=> (Number(b.is_urgent)-Number(a.is_urgent)) || ((computeDue(a).days??99999)-(computeDue(b).days??99999)) || (new Date(b.created_at)-new Date(a.created_at)) );
-      render(rows); updateDashboard(rows);
+      render(rows); updateDashboard(dashboardRows);
     }catch(e){ showErr('Errore caricamento preventivi: ' + (e?.message||e)); if(tbody) tbody.innerHTML='<tr><td colspan="8" class="text-center py-4 text-muted">Nessun dato</td></tr>'; }
   }
   function render(list){

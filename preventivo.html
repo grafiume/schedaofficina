@@ -10,32 +10,52 @@
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="styles.css">
     <style>
-      body{ background:#f8f9fa; }
-      .container-narrow{ max-width:1100px; }
-      .muted{ color:#6c757d; }
-      .progbar{ height:10px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
-      .progbar > div{ height:100%; background:#ff7a00; width:0%; }
-      .linebar{ height:10px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
-      .linebar > div{ height:100%; width:5%; }
+      body{ background:#f7f7f7; }
+      .container-narrow{ max-width:1200px; }
+      .smallmono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+      .progbar,.linebar{ height:8px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
+      .progbar>div,.linebar>div{ height:100%; width:0%; }
       .st-DA_FARE{ background:#dc3545; }
       .st-IN_LAVORAZIONE{ background:#ffc107; }
       .st-COMPLETATA{ background:#198754; }
-      .smallmono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-      .item-row td{ vertical-align:middle; }
-      .phase-pill{ display:inline-flex; align-items:center; gap:.4rem; padding:.2rem .5rem; border-radius:999px; border:1px solid rgba(0,0,0,.12); background:#fff; font-size:.85rem; }
-      .phase-pill input{ margin-top:0; }
-      .w-qty{ width:90px; }
-      .w-price{ width:140px; }
-      .w-actions{ width:170px; }
-      .table thead th{ white-space:nowrap; }
-      .clickable{ cursor:pointer; }
-      .urgent-inline{ display:inline-flex; align-items:center; gap:6px; padding:.24rem .55rem; border:1px solid #f3b4b4; border-radius:999px; background:#fff5f5; cursor:pointer; user-select:none; }
-      .urgent-inline input{ position:absolute; opacity:0; pointer-events:none; }
-      .urgent-inline-box{ width:12px; height:12px; border:2px solid #dc3545; border-radius:3px; background:#fff; display:inline-block; }
-      .urgent-inline input:checked + .urgent-inline-box{ background:#dc3545; }
-      .urgent-inline-text{ font-size:.78rem; font-weight:700; letter-spacing:.03em; color:#dc3545; }
-      .urgent-wrap{ display:flex; align-items:end; }
-
+      .top-grid{ display:grid; grid-template-columns: repeat(6, minmax(120px,1fr)); gap:.65rem; }
+      .mini-field label{ display:block; font-size:.78rem; color:#6c757d; margin-bottom:.2rem; }
+      .mini-field input,.mini-field select{ height:38px; }
+      .mini-note input{ height:38px; }
+      .badge-urgent{ background:#dc3545; color:#fff; }
+      .top-meta-right{ display:flex; flex-direction:column; align-items:flex-end; gap:.32rem; }
+      .status-line{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.32rem; align-items:center; }
+      .urgent-control-wrap{ display:flex; align-items:flex-end; justify-content:flex-end; }
+      .urgent-mini-banner{ display:inline-flex; align-items:center; gap:.38rem; padding:.32rem .55rem; border-radius:999px; border:1px solid #f3c1c7; background:#fff7f8; color:#b42318; font-size:.73rem; font-weight:800; line-height:1; white-space:nowrap; cursor:pointer; user-select:none; }
+      .urgent-mini-banner input{ position:absolute; opacity:0; pointer-events:none; width:1px; height:1px; }
+      .urgent-flag-box{ width:10px; height:10px; border-radius:2px; border:1px solid #dc3545; background:#fff; flex:0 0 auto; }
+      .urgent-mini-banner.active .urgent-flag-box{ background:#dc3545; }
+      .urgent-mini-banner.active{ background:#fff1f2; }
+            .table-compact thead th{ font-size:.82rem; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
+      .table-compact td{ vertical-align:top; padding:.32rem .42rem; }
+      .rip-main{ min-width:360px; }
+      .rip-title{ font-size:.92rem; font-weight:700; line-height:1.15; }
+      .rip-code{ display:inline-block; min-width:68px; padding:.1rem .38rem; border-radius:999px; background:#f1f3f5; color:#495057; font-size:.74rem; font-weight:700; margin-right:.4rem; }
+      .rip-meta{ display:grid; grid-template-columns: 1.1fr .85fr .85fr; gap:.18rem .38rem; margin-top:.22rem; }
+      .rip-meta .meta-box{ background:#fafafa; border:1px solid rgba(0,0,0,.06); border-radius:.45rem; padding:.18rem .32rem; }
+      .rip-meta .meta-box label{ display:block; font-size:.65rem; color:#6c757d; margin-bottom:.08rem; text-transform:uppercase; letter-spacing:.02em; }
+      .rip-meta .meta-box input{ height:28px; font-size:.78rem; padding:.15rem .32rem; }
+      .row-status-pill{ font-size:.73rem; font-weight:700; border-radius:999px; padding:.18rem .5rem; display:inline-block; }
+      .row-status-DA_FARE{ background:#f8d7da; color:#842029; }
+      .row-status-IN_LAVORAZIONE{ background:#fff3cd; color:#664d03; }
+      .row-status-COMPLETATA{ background:#d1e7dd; color:#0f5132; }
+      .table-compact tr.row-urgent{ box-shadow: inset 4px 0 0 #dc3545; }
+      .table-compact tr.row-complete{ background:#fbfffc; }
+      .table-compact tr.row-working{ background:#fffdf7; }
+      .table-compact tr.row-todo{ background:#fffafb; }
+      .table-compact tr.row-off td{ opacity:.72; }
+      .price-input{ width:110px; min-width:110px; }
+      .status-select{ min-width:155px; }
+      .line-progress-wrap{ min-width:120px; }
+      .toolbar-badges{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.3rem; }
+      .btn-quiet{ border-color:rgba(0,0,0,.12); color:#6c757d; background:#fff; }
+      .btn-quiet:hover{ border-color:rgba(0,0,0,.22); color:#212529; background:#f8f9fa; }
+      body:not(.edit-unlocked) [data-editable="1"]{ cursor:not-allowed; }
     </style>
   </head>
   <body>
@@ -45,9 +65,11 @@
           <img src="logo-elip.jpg" class="brand-logo" alt="ELIP">
           <span class="navbar-brand mb-0 h1">PREVENTIVO</span>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
           <button class="btn btn-outline-secondary" id="btnBack">Indietro</button>
           <button class="btn btn-outline-secondary" id="btnOpenRecord">Scheda</button>
+          <button class="btn btn-outline-secondary" id="btnUnlock">🔒 Sblocca modifiche</button>
+                    <button class="btn btn-sm btn-quiet" id="btnDelete" title="Cancella preventivo">🗑</button>
           <button class="btn btn-orange" id="btnSave">Salva</button>
         </div>
       </div>
@@ -59,25 +81,31 @@
 
       <div class="card shadow-sm mb-3">
         <div class="card-body">
-          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
             <div>
               <div class="small text-muted">Cliente</div>
               <div class="h5 mb-0" id="recCliente">—</div>
               <div class="text-muted" id="recDesc">—</div>
               <div class="small text-muted" id="recModel"></div>
             </div>
-            <div class="text-end">
-              <div class="mb-2">Stato: <span id="quoteStatusBadge" class="badge bg-secondary">BOZZA</span></div>
+            <div class="top-meta-right">
+              <div class="status-line">
+                <span id="quoteStatusBadge" class="badge bg-secondary">BOZZA</span>
+                <span id="urgentMiniBannerTop" class="urgent-mini-banner" style="display:none;">
+                  <span class="urgent-flag-box"></span>
+                  <span>URGENTE</span>
+                </span>
+                <span id="lockState" class="badge bg-secondary">SOLO LETTURA</span>
+              </div>
+              <div id="dirtyState" class="small text-muted">Salvato</div>
               <div class="small text-muted">ID Preventivo</div>
               <div class="smallmono" id="quoteId">—</div>
             </div>
           </div>
 
-          <hr>
-
-          <div class="row g-2">
-            <div class="col-md-3">
-              <label class="form-label">Stato</label>
+          <div class="top-grid">
+            <div class="mini-field">
+              <label>Stato</label>
               <select id="status" class="form-select">
                 <option value="BOZZA">BOZZA</option>
                 <option value="INVIATO">INVIATO</option>
@@ -85,64 +113,64 @@
                 <option value="ANNULLATO">ANNULLATO</option>
               </select>
             </div>
-            <div class="col-md-3">
-              <label class="form-label">Data invio</label>
+            <div class="mini-field">
+              <label>Data invio</label>
               <input id="sent_at" type="date" class="form-control">
             </div>
-            <div class="col-md-3">
-              <label class="form-label">Data accettazione</label>
+            <div class="mini-field">
+              <label>Accettazione</label>
               <input id="accepted_at" type="date" class="form-control">
             </div>
-            <div class="col-md-3">
-              <label class="form-label">Tempi consegna (gg)</label>
+            <div class="mini-field">
+              <label>Consegna gg</label>
               <input id="delivery_days" type="number" min="0" step="1" class="form-control" placeholder="es. 10">
             </div>
-            <div class="col-md-3">
-              <label class="form-label">Data consegna (opz.)</label>
+            <div class="mini-field">
+              <label>Data scadenza</label>
               <input id="delivery_date" type="date" class="form-control">
-              <div class="form-text">Se compili la data, prevale sui giorni.</div>
             </div>
-            <div class="col-md-3 urgent-wrap">
-              <label class="urgent-inline mb-2" for="urgentFlag">
-                <input id="urgentFlag" type="checkbox">
-                <span class="urgent-inline-box"></span>
-                <span class="urgent-inline-text">URGENTE</span>
+            <div class="mini-field urgent-control-wrap">
+              <label id="urgentMiniBanner" class="urgent-mini-banner" title="Segna preventivo urgente">
+                <input type="checkbox" id="is_urgent">
+                <span class="urgent-flag-box"></span>
+                <span>URGENTE</span>
               </label>
             </div>
-            <div class="col-md-6">
-              <label class="form-label">Note</label>
-              <input id="notes" class="form-control" placeholder="Note interne / note al cliente…">
-            </div>
+          </div>
+
+
+          <div class="mini-note mt-2">
+            <label class="form-label mb-1">Note</label>
+            <input id="notes" class="form-control" placeholder="Note interne / note al cliente…">
           </div>
 
           <div class="mt-3">
             <div class="d-flex justify-content-between small"><span>Avanzamento preventivo</span><span id="quoteProgressTxt">0%</span></div>
             <div class="progbar"><div id="quoteProgBar"></div></div>
-            <div class="small text-muted mt-1" id="dueLabel">—</div>
+            <div class="small mt-1" id="dueLabel">—</div>
           </div>
         </div>
       </div>
 
       <div class="card shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <strong>Lavorazioni Riparazione</strong>
-          <div class="small text-muted">Seleziona le voci RIP e inserisci solo il prezzo (IVA esclusa).</div>
+          <strong>Voci RIP</strong>
+          <div class="small text-muted">Tabella compatta: sotto ogni voce trovi operatore, data inizio e data fine.</div>
         </div>
         <div class="card-body">
           <div class="table-responsive">
-            <table class="table table-app align-middle">
+            <table class="table table-app table-compact align-middle">
               <thead>
                 <tr>
-                  <th>Lavorazione</th>
-                  <th style="width:90px;">Cod.</th>
-                  <th style="width:44px;"></th>
-                  <th class="w-price text-end">Prezzo (IVA escl.)</th>
-                  <th style="width:190px;">Stato</th>
-                  <th style="min-width:170px;">Avanz.</th>
+                  <th style="width:40px;"></th>
+                  <th>Voce RIP</th>
+                  <th style="width:180px;">Stato</th>
+                  <th style="width:140px;">Prezzo</th>
+                  <th style="width:150px;">Avanz.</th>
                 </tr>
               </thead>
               <tbody id="taskRows">
-                <tr><td colspan="6" class="text-center py-4 text-muted">Caricamento…</td></tr>
+                <tr><td colspan="5" class="text-center py-4 text-muted">Caricamento…</td></tr>
               </tbody>
             </table>
           </div>
@@ -157,7 +185,6 @@
         </div>
       </div>
     </div>
-
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
