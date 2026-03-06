@@ -97,7 +97,7 @@
     $('is_urgent')?.addEventListener('change', ()=>{ quoteState.is_urgent=!!$('is_urgent').checked; touch(); renderTasks(); });
     window.addEventListener('beforeunload', ev=>{ if(isSaving || !isDirty()) return; ev.preventDefault(); ev.returnValue=''; });
   }
-  function renderEditState(){ document.body.classList.toggle('edit-unlocked', isEditUnlocked); $('btnSave').disabled=!isEditUnlocked; if($('btnDelete')) $('btnDelete').disabled=!currentQuoteId || !isEditUnlocked; if($('btnDuplicate')) $('btnDuplicate').disabled=!currentQuoteId || !isEditUnlocked; $('btnUnlock').textContent=isEditUnlocked?'🔓 Modifica attiva':'🔒 Sblocca modifiche'; $('lockState').textContent=isEditUnlocked?'MODIFICA ATTIVA':'SOLO LETTURA'; $('lockState').className='badge '+(isEditUnlocked?'bg-success':'bg-secondary'); ['status','sent_at','accepted_at','delivery_days','delivery_date','notes','is_urgent'].forEach(id=>{ const el=$(id); if(!el) return; el.disabled=!isEditUnlocked; }); document.querySelectorAll('[data-editable="1"]').forEach(el=>{ el.disabled=!isEditUnlocked; }); }
+  function renderEditState(){ document.body.classList.toggle('edit-unlocked', isEditUnlocked); $('btnSave').disabled=!isEditUnlocked; if($('btnDelete')) $('btnDelete').disabled=!currentQuoteId || !isEditUnlocked; $('btnUnlock').textContent=isEditUnlocked?'🔓 Modifica attiva':'🔒 Sblocca modifiche'; $('lockState').textContent=isEditUnlocked?'MODIFICA ATTIVA':'SOLO LETTURA'; $('lockState').className='badge '+(isEditUnlocked?'bg-success':'bg-secondary'); ['status','sent_at','accepted_at','delivery_days','delivery_date','notes','is_urgent'].forEach(id=>{ const el=$(id); if(!el) return; el.disabled=!isEditUnlocked; }); document.querySelectorAll('[data-editable="1"]').forEach(el=>{ el.disabled=!isEditUnlocked; }); }
   function touch(){ recalcTotals(); renderQuoteHeader(); renderDirtyState(); }
   function renderDirtyState(){ const dirty=isDirty(); $('dirtyState').textContent=dirty?'Modifiche non salvate':'Salvato'; $('dirtyState').className='small '+(dirty?'text-danger':'text-muted'); }
   function renderAll(){ renderQuoteHeader(); renderTasks(); renderEditState(); renderDirtyState(); }
@@ -120,23 +120,6 @@
     });
   }
   function recalcTotals(){ let subtotal=0, weightedProg=0, weightedBase=0; getSelectedItems().forEach(it=>{ const line=Number(it.unit_price_ex_vat||0)*Number(it.qty||1); it.line_total_ex_vat=line; it.line_progress_percent=statusMeta(it.work_status).pct; subtotal+=line; weightedBase+=line; weightedProg+=line*(it.line_progress_percent/100); }); const vat=subtotal*(VAT_RATE/100); const grand=subtotal+vat; const prog=weightedBase>0?(weightedProg/weightedBase)*100:0; quoteState.subtotal_ex_vat=subtotal; quoteState.vat_rate=VAT_RATE; quoteState.vat_total=vat; quoteState.grand_total=grand; quoteState.progress_percent=prog; $('subtotal').textContent=`€ ${fmtMoney(subtotal)}`; $('vat').textContent=`€ ${fmtMoney(vat)}`; $('grand').textContent=`€ ${fmtMoney(grand)}`; $('quoteProgressTxt').textContent=`${Math.round(prog)}%`; $('quoteProgBar').style.width=`${Math.max(0, Math.min(100, prog))}%`; }
-
-  async function duplicateQuote(){
-    if(!currentQuoteId){ showErr('Salva prima il preventivo da duplicare.'); return; }
-    if(!isEditUnlocked){ showErr('Prima sblocca le modifiche con la password.'); return; }
-    clearErr();
-    try{
-      recalcTotals();
-      const suffix = (quoteState.notes||'').includes('[VARIANTE]') ? '' : (quoteState.notes ? ' [VARIANTE]' : '[VARIANTE]');
-      const qPayload={ record_id:quoteState.record_id, status:'BOZZA', sent_at:null, accepted_at:null, delivery_days:quoteState.delivery_days===''?null:parseInt(quoteState.delivery_days,10), delivery_date:quoteState.delivery_date||null, notes:(quoteState.notes||'') + suffix, is_urgent:!!quoteState.is_urgent, subtotal_ex_vat:Number(quoteState.subtotal_ex_vat||0), vat_rate:VAT_RATE, vat_total:Number(quoteState.vat_total||0), grand_total:Number(quoteState.grand_total||0), progress_percent:Number(quoteState.progress_percent||0) };
-      const { data: newQuote, error: e1 } = await sb.from('quotes').insert(qPayload).select().single();
-      if(e1) throw e1;
-      const currentItems=WORKS.map((w,idx)=>{ const it=quoteState.items[w.code]; if(!it) return null; return { quote_id:newQuote.id, position:idx, rip_code:w.code, description:w.free?(it.description||''):w.text, qty:1, unit_price_ex_vat:Number(it.unit_price_ex_vat||0), line_total_ex_vat:Number(it.line_total_ex_vat||0), line_progress_percent:Number(it.line_progress_percent||0), work_status:it.work_status||'DA_FARE', operatore:it.operatore||null, started_at:it.started_at||null, finished_at:it.finished_at||null }; }).filter(Boolean);
-      if(currentItems.length){ const { error: e2 } = await sb.from('quote_items').insert(currentItems); if(e2) throw e2; }
-      showOk('Preventivo duplicato');
-      location.href='preventivo.html?id='+encodeURIComponent(newQuote.id);
-    }catch(e){ showErr('Errore duplicazione preventivo: ' + (e?.message||e)); }
-  }
 
   async function deleteQuote(){
     if(!currentQuoteId){ showErr('Questo preventivo non è ancora salvato.'); return; }

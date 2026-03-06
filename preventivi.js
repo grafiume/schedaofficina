@@ -19,7 +19,7 @@
     return {label:`${q.is_urgent?'URGENTE • ':''}mancano ${diff} gg`, sub:fmtDate(expected), urgent:!!q.is_urgent, days:diff, tone:'due-ok', chip:`${diff} gg`};
   }
   function badge(status){ const s=(status||'').toUpperCase(); if(s==='ACCETTATO') return '<span class="badge bg-success">ACCETTATO</span>'; if(s==='INVIATO') return '<span class="badge bg-primary">INVIATO</span>'; if(s==='BOZZA') return '<span class="badge bg-secondary">BOZZA</span>'; if(s==='ANNULLATO') return '<span class="badge bg-danger">ANNULLATO</span>'; return `<span class="badge bg-secondary">${escapeHtml(s||'—')}</span>`; }
-  function isMeaningfulQuote(q){ return Number(q.subtotal_ex_vat||0) > 0 || (q.item_count||0) > 0 || !!q.notes || !!q.sent_at || !!q.accepted_at || !!q.delivery_days || !!q.delivery_date || !!q.is_urgent || ((q.status||'') !== 'BOZZA'); }
+  function isMeaningfulQuote(q){ return Number(q.subtotal_ex_vat||0) > 0 || !!q.notes || !!q.sent_at || !!q.accepted_at || !!q.delivery_days || !!q.delivery_date || !!q.is_urgent || ((q.status||'') !== 'BOZZA'); }
   let sb;
   async function load(){
     clearErr();
@@ -27,7 +27,7 @@
     try{
       if(!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){ showErr('Config Supabase mancante.'); return; }
       sb = sb || window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-      const qTxt=norm($('q')?.value); const status=$('status')?.value || ''; const order=$('order')?.value || 'urgent_first'; const urgentFilter=$('urgentFilter')?.value || '';
+      const qTxt=norm($('q')?.value); const status=$('status')?.value || ''; const order=$('order')?.value || 'urgent_first'; const urgentFilter=$('urgentFilter')?.value || ''; const dueFilter=$('dueFilter')?.value || ''; 
       let query = sb.from('quotes').select('id,record_id,status,is_urgent,sent_at,accepted_at,delivery_days,delivery_date,subtotal_ex_vat,progress_percent,created_at,notes,quote_items(id),records:records(id,cliente,descrizione,modello)').limit(500);
       if(status) query = query.eq('status', status); else query = query.in('status', ['BOZZA','INVIATO','ACCETTATO','ANNULLATO']);
       if(order==='accepted_asc') query=query.order('accepted_at',{ascending:true,nullsFirst:false});
@@ -45,7 +45,8 @@
       if(qTxt){ rows=rows.filter(x=>norm(`${x.cliente} ${x.descrizione} ${x.modello}`).includes(qTxt)); }
       if(urgentFilter==='urgent') rows=rows.filter(x=>x.is_urgent);
       if(urgentFilter==='normal') rows=rows.filter(x=>!x.is_urgent);
-      if(order==='urgent_first') rows.sort((a,b)=> (Number(b.is_urgent)-Number(a.is_urgent)) || (new Date(b.created_at)-new Date(a.created_at)) );
+      if(dueFilter){ rows=rows.filter(x=>{ const d=computeDue(x); if(dueFilter==='overdue') return d.days !== null && d.days < 0; if(dueFilter==='today') return d.days === 0; if(dueFilter==='tomorrow') return d.days === 1; if(dueFilter==='ontime') return d.days !== null && d.days > 1; return true; }); }
+      if(order==='urgent_first') rows.sort((a,b)=> (Number(b.is_urgent)-Number(a.is_urgent)) || ((computeDue(a).days??99999)-(computeDue(b).days??99999)) || (new Date(b.created_at)-new Date(a.created_at)) );
       render(rows);
     }catch(e){ showErr('Errore caricamento preventivi: ' + (e?.message||e)); if(tbody) tbody.innerHTML='<tr><td colspan="8" class="text-center py-4 text-muted">Nessun dato</td></tr>'; }
   }
