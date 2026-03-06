@@ -57,6 +57,12 @@
 
   function statusMeta(v){ return STATUS.find(x=>x.v===v) || STATUS[0]; }
 
+  function autoStatusFromDates(item){
+    if(item?.finished_at) return 'COMPLETATA';
+    if(item?.started_at) return 'IN_LAVORAZIONE';
+    return item?.work_status || 'DA_FARE';
+  }
+
   function today0(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
   function fmtDateISO(d){
     const x = (d instanceof Date) ? d : new Date(d);
@@ -235,7 +241,10 @@
           description: x.description,
           unit_price_ex_vat: x.unit_price_ex_vat,
           qty: x.qty,
-          work_status: x.work_status || 'DA_FARE'
+          work_status: x.work_status || 'DA_FARE',
+          operator_department: x.operator_department || '',
+          started_at: x.started_at || '',
+          finished_at: x.finished_at || ''
         });
       }
     });
@@ -388,14 +397,16 @@
         o.textContent = s.label;
         sel.appendChild(o);
       });
-      sel.value = item?.work_status || 'DA_FARE';
+      sel.value = autoStatusFromDates(item);
       sel.disabled = !checked;
       sel.addEventListener('change', ()=>{
         const it = itemsByCode.get(w.code);
         if(!it) return;
         it.work_status = sel.value;
+        if(sel.value==='DA_FARE'){ it.started_at=''; it.finished_at=''; }
+        else if(sel.value==='IN_LAVORAZIONE'){ if(!it.started_at) it.started_at = new Date().toISOString().slice(0,10); it.finished_at=''; }
+        else if(sel.value==='COMPLETATA'){ if(!it.started_at) it.started_at = new Date().toISOString().slice(0,10); if(!it.finished_at) it.finished_at = new Date().toISOString().slice(0,10); }
         recalcTotals();
-        // aggiorna barra subito
         renderTasks();
       });
       tdSt.appendChild(sel);
@@ -403,7 +414,7 @@
 
       // avanzamento bar
       const tdProg = document.createElement('td');
-      const meta = statusMeta(item?.work_status || 'DA_FARE');
+      const meta = statusMeta(autoStatusFromDates(item));
       const pct = checked ? meta.pct : 0;
       const bar = document.createElement('div');
       bar.className = 'linebar';
@@ -420,6 +431,80 @@
       tr.appendChild(tdProg);
 
       tb.appendChild(tr);
+
+      if(checked){
+        const detailTr = document.createElement('tr');
+        detailTr.className = 'detail-row';
+        const detailTd = document.createElement('td');
+        detailTd.colSpan = 6;
+
+        const wrap = document.createElement('div');
+        wrap.className = 'detail-grid';
+
+        const colOp = document.createElement('div');
+        const labOp = document.createElement('label');
+        labOp.className = 'form-label';
+        labOp.textContent = 'Operatore / Reparto';
+        const inpOp = document.createElement('input');
+        inpOp.className = 'form-control';
+        inpOp.placeholder = 'Nome operatore o reparto';
+        inpOp.value = item?.operator_department || '';
+        inpOp.addEventListener('input', ()=>{
+          const it = itemsByCode.get(w.code);
+          if(!it) return;
+          it.operator_department = inpOp.value;
+        });
+        colOp.appendChild(labOp);
+        colOp.appendChild(inpOp);
+
+        const colStart = document.createElement('div');
+        const labStart = document.createElement('label');
+        labStart.className = 'form-label';
+        labStart.textContent = 'Data inizio';
+        const inpStart = document.createElement('input');
+        inpStart.type = 'date';
+        inpStart.className = 'form-control';
+        inpStart.value = item?.started_at || '';
+        inpStart.addEventListener('change', ()=>{
+          const it = itemsByCode.get(w.code);
+          if(!it) return;
+          it.started_at = inpStart.value || '';
+          if(!it.started_at) it.finished_at = '';
+          it.work_status = autoStatusFromDates(it);
+          recalcTotals();
+          renderTasks();
+        });
+        colStart.appendChild(labStart);
+        colStart.appendChild(inpStart);
+
+        const colEnd = document.createElement('div');
+        const labEnd = document.createElement('label');
+        labEnd.className = 'form-label';
+        labEnd.textContent = 'Data fine';
+        const inpEnd = document.createElement('input');
+        inpEnd.type = 'date';
+        inpEnd.className = 'form-control';
+        inpEnd.value = item?.finished_at || '';
+        inpEnd.min = item?.started_at || '';
+        inpEnd.addEventListener('change', ()=>{
+          const it = itemsByCode.get(w.code);
+          if(!it) return;
+          if(inpEnd.value && !it.started_at) it.started_at = inpEnd.value;
+          it.finished_at = inpEnd.value || '';
+          it.work_status = autoStatusFromDates(it);
+          recalcTotals();
+          renderTasks();
+        });
+        colEnd.appendChild(labEnd);
+        colEnd.appendChild(inpEnd);
+
+        wrap.appendChild(colOp);
+        wrap.appendChild(colStart);
+        wrap.appendChild(colEnd);
+        detailTd.appendChild(wrap);
+        detailTr.appendChild(detailTd);
+        tb.appendChild(detailTr);
+      }
     });
   }
 
@@ -436,7 +521,10 @@
       unit_price_ex_vat: 0,
       line_total_ex_vat: 0,
       line_progress_percent: 0,
-      work_status: 'DA_FARE'
+      work_status: 'DA_FARE',
+      operator_department: '',
+      started_at: null,
+      finished_at: null
     };
 
     const { data, error } = await sb.from('quote_items').insert(payload).select().single();
@@ -448,7 +536,10 @@
       description: data.description,
       unit_price_ex_vat: data.unit_price_ex_vat,
       qty: data.qty,
-      work_status: data.work_status
+      work_status: data.work_status,
+      operator_department: data.operator_department || '',
+      started_at: data.started_at || '',
+      finished_at: data.finished_at || ''
     });
   }
 
@@ -474,7 +565,7 @@
       const lineTotal = price * qty;
       subtotal += lineTotal;
 
-      const pct = statusMeta(it.work_status).pct;
+      const pct = statusMeta(autoStatusFromDates(it)).pct;
       wSum += lineTotal;
       wProg += lineTotal * (pct/100);
     });
@@ -528,7 +619,8 @@
       WORKS.forEach((w, idx)=>{
         const it = itemsByCode.get(w.code);
         if(!it) return;
-        const pct = statusMeta(it.work_status).pct;
+        const currentStatus = autoStatusFromDates(it);
+        const pct = statusMeta(currentStatus).pct;
         const lineTotal = Number(it.unit_price_ex_vat||0) * Number(it.qty||1);
         updates.push({
           id: it.id,
@@ -539,7 +631,10 @@
           unit_price_ex_vat: Number(it.unit_price_ex_vat||0),
           line_total_ex_vat: lineTotal,
           line_progress_percent: pct,
-          work_status: it.work_status || 'DA_FARE'
+          work_status: currentStatus,
+          operator_department: (it.operator_department || '').trim() || null,
+          started_at: it.started_at || null,
+          finished_at: it.finished_at || null
         });
       });
 
