@@ -14,9 +14,7 @@
       .progbar{ height:8px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
       .progbar > div{ height:100%; background:#ff7a00; width:0%; }
       .row-urgent td{ background:#fff5f5; }
-      .mini-badge{ display:inline-flex; align-items:center; gap:.38rem; padding:.14rem .42rem; border-radius:.5rem; font-size:.73rem; font-weight:700; line-height:1; }
-      .mini-urgent{ background:#fff1f2; color:#9f1239; border:1px solid #f3b4bb; }
-      .mini-urgent::before{ content:""; width:8px; height:8px; border-radius:2px; background:#dc3545; display:inline-block; }
+      .urgent-tag{ display:inline-flex; align-items:center; padding:.16rem .48rem; border-radius:.42rem; font-size:.72rem; font-weight:800; line-height:1; letter-spacing:.02em; background:#fff1f2; color:#b42318; border:1px solid #f4c7cc; }
       .due-pill{ display:inline-block; padding:.18rem .46rem; border-radius:999px; font-size:.73rem; font-weight:700; }
       .due-over{ background:#f8d7da; color:#842029; }
       .due-today{ background:#fff3cd; color:#664d03; }
@@ -94,10 +92,10 @@
 
 
       <div class="row g-2 mt-1 mb-2" id="dashCards">
-        <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-due="overdue"><div class="small text-muted">Scaduti</div><div class="fs-5 fw-bold" id="dashOverdue">0</div></button></div>
-        <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-due="today"><div class="small text-muted">Oggi</div><div class="fs-5 fw-bold" id="dashToday">0</div></button></div>
-        <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-due="tomorrow"><div class="small text-muted">Domani</div><div class="fs-5 fw-bold" id="dashTomorrow">0</div></button></div>
-        <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-due="ontime"><div class="small text-muted">In tempo</div><div class="fs-5 fw-bold" id="dashOntime">0</div></button></div>
+        <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-dashboard="overdue"><div class="small text-muted">Preventivi scaduti</div><div class="fs-5 fw-bold" id="dashOverdue">0</div></button></div>
+        <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-dashboard="today"><div class="small text-muted">Preventivi oggi</div><div class="fs-5 fw-bold" id="dashToday">0</div></button></div>
+        <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-dashboard="urgent"><div class="small text-muted">Preventivi urgenti</div><div class="fs-5 fw-bold" id="dashUrgent">0</div></button></div>
+        <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-dashboard="accepted"><div class="small text-muted">Preventivi accettati</div><div class="fs-5 fw-bold" id="dashAccepted">0</div></button></div>
       </div>
 
       <div class="table-responsive mt-3">
@@ -119,7 +117,7 @@
         </table>
       </div>
 
-      <div class="small text-muted mt-2">Le bozze vuote non vengono mostrate per evitare falsi preventivi generati da modifiche involontarie. La scadenza evidenzia automaticamente scaduto, oggi e domani.</div>
+      <div class="small text-muted mt-2">Le bozze vuote non vengono mostrate per evitare falsi preventivi generati da modifiche involontarie. La scadenza mostra la data e i giorni rimanenti, evidenziando automaticamente scaduto, oggi e domani.</div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
