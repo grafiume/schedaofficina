@@ -56,12 +56,6 @@
   }
 
   function statusMeta(v){ return STATUS.find(x=>x.v===v) || STATUS[0]; }
-  function deriveStatus(it){
-    if(!it) return 'DA_FARE';
-    if(it.finished_at) return 'COMPLETATA';
-    if(it.started_at) return 'IN_LAVORAZIONE';
-    return it.work_status || 'DA_FARE';
-  }
 
   function today0(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
   function fmtDateISO(d){
@@ -133,65 +127,9 @@
     quote = data;
   }
 
-
-  async function chooseBestQuoteForRecord(record_id){
-    const { data, error } = await sb
-      .from('quotes')
-      .select('*')
-      .eq('record_id', String(record_id));
-    if(error) throw error;
-
-    const rows = Array.isArray(data) ? data : [];
-    const norm = (v)=> String(v || '').trim().toUpperCase();
-    const active = rows.filter(r => norm(r.status) !== 'ANNULLATO');
-    if(!active.length) return null;
-
-    const scoreDate = (r)=> new Date(r.accepted_at || r.sent_at || r.updated_at || r.created_at || 0).getTime();
-    const scoreDraftDate = (r)=> new Date(r.updated_at || r.created_at || 0).getTime();
-
-    const sentOrAccepted = active
-      .filter(r => ['INVIATO','ACCETTATO'].includes(norm(r.status)))
-      .sort((a,b)=> scoreDate(b)-scoreDate(a));
-    if(sentOrAccepted.length) return sentOrAccepted[0];
-
-    const ids = active.map(r=>r.id).filter(Boolean);
-    let counts = new Map();
-    if(ids.length){
-      const { data: itemsData } = await sb
-        .from('quote_items')
-        .select('quote_id')
-        .in('quote_id', ids);
-      for(const row of (itemsData||[])){
-        const k = row.quote_id;
-        counts.set(k, (counts.get(k)||0)+1);
-      }
-    }
-
-    const isMeaningful = (r)=> {
-      const n = counts.get(r.id) || 0;
-      return n > 0 || Number(r.subtotal_ex_vat||0) > 0 || Number(r.grand_total||0) > 0 || !!r.sent_at || !!r.accepted_at;
-    };
-
-    const drafts = active.filter(r => norm(r.status) === 'BOZZA' || !norm(r.status));
-    const meaningfulDrafts = drafts.filter(isMeaningful).sort((a,b)=> scoreDraftDate(b)-scoreDraftDate(a));
-    if(meaningfulDrafts.length) return meaningfulDrafts[0];
-
-    return drafts.sort((a,b)=> scoreDraftDate(b)-scoreDraftDate(a))[0] || null;
-  }
-
   async function loadOrCreateQuoteForRecord(record_id){
-    // Comportamento definitivo richiesto:
-    // 1) Se esiste un preventivo INVIATO o ACCETTATO -> apri quello più recente
-    // 2) Altrimenti, se esiste una BOZZA -> apri l'ultima BOZZA
-    // 3) Se non esiste nulla -> crea una nuova BOZZA
-    // Nota: carichiamo tutte le righe del record e decidiamo in JS per evitare filtri DB troppo rigidi.
-
-    quote = await chooseBestQuoteForRecord(record_id);
-
-    // 3) Se non esiste nulla, crea una BOZZA nuova
-    if(!quote){
-      quote = await createNewQuote(record_id);
-    }
+    const chosen = await findBestQuoteForRecord(record_id);
+    quote = chosen || await createNewQuote(record_id);
 
     try{
       const u = new URL(location.href);
@@ -199,6 +137,70 @@
       u.searchParams.set('id', quote.id);
       history.replaceState({}, '', u.toString());
     }catch{}
+  }
+
+  async function findBestQuoteForRecord(record_id){
+    // 1) Preferisci sempre un preventivo già formalizzato
+    {
+      const { data, error } = await sb
+        .from('quotes')
+        .select('*')
+        .eq('record_id', record_id)
+        .in('status', ['INVIATO','ACCETTATO'])
+        .order('accepted_at', { ascending:false, nullsFirst:false })
+        .order('sent_at', { ascending:false, nullsFirst:false })
+        .order('created_at', { ascending:false })
+        .limit(1);
+      if(error) throw error;
+      if(data && data.length) return data[0];
+    }
+
+    // 2) Se non c'è, tra le BOZZE scegli quella veramente compilata
+    {
+      const { data, error } = await sb
+        .from('quotes')
+        .select('*')
+        .eq('record_id', record_id)
+        .eq('status', 'BOZZA')
+        .order('updated_at', { ascending:false, nullsFirst:false })
+        .order('created_at', { ascending:false })
+        .limit(50);
+      if(error) throw error;
+      const drafts = data || [];
+      if(drafts.length){
+        const ids = drafts.map(x=>x.id);
+        const { data: items, error: itemsErr } = await sb
+          .from('quote_items')
+          .select('quote_id')
+          .in('quote_id', ids)
+          .limit(1000);
+        if(itemsErr) throw itemsErr;
+
+        const itemCount = new Map();
+        (items || []).forEach(it=> itemCount.set(it.quote_id, (itemCount.get(it.quote_id)||0)+1));
+
+        const scored = drafts.map(q=>{
+          const hasItems = (itemCount.get(q.id)||0) > 0;
+          const hasMoney = Number(q.subtotal_ex_vat||0) > 0 || Number(q.grand_total||0) > 0;
+          const hasDates = !!(q.sent_at || q.accepted_at || q.delivery_date || q.delivery_days);
+          const hasNotes = !!String(q.notes||'').trim();
+          return {
+            q,
+            score: (hasItems?1000:0) + (hasMoney?100:0) + (hasDates?10:0) + (hasNotes?1:0)
+          };
+        }).sort((a,b)=>{
+          if(b.score !== a.score) return b.score - a.score;
+          const bu = new Date(b.q.updated_at || b.q.created_at || 0).getTime();
+          const au = new Date(a.q.updated_at || a.q.created_at || 0).getTime();
+          return bu - au;
+        });
+
+        if(scored[0]) return scored[0].q;
+      }
+    }
+
+    // 3) Nessun preventivo presente
+    return null;
   }
 
   async function createNewQuote(record_id){
@@ -245,10 +247,7 @@
           description: x.description,
           unit_price_ex_vat: x.unit_price_ex_vat,
           qty: x.qty,
-          work_status: x.work_status || 'DA_FARE',
-          operator_department: x.operator_department || '',
-          started_at: x.started_at || '',
-          finished_at: x.finished_at || ''
+          work_status: x.work_status || 'DA_FARE'
         });
       }
     });
@@ -391,77 +390,37 @@
       tdPrice.appendChild(price);
       tr.appendChild(tdPrice);
 
-      // operatore / reparto
-      const tdOp = document.createElement('td');
-      const op = document.createElement('input');
-      op.type = 'text';
-      op.className = 'form-control';
-      op.placeholder = 'Operatore / Reparto';
-      op.value = item?.operator_department || '';
-      op.disabled = !checked;
-      op.addEventListener('input', ()=>{
-        const it = itemsByCode.get(w.code);
-        if(!it) return;
-        it.operator_department = op.value;
-      });
-      tdOp.appendChild(op);
-      tr.appendChild(tdOp);
-
-      // data inizio
-      const tdStart = document.createElement('td');
-      const startInp = document.createElement('input');
-      startInp.type = 'date';
-      startInp.className = 'form-control';
-      startInp.value = item?.started_at || '';
-      startInp.disabled = !checked;
-      startInp.addEventListener('change', ()=>{
-        const it = itemsByCode.get(w.code);
-        if(!it) return;
-        it.started_at = startInp.value || '';
-        if(it.finished_at && !it.started_at) it.started_at = it.finished_at;
-        it.work_status = deriveStatus(it);
-        renderTasks();
-        recalcTotals();
-      });
-      tdStart.appendChild(startInp);
-      tr.appendChild(tdStart);
-
-      // data fine
-      const tdEnd = document.createElement('td');
-      const endInp = document.createElement('input');
-      endInp.type = 'date';
-      endInp.className = 'form-control';
-      endInp.value = item?.finished_at || '';
-      endInp.disabled = !checked;
-      endInp.addEventListener('change', ()=>{
-        const it = itemsByCode.get(w.code);
-        if(!it) return;
-        it.finished_at = endInp.value || '';
-        if(it.finished_at && !it.started_at) it.started_at = it.finished_at;
-        it.work_status = deriveStatus(it);
-        renderTasks();
-        recalcTotals();
-      });
-      tdEnd.appendChild(endInp);
-      tr.appendChild(tdEnd);
-
-      // stato (derivato dalle date)
+      // stato select
       const tdSt = document.createElement('td');
-      const currentStatus = checked ? deriveStatus(item) : 'DA_FARE';
-      const stBadge = document.createElement('span');
-      stBadge.className = 'badge ' + (currentStatus==='COMPLETATA' ? 'bg-success' : currentStatus==='IN_LAVORAZIONE' ? 'text-dark bg-warning' : 'bg-danger');
-      stBadge.textContent = currentStatus.replaceAll('_',' ');
-      tdSt.appendChild(stBadge);
+      const sel = document.createElement('select');
+      sel.className = 'form-select';
+      STATUS.forEach(s=>{
+        const o = document.createElement('option');
+        o.value = s.v;
+        o.textContent = s.label;
+        sel.appendChild(o);
+      });
+      sel.value = item?.work_status || 'DA_FARE';
+      sel.disabled = !checked;
+      sel.addEventListener('change', ()=>{
+        const it = itemsByCode.get(w.code);
+        if(!it) return;
+        it.work_status = sel.value;
+        recalcTotals();
+        // aggiorna barra subito
+        renderTasks();
+      });
+      tdSt.appendChild(sel);
       tr.appendChild(tdSt);
 
       // avanzamento bar
       const tdProg = document.createElement('td');
-      const meta = statusMeta(currentStatus);
+      const meta = statusMeta(item?.work_status || 'DA_FARE');
       const pct = checked ? meta.pct : 0;
       const bar = document.createElement('div');
       bar.className = 'linebar';
       const fill = document.createElement('div');
-      const wPct = checked ? Math.max(5, pct) : 0;
+      const wPct = checked ? Math.max(5, pct) : 0; // visibile anche se DA_FARE
       fill.style.width = checked ? `${wPct}%` : '0%';
       fill.className = `st-${meta.v}`;
       bar.appendChild(fill);
@@ -489,29 +448,10 @@
       unit_price_ex_vat: 0,
       line_total_ex_vat: 0,
       line_progress_percent: 0,
-      work_status: 'DA_FARE',
-      operator_department: '',
-      started_at: null,
-      finished_at: null
+      work_status: 'DA_FARE'
     };
 
-    let data, error;
-    ({ data, error } = await sb.from('quote_items').insert(payload).select().single());
-    if(error){
-      // compatibilità con DB non ancora aggiornato: ritenta senza le colonne nuove
-      const fallback = {
-        quote_id: quote.id,
-        position: idx,
-        rip_code: w.code,
-        description: desc,
-        qty: 1,
-        unit_price_ex_vat: 0,
-        line_total_ex_vat: 0,
-        line_progress_percent: 0,
-        work_status: 'DA_FARE'
-      };
-      ({ data, error } = await sb.from('quote_items').insert(fallback).select().single());
-    }
+    const { data, error } = await sb.from('quote_items').insert(payload).select().single();
     if(error) throw error;
 
     itemsByCode.set(w.code, {
@@ -520,10 +460,7 @@
       description: data.description,
       unit_price_ex_vat: data.unit_price_ex_vat,
       qty: data.qty,
-      work_status: data.work_status,
-      operator_department: data.operator_department || '',
-      started_at: data.started_at || '',
-      finished_at: data.finished_at || ''
+      work_status: data.work_status
     });
   }
 
@@ -549,7 +486,7 @@
       const lineTotal = price * qty;
       subtotal += lineTotal;
 
-      const pct = statusMeta(deriveStatus(it)).pct;
+      const pct = statusMeta(it.work_status).pct;
       wSum += lineTotal;
       wProg += lineTotal * (pct/100);
     });
@@ -603,7 +540,7 @@
       WORKS.forEach((w, idx)=>{
         const it = itemsByCode.get(w.code);
         if(!it) return;
-        const pct = statusMeta(deriveStatus(it)).pct;
+        const pct = statusMeta(it.work_status).pct;
         const lineTotal = Number(it.unit_price_ex_vat||0) * Number(it.qty||1);
         updates.push({
           id: it.id,
@@ -614,33 +551,17 @@
           unit_price_ex_vat: Number(it.unit_price_ex_vat||0),
           line_total_ex_vat: lineTotal,
           line_progress_percent: pct,
-          work_status: deriveStatus(it),
-          operator_department: it.operator_department || null,
-          started_at: it.started_at || null,
-          finished_at: it.finished_at || null
+          work_status: it.work_status || 'DA_FARE'
         });
       });
 
       // aggiorna in batch
       for(const u of updates){
-        let { error } = await sb.from('quote_items').update(u).eq('id', u.id);
-        if(error){
-          const fallback = {
-            position: u.position,
-            rip_code: u.rip_code,
-            description: u.description,
-            qty: u.qty,
-            unit_price_ex_vat: u.unit_price_ex_vat,
-            line_total_ex_vat: u.line_total_ex_vat,
-            line_progress_percent: u.line_progress_percent,
-            work_status: u.work_status
-          };
-          ({ error } = await sb.from('quote_items').update(fallback).eq('id', u.id));
-        }
+        const { error } = await sb.from('quote_items').update(u).eq('id', u.id);
         if(error) throw error;
       }
 
-      showOk('Salvato correttamente');
+      showOk('Salvato');
       await loadItems();
       renderAll();
 

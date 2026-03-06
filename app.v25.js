@@ -53,6 +53,60 @@ const sb = (typeof supabase!=='undefined')
   ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
   : null;
 
+async function findBestQuoteIdForRecord(recordId){
+  if(!sb || !recordId) return null;
+
+  {
+    const { data, error } = await sb
+      .from('quotes')
+      .select('id,status,accepted_at,sent_at,created_at')
+      .eq('record_id', recordId)
+      .in('status', ['ACCETTATO','INVIATO'])
+      .order('accepted_at', { ascending:false, nullsFirst:false })
+      .order('sent_at', { ascending:false, nullsFirst:false })
+      .order('created_at', { ascending:false })
+      .limit(1);
+    if(error) throw error;
+    if(data && data.length) return data[0].id;
+  }
+
+  {
+    const { data, error } = await sb
+      .from('quotes')
+      .select('id,status,subtotal_ex_vat,grand_total,sent_at,accepted_at,delivery_date,delivery_days,notes,updated_at,created_at')
+      .eq('record_id', recordId)
+      .eq('status', 'BOZZA')
+      .order('updated_at', { ascending:false, nullsFirst:false })
+      .order('created_at', { ascending:false })
+      .limit(50);
+    if(error) throw error;
+    const drafts = data || [];
+    if(drafts.length){
+      const ids = drafts.map(x=>x.id);
+      const { data: items, error: itemsErr } = await sb
+        .from('quote_items')
+        .select('quote_id')
+        .in('quote_id', ids)
+        .limit(1000);
+      if(itemsErr) throw itemsErr;
+      const itemCount = new Map();
+      (items || []).forEach(it=> itemCount.set(it.quote_id, (itemCount.get(it.quote_id)||0)+1));
+      drafts.sort((a,b)=>{
+        const score = q => ((itemCount.get(q.id)||0)>0 ? 1000 : 0)
+          + ((Number(q.subtotal_ex_vat||0)>0 || Number(q.grand_total||0)>0) ? 100 : 0)
+          + ((q.sent_at||q.accepted_at||q.delivery_date||q.delivery_days) ? 10 : 0)
+          + (String(q.notes||'').trim() ? 1 : 0);
+        const ds = score(b) - score(a);
+        if(ds) return ds;
+        return new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
+      });
+      if(drafts[0]) return drafts[0].id;
+    }
+  }
+
+  return null;
+}
+
 // ----------------- Storage helpers -----------------
 const bucket='photos';
 const _pubUrlCache=new Map();
@@ -452,59 +506,21 @@ function openEdit(id){
   show('page-edit');
   refreshGallery(r.id);
 
-  // Preventivo collegato al record: apri sempre quello giusto del record
+  // Preventivo collegato al record
   const qBtn=document.getElementById('btnQuoteOpen');
   if(qBtn){
     qBtn.onclick=async ()=>{
       try{
-        const { data, error } = await sb
-          .from('quotes')
-          .select('id,status,sent_at,accepted_at,updated_at,created_at,subtotal_ex_vat,grand_total')
-          .eq('record_id', String(r.id));
-        if(error) throw error;
-        const rows = Array.isArray(data) ? data : [];
-        const norm = (v)=> String(v || '').trim().toUpperCase();
-        const active = rows.filter(x => norm(x.status) !== 'ANNULLATO');
-        const scoreDate = (x)=> new Date(x.accepted_at || x.sent_at || x.updated_at || x.created_at || 0).getTime();
-        const scoreDraftDate = (x)=> new Date(x.updated_at || x.created_at || 0).getTime();
-
-        const sentOrAccepted = active
-          .filter(x => ['INVIATO','ACCETTATO'].includes(norm(x.status)))
-          .sort((a,b)=> scoreDate(b)-scoreDate(a));
-        if(sentOrAccepted.length){
-          location.href = 'preventivo.html?id=' + encodeURIComponent(sentOrAccepted[0].id);
-          return;
-        }
-
-        const ids = active.map(x=>x.id).filter(Boolean);
-        let counts = new Map();
-        if(ids.length){
-          const { data: itemsData } = await sb.from('quote_items').select('quote_id').in('quote_id', ids);
-          for(const row of (itemsData||[])){
-            counts.set(row.quote_id, (counts.get(row.quote_id)||0)+1);
-          }
-        }
-
-        const drafts = active.filter(x => norm(x.status) === 'BOZZA' || !norm(x.status));
-        const meaningfulDrafts = drafts
-          .filter(x => (counts.get(x.id)||0) > 0 || Number(x.subtotal_ex_vat||0) > 0 || Number(x.grand_total||0) > 0 || !!x.sent_at || !!x.accepted_at)
-          .sort((a,b)=> scoreDraftDate(b)-scoreDraftDate(a));
-        if(meaningfulDrafts.length){
-          location.href = 'preventivo.html?id=' + encodeURIComponent(meaningfulDrafts[0].id);
-          return;
-        }
-
-        const draftSorted = drafts.sort((a,b)=> scoreDraftDate(b)-scoreDraftDate(a));
-        if(draftSorted.length){
-          location.href = 'preventivo.html?id=' + encodeURIComponent(draftSorted[0].id);
-          return;
-        }
-
-        location.href = 'preventivo.html?record_id=' + encodeURIComponent(r.id);
-      }
-      catch(e){
-        try{ location.href = 'preventivo.html?record_id=' + encodeURIComponent(r.id); }
-        catch(_){}
+        qBtn.disabled = true;
+        const bestId = await findBestQuoteIdForRecord(r.id);
+        location.href = bestId
+          ? ('preventivo.html?id=' + encodeURIComponent(bestId))
+          : ('preventivo.html?record_id=' + encodeURIComponent(r.id));
+      }catch(e){
+        console.warn('Apertura preventivo fallback', e);
+        try{ location.href = 'preventivo.html?record_id=' + encodeURIComponent(r.id); }catch(_e){}
+      }finally{
+        qBtn.disabled = false;
       }
     };
   }
