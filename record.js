@@ -110,10 +110,53 @@
     window.currentRecord = data;
     window.dispatchEvent(new CustomEvent('record:loaded', { detail: data }));
 
-    // Preventivo collegato
+    // Preventivo collegato: apri sempre quello giusto del record
     try{
       const b=document.getElementById('btnQuote');
-      if(b){ b.onclick=()=>{ location.href='preventivo.html?record_id=' + encodeURIComponent(id); }; }
+      if(b){
+        b.onclick=async ()=>{
+          try{
+            const { data, error } = await db
+              .from('quotes')
+              .select('id,status,sent_at,accepted_at,updated_at,created_at')
+              .eq('record_id', String(id));
+            if(error) throw error;
+            const rows = Array.isArray(data) ? data : [];
+            const norm = (v)=> String(v || '').trim().toUpperCase();
+            const active = rows.filter(r => norm(r.status) !== 'ANNULLATO');
+            const sortByPrimaryDateDesc = (a,b)=>{
+              const ta = new Date(a.accepted_at || a.sent_at || a.updated_at || a.created_at || 0).getTime();
+              const tb = new Date(b.accepted_at || b.sent_at || b.updated_at || b.created_at || 0).getTime();
+              return tb - ta;
+            };
+            const sortByUpdatedDesc = (a,b)=>{
+              const ta = new Date(a.updated_at || a.created_at || 0).getTime();
+              const tb = new Date(b.updated_at || b.created_at || 0).getTime();
+              return tb - ta;
+            };
+
+            const sentOrAccepted = active
+              .filter(r => ['INVIATO','ACCETTATO'].includes(norm(r.status)))
+              .sort(sortByPrimaryDateDesc);
+            if(sentOrAccepted.length){
+              location.href='preventivo.html?id=' + encodeURIComponent(sentOrAccepted[0].id);
+              return;
+            }
+
+            const drafts = active
+              .filter(r => norm(r.status) === 'BOZZA' || !norm(r.status))
+              .sort(sortByUpdatedDesc);
+            if(drafts.length){
+              location.href='preventivo.html?id=' + encodeURIComponent(drafts[0].id);
+              return;
+            }
+
+            location.href='preventivo.html?record_id=' + encodeURIComponent(id);
+          }catch(e){
+            location.href='preventivo.html?record_id=' + encodeURIComponent(id);
+          }
+        };
+      }
     }catch(e){}
 
     // Riempimento campi
