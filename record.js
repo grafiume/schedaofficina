@@ -34,6 +34,61 @@
   }
   function L(elId, v){ const el=document.getElementById(elId); if(el) el.textContent = v ?? '—'; }
 
+  async function resolveBestQuoteUrl(recordId){
+    if(!db) return 'preventivo.html?record_id=' + encodeURIComponent(recordId);
+
+    // 1) Preferisci preventivo ACCETTATO / INVIATO più recente
+    try{
+      const { data, error } = await db
+        .from('quotes')
+        .select('id,status,created_at,accepted_at,sent_at,subtotal_ex_vat,grand_total')
+        .eq('record_id', recordId)
+        .in('status', ['ACCETTATO','INVIATO'])
+        .order('accepted_at', { ascending:false, nullsFirst:false })
+        .order('sent_at', { ascending:false, nullsFirst:false })
+        .order('created_at', { ascending:false })
+        .limit(1);
+      if(!error && data && data.length && data[0]?.id){
+        return 'preventivo.html?id=' + encodeURIComponent(data[0].id);
+      }
+    }catch(e){ console.warn('resolveBestQuoteUrl preferred status failed', e); }
+
+    // 2) Altrimenti cerca la BOZZA/qualsiasi preventivo più compilato davvero
+    try{
+      const { data: quotes, error } = await db
+        .from('quotes')
+        .select('id,status,created_at,accepted_at,sent_at,subtotal_ex_vat,grand_total,delivery_days,delivery_date,notes')
+        .eq('record_id', recordId)
+        .neq('status', 'ANNULLATO')
+        .order('created_at', { ascending:false });
+      if(!error && Array.isArray(quotes) && quotes.length){
+        const ids = quotes.map(q=>q.id).filter(Boolean);
+        let itemCount = {};
+        if(ids.length){
+          const { data: items } = await db.from('quote_items').select('quote_id').in('quote_id', ids);
+          (items||[]).forEach(it=>{ itemCount[it.quote_id] = (itemCount[it.quote_id]||0)+1; });
+        }
+        const scored = quotes.map(q=>{
+          const count = itemCount[q.id] || 0;
+          const total = Number(q.grand_total || q.subtotal_ex_vat || 0);
+          const hasDates = !!(q.accepted_at || q.sent_at || q.delivery_date || q.delivery_days);
+          const hasNotes = !!(q.notes && String(q.notes).trim());
+          const score = (count>0 ? 1000 : 0) + (total>0 ? 500 : 0) + (hasDates ? 100 : 0) + (hasNotes ? 20 : 0);
+          return { q, score };
+        }).sort((a,b)=> b.score - a.score || String(b.q.created_at||'').localeCompare(String(a.q.created_at||'')));
+        if(scored[0]?.q?.id && scored[0].score>0){
+          return 'preventivo.html?id=' + encodeURIComponent(scored[0].q.id);
+        }
+        // 3) fallback: ultima bozza esistente
+        if(quotes[0]?.id){
+          return 'preventivo.html?id=' + encodeURIComponent(quotes[0].id);
+        }
+      }
+    }catch(e){ console.warn('resolveBestQuoteUrl scored fallback failed', e); }
+
+    return 'preventivo.html?record_id=' + encodeURIComponent(recordId);
+  }
+
   // Risolve l'URL della prima foto: 1) tabella 'photos' -> path -> publicUrl; 2) storage list su 'records/<id>/*'
   async function resolveFirstPhoto(recordId){
     const bucket = 'photos';
@@ -113,7 +168,17 @@
     // Preventivo collegato
     try{
       const b=document.getElementById('btnQuote');
-      if(b){ b.onclick=()=>{ location.href='preventivo.html?record_id=' + encodeURIComponent(id); }; }
+      if(b){
+        b.onclick=async ()=>{
+          try{
+            const target = await resolveBestQuoteUrl(id);
+            location.href = target;
+          }catch(e){
+            console.warn('Apertura preventivo fallback', e);
+            location.href='preventivo.html?record_id=' + encodeURIComponent(id);
+          }
+        };
+      }
     }catch(e){}
 
     // Riempimento campi

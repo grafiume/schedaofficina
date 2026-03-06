@@ -1,5 +1,5 @@
 
-const STATIC_CACHE = 'so-static-v5';
+const STATIC_CACHE = 'so-static-v4';
 const IMG_CACHE = 'so-img-v1';
 
 self.addEventListener('install', (event) => {
@@ -13,7 +13,7 @@ self.addEventListener('install', (event) => {
       './preventivi.html',
       './preventivi.js',
       './preventivo.html',
-      './preventivo.js?v=13-nosave',
+      './preventivo.js',
       './styles.css',
       './app-core.js',
       './app-supabase.js',
@@ -67,5 +67,3 @@ self.addEventListener('fetch', (event) => {
     catch(e) { return await caches.match(req); }
   })());
 });
-
-// v14-unsaved-confirm

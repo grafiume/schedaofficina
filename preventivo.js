@@ -91,39 +91,7 @@
   let sb;
   let quote=null;
   let record=null;
-  let itemsByCode = new Map(); // bozza in memoria: code -> item
-  let savedItemsByCode = new Map(); // ultimo stato salvato dal DB
-  let dirty = false;
-  let saving = false;
-
-
-  function setDirty(flag=true){
-    dirty = !!flag;
-    const btn = $('btnSave');
-    if(btn){
-      btn.textContent = dirty ? 'Salva *' : 'Salva';
-      btn.classList.toggle('btn-warning', dirty);
-      btn.classList.toggle('btn-orange', !dirty);
-    }
-  }
-
-  function confirmLeaveIfDirty(){
-    if(!dirty) return true;
-    return window.confirm('Hai modifiche non salvate.\n\nPremi OK per uscire senza salvare.');
-  }
-
-  function bindLeaveProtection(){
-    window.addEventListener('beforeunload', (e)=>{
-      if(!dirty || saving) return;
-      e.preventDefault();
-      e.returnValue = '';
-    });
-    window.addEventListener('popstate', ()=>{
-      if(confirmLeaveIfDirty()) return;
-      history.pushState({preventivo:true}, '', location.href);
-    });
-    try{ history.replaceState({preventivo:true}, '', location.href); }catch{}
-  }
+  let itemsByCode = new Map(); // code -> item
 
   async function init(){
     clearErr();
@@ -146,9 +114,7 @@
       await loadRecord();
       await loadItems();
       bindUI();
-      bindLeaveProtection();
       renderAll();
-      setDirty(false);
 
     }catch(e){
       showErr('Errore inizializzazione preventivo: ' + (e?.message||e));
@@ -162,36 +128,57 @@
   }
 
   async function loadOrCreateQuoteForRecord(record_id){
-    // ✅ Dalla scheda record, se esiste un preventivo già "salvato" (INVIATO/ACCETTATO), apri quello.
-    // Altrimenti apri l'ultima BOZZA. Crea una nuova BOZZA solo se non esiste nulla.
-
-    // 1) Preferisci INVIATO/ACCETTATO (non ANNULLATO)
+    // 1) Preferisci preventivo ACCETTATO / INVIATO più recente
     {
       const { data, error } = await sb
         .from('quotes')
         .select('*')
         .eq('record_id', record_id)
         .in('status', ['INVIATO','ACCETTATO'])
+        .order('accepted_at', { ascending:false, nullsFirst:false })
+        .order('sent_at', { ascending:false, nullsFirst:false })
         .order('created_at', { ascending:false })
         .limit(1);
       if(error) throw error;
       if(data && data.length){ quote = data[0]; }
     }
 
-    // 2) Se non trovato, prendi l'ultima BOZZA
+    // 2) Se non trovato, prendi il preventivo più compilato davvero (anche se BOZZA)
     if(!quote){
-      const { data, error } = await sb
+      const { data: quotes, error } = await sb
         .from('quotes')
         .select('*')
         .eq('record_id', record_id)
-        .eq('status', 'BOZZA')
-        .order('created_at', { ascending:false })
-        .limit(1);
+        .neq('status', 'ANNULLATO')
+        .order('created_at', { ascending:false });
       if(error) throw error;
-      if(data && data.length){ quote = data[0]; }
+
+      if(quotes && quotes.length){
+        const ids = quotes.map(q=>q.id).filter(Boolean);
+        let itemCount = {};
+        if(ids.length){
+          const { data: items, error: itemErr } = await sb.from('quote_items').select('quote_id').in('quote_id', ids);
+          if(itemErr) throw itemErr;
+          (items||[]).forEach(it=>{ itemCount[it.quote_id] = (itemCount[it.quote_id]||0)+1; });
+        }
+        const scored = quotes.map(q=>{
+          const count = itemCount[q.id] || 0;
+          const total = Number(q.grand_total || q.subtotal_ex_vat || 0);
+          const hasDates = !!(q.accepted_at || q.sent_at || q.delivery_date || q.delivery_days);
+          const hasNotes = !!(q.notes && String(q.notes).trim());
+          const score = (count>0 ? 1000 : 0) + (total>0 ? 500 : 0) + (hasDates ? 100 : 0) + (hasNotes ? 20 : 0);
+          return { q, score };
+        }).sort((a,b)=> b.score - a.score || String(b.q.created_at||'').localeCompare(String(a.q.created_at||'')));
+
+        if(scored[0]?.q?.id && scored[0].score > 0){
+          quote = scored[0].q;
+        } else if(quotes[0]?.id){
+          quote = quotes[0];
+        }
+      }
     }
 
-    // 3) Altrimenti crea BOZZA nuova
+    // 3) Solo se non esiste nulla crea BOZZA nuova
     if(!quote){
       quote = await createNewQuote(record_id);
     }
@@ -238,48 +225,39 @@
       .order('position', { ascending:true });
     if(error) throw error;
 
-    savedItemsByCode = new Map();
     itemsByCode = new Map();
     (data||[]).forEach(x=>{
       const code = x.rip_code || (String(x.description||'').trim().split(' ')[0] || '').trim();
       if(code){
-        const item = {
+        itemsByCode.set(code, {
           id: x.id,
           rip_code: code,
           description: x.description,
           unit_price_ex_vat: x.unit_price_ex_vat,
           qty: x.qty,
           work_status: x.work_status || 'DA_FARE'
-        };
-        savedItemsByCode.set(code, { ...item });
-        itemsByCode.set(code, { ...item });
+        });
       }
     });
   }
 
   function bindUI(){
-    $('btnBack')?.addEventListener('click', ()=>{ if(confirmLeaveIfDirty()) history.back(); });
+    $('btnBack')?.addEventListener('click', ()=> history.back());
     $('btnOpenRecord')?.addEventListener('click', ()=>{
       if(!quote?.record_id) return;
-      if(!confirmLeaveIfDirty()) return;
       location.href = `record.html?id=${encodeURIComponent(quote.record_id)}`;
     });
 
-    $('btnSave')?.addEventListener('click', async ()=>{
-      if(!window.confirm('Confermi il salvataggio del preventivo?')) return;
-      await saveAll();
-    });
+    $('btnSave')?.addEventListener('click', saveAll);
 
     $('status')?.addEventListener('change', ()=>{
       quote.status = $('status').value;
-      setDirty(true);
       renderQuoteHeader();
     });
 
     ['sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{
       $(id)?.addEventListener('change', ()=>{
         quote[id] = $(id).value || null;
-        setDirty(true);
         renderQuoteHeader();
       });
     });
@@ -338,7 +316,6 @@
         inp.addEventListener('input', ()=>{
           if(!itemsByCode.get(w.code)) return;
           itemsByCode.get(w.code).description = inp.value;
-          setDirty(true);
           recalcTotals();
         });
         tdDesc.appendChild(inp);
@@ -360,14 +337,14 @@
       cb.type = 'checkbox';
       cb.className = 'form-check-input';
       cb.checked = checked;
-      cb.addEventListener('change', ()=>{
+      cb.addEventListener('change', async ()=>{
         try{
           if(cb.checked){
-            ensureDraftItem(w, idx);
+            await ensureItem(w, idx);
           } else {
-            removeDraftItem(w.code);
+            await removeItem(w.code);
           }
-          setDirty(true);
+          await loadItems();
           renderTasks();
           recalcTotals();
         } catch(e){
@@ -391,7 +368,6 @@
         const it = itemsByCode.get(w.code);
         if(!it) return;
         it.unit_price_ex_vat = parseNum(price.value);
-        setDirty(true);
         recalcTotals();
       });
       price.addEventListener('blur', ()=>{
@@ -418,7 +394,6 @@
         const it = itemsByCode.get(w.code);
         if(!it) return;
         it.work_status = sel.value;
-        setDirty(true);
         recalcTotals();
         // aggiorna barra subito
         renderTasks();
@@ -448,24 +423,40 @@
     });
   }
 
-  function ensureDraftItem(w, idx){
+  async function ensureItem(w, idx){
     if(itemsByCode.get(w.code)) return;
 
     const desc = w.free ? '' : `${w.text}`;
-    setDirty(true);
-    itemsByCode.set(w.code, {
-      id: null,
+    const payload = {
+      quote_id: quote.id,
       position: idx,
       rip_code: w.code,
       description: desc,
-      unit_price_ex_vat: 0,
       qty: 1,
+      unit_price_ex_vat: 0,
+      line_total_ex_vat: 0,
+      line_progress_percent: 0,
       work_status: 'DA_FARE'
+    };
+
+    const { data, error } = await sb.from('quote_items').insert(payload).select().single();
+    if(error) throw error;
+
+    itemsByCode.set(w.code, {
+      id: data.id,
+      rip_code: w.code,
+      description: data.description,
+      unit_price_ex_vat: data.unit_price_ex_vat,
+      qty: data.qty,
+      work_status: data.work_status
     });
   }
 
-  function removeDraftItem(code){
-    setDirty(true);
+  async function removeItem(code){
+    const it = itemsByCode.get(code);
+    if(!it) return;
+    const { error } = await sb.from('quote_items').delete().eq('id', it.id);
+    if(error) throw error;
     itemsByCode.delete(code);
   }
 
@@ -511,7 +502,6 @@
 
   async function saveAll(){
     clearErr();
-    saving = true;
     try{
       // salva quote
       const qPayload = {
@@ -533,55 +523,38 @@
         if(error) throw error;
       }
 
-      // salva items selezionati SOLO quando premi Salva
-      const selectedCodes = new Set(Array.from(itemsByCode.keys()));
-      const savedCodes = new Set(Array.from(savedItemsByCode.keys()));
-
-      // 1) elimina dal DB le righe che hai deselezionato ma NON ancora salvate finora
-      for (const code of savedCodes) {
-        if (selectedCodes.has(code)) continue;
-        const saved = savedItemsByCode.get(code);
-        if (!saved?.id) continue;
-        const { error } = await sb.from('quote_items').delete().eq('id', saved.id);
-        if (error) throw error;
-      }
-
-      // 2) inserisce/aggiorna le righe attualmente selezionate
-      for (const [code, it] of itemsByCode.entries()) {
-        const w = WORKS.find(x => x.code === code) || { code, text: it.description || '' };
+      // salva items selezionati
+      const updates = [];
+      WORKS.forEach((w, idx)=>{
+        const it = itemsByCode.get(w.code);
+        if(!it) return;
         const pct = statusMeta(it.work_status).pct;
-        const lineTotal = Number(it.unit_price_ex_vat || 0) * Number(it.qty || 1);
-        const payload = {
-          quote_id: quote.id,
-          position: Number.isFinite(+it.position) ? +it.position : WORKS.findIndex(x => x.code === code),
-          rip_code: code,
-          description: (w.free ? (it.description || `${w.code} ${w.text}`) : `${w.code} ${w.text}`),
+        const lineTotal = Number(it.unit_price_ex_vat||0) * Number(it.qty||1);
+        updates.push({
+          id: it.id,
+          position: idx,
+          rip_code: w.code,
+          description: (w.free ? (it.description||`${w.code} ${w.text}`) : `${w.code} ${w.text}`),
           qty: 1,
-          unit_price_ex_vat: Number(it.unit_price_ex_vat || 0),
+          unit_price_ex_vat: Number(it.unit_price_ex_vat||0),
           line_total_ex_vat: lineTotal,
           line_progress_percent: pct,
           work_status: it.work_status || 'DA_FARE'
-        };
+        });
+      });
 
-        const saved = savedItemsByCode.get(code);
-        if (saved?.id) {
-          const { error } = await sb.from('quote_items').update(payload).eq('id', saved.id);
-          if (error) throw error;
-        } else {
-          const { error } = await sb.from('quote_items').insert(payload);
-          if (error) throw error;
-        }
+      // aggiorna in batch
+      for(const u of updates){
+        const { error } = await sb.from('quote_items').update(u).eq('id', u.id);
+        if(error) throw error;
       }
 
       showOk('Salvato');
       await loadItems();
       renderAll();
-      setDirty(false);
 
     }catch(e){
       showErr(e?.message||e);
-    } finally {
-      saving = false;
     }
   }
 
