@@ -10,130 +10,134 @@
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="styles.css">
     <style>
-      body{ background:#f7f7f7; }
-      .container-narrow{ max-width:1200px; }
-      .smallmono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-      .progbar,.linebar{ height:8px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
+      :root{
+        --elip-orange:#ff7a00;
+        --elip-orange-soft:#fff2e6;
+        --elip-blue:#1f6feb;
+        --elip-blue-soft:#eaf2ff;
+        --elip-green:#198754;
+        --elip-green-soft:#eaf8f0;
+        --elip-red:#d92d20;
+        --elip-red-soft:#fff1f1;
+        --elip-gray:#667085;
+        --elip-line:#e6e9ee;
+        --elip-bg:#f5f7fa;
+        --elip-card:#ffffff;
+        --elip-text:#1f2937;
+      }
+      body{ background:linear-gradient(180deg,#f7f8fb 0%,#f2f4f7 100%); color:var(--elip-text); }
+      .container-narrow{ max-width:1280px; }
+      .smallmono{ font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace; }
+      .page-shell{ display:grid; gap:18px; }
+      .hero-card,.grid-card{ background:var(--elip-card); border:1px solid var(--elip-line); border-radius:20px; box-shadow:0 8px 24px rgba(16,24,40,.05); }
+      .hero-card .card-body,.grid-card .card-body{ padding:20px 20px 18px; }
+      .hero-top{ display:grid; grid-template-columns:1.3fr .9fr; gap:18px; align-items:start; }
+      .record-kicker{ font-size:.82rem; color:var(--elip-gray); margin-bottom:2px; }
+      .record-title{ font-size:2rem; font-weight:800; line-height:1; margin:0 0 6px; }
+      .record-desc{ font-size:1.18rem; color:#4b5563; line-height:1.15; margin-bottom:4px; }
+      .record-model{ color:var(--elip-gray); font-size:.98rem; }
+      .right-head{ display:flex; flex-direction:column; align-items:flex-end; gap:10px; }
+      .badge-row{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+      .top-pill,.state-chip{ display:inline-flex; align-items:center; gap:8px; min-height:32px; padding:0 12px; border-radius:999px; font-size:.8rem; font-weight:800; line-height:1; border:1px solid transparent; white-space:nowrap; }
+      .top-pill.blue{ background:var(--elip-blue-soft); color:var(--elip-blue); border-color:#cfe0ff; }
+      .top-pill.green{ background:var(--elip-green-soft); color:var(--elip-green); border-color:#cbead7; }
+      .top-pill.gray{ background:#f2f4f7; color:#475467; border-color:#dde2e8; }
+      .top-pill.red{ background:var(--elip-red-soft); color:var(--elip-red); border-color:#f3b3ad; }
+      .top-pill .sq{ width:9px; height:9px; border-radius:2px; background:currentColor; display:inline-block; }
+      .head-meta{ text-align:right; }
+      .head-meta .label{ color:var(--elip-gray); font-size:.82rem; }
+      .head-meta .value{ font-size:1.02rem; font-weight:700; }
+      .form-area{ margin-top:16px; display:grid; grid-template-columns:repeat(12,1fr); gap:12px; }
+      .field-card{ background:#fafbfc; border:1px solid var(--elip-line); border-radius:16px; padding:10px 12px 12px; }
+      .field-card label{ display:block; margin-bottom:6px; color:var(--elip-gray); font-size:.78rem; font-weight:700; letter-spacing:.01em; }
+      .field-card input,.field-card select{ height:42px; border-radius:12px; border-color:#d7dde5; background:#fff; }
+      .field-card input:focus,.field-card select:focus,.note-box input:focus{ border-color:#ffb36b; box-shadow:0 0 0 .2rem rgba(255,122,0,.12); }
+      .col-2{ grid-column:span 2; }
+      .col-3{ grid-column:span 3; }
+      .col-4{ grid-column:span 4; }
+      .col-6{ grid-column:span 6; }
+      .col-12{ grid-column:span 12; }
+      .deadline-wrap{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:end; }
+      #is_urgent{ position:absolute; opacity:0; pointer-events:none; width:1px; height:1px; }
+      .urg-btn{ display:inline-flex; align-items:center; gap:7px; height:42px; padding:0 14px; border-radius:12px; border:1px solid #f0b2ac; background:var(--elip-red-soft); color:var(--elip-red); font-size:.82rem; font-weight:800; cursor:pointer; user-select:none; white-space:nowrap; transition:.18s ease; }
+      .urg-btn::before{ content:""; width:10px; height:10px; border-radius:2px; background:#fff; border:1px solid var(--elip-red); display:inline-block; }
+      #is_urgent:checked + .urg-btn{ background:#ffe3e0; border-color:#e08f86; }
+      #is_urgent:checked + .urg-btn::before{ background:var(--elip-red); }
+      .note-box input{ height:46px; border-radius:14px; border:1px solid #d7dde5; background:#fff; }
+      .progress-panel{ margin-top:14px; background:#fafbfc; border:1px solid var(--elip-line); border-radius:18px; padding:14px 16px; }
+      .progress-head{ display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:8px; }
+      .progress-title{ font-size:.95rem; font-weight:800; }
+      .progress-right{ font-size:1rem; font-weight:800; }
+      .progbar,.linebar{ height:10px; border-radius:999px; background:#e9edf2; overflow:hidden; }
       .progbar>div,.linebar>div{ height:100%; width:0%; }
-      .st-DA_FARE{ background:#dc3545; }
-      .st-IN_LAVORAZIONE{ background:#ffc107; }
-      .st-COMPLETATA{ background:#198754; }
-      .top-grid{ display:grid; grid-template-columns: repeat(6, minmax(120px,1fr)); gap:.65rem; }
-      .mini-field label{ display:block; font-size:.78rem; color:#6c757d; margin-bottom:.2rem; }
-      .mini-field input,.mini-field select{ height:38px; }
-      .mini-note input{ height:38px; }
-      .top-meta-right{ display:flex; flex-direction:column; align-items:flex-end; gap:.32rem; }
-      .status-line{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.32rem; align-items:center; }
-      .badge-chip{ display:inline-flex; align-items:center; gap:.4rem; padding:4px 10px; border-radius:14px; font-size:12px; font-weight:700; line-height:1; border:1px solid transparent; white-space:nowrap; }
-      .badge-status-inviato{ background:#e8f1ff; color:#1e63d6; border-color:#c9dcff; }
-      .badge-status-urgente{ background:#fff3f3; color:#d32f2f; border-color:#f1a5a5; }
-      .badge-status-edit{ background:#e9f7ef; color:#1e874b; border-color:#bfe3cd; }
-      .badge-status-readonly{ background:#f1f3f5; color:#5c6670; border-color:#d5d9dd; }
-
-      .urgent-chip{
-        display:inline-flex;
-        align-items:center;
-        gap:.38rem;
-        padding:4px 10px;
-        border-radius:14px;
-        border:1px solid #f1a5a5;
-        background:#fff3f3;
-        color:#d32f2f;
-        font-size:12px;
-        font-weight:700;
-        line-height:1;
-        white-space:nowrap;
-      }
-
-      .urgent-chip-box{
-        width:10px;
-        height:10px;
-        border-radius:2px;
-        border:1px solid #dc3545;
-        background:#fff;
-        flex:0 0 auto;
-      }
-
-      .urg-inline{
-        display:flex;
-        align-items:end;
-        justify-content:space-between;
-        gap:.5rem;
-      }
-
-      .urg-inline .date-wrap{
-        flex:1 1 auto;
-      }
-
-      .urg-inline .date-wrap input{
-        width:100%;
-      }
-
-      #is_urgent{
-        position:absolute;
-        opacity:0;
-        pointer-events:none;
-        width:1px;
-        height:1px;
-      }
-
-      .urg-btn{
-        display:inline-flex;
-        align-items:center;
-        gap:.38rem;
-        padding:4px 10px;
-        border-radius:14px;
-        border:1px solid #f1a5a5;
-        background:#fff3f3;
-        color:#d32f2f;
-        font-size:12px;
-        font-weight:700;
-        line-height:1;
-        white-space:nowrap;
-        cursor:pointer;
-        user-select:none;
-        margin-bottom:1px;
-      }
-
-      .urg-btn::before{
-        content:"";
-        width:10px;
-        height:10px;
-        border-radius:2px;
-        border:1px solid #dc3545;
-        background:#fff;
-        flex:0 0 auto;
-      }
-
-      #is_urgent:checked + .urg-btn::before{
-        background:#dc3545;
-      }
-
-      .table-compact thead th{ font-size:.82rem; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
-      .table-compact td{ vertical-align:top; padding:.32rem .42rem; }
-      .rip-main{ min-width:360px; }
-      .rip-title{ font-size:.92rem; font-weight:700; line-height:1.15; }
-      .rip-code{ display:inline-block; min-width:68px; padding:.1rem .38rem; border-radius:999px; background:#f1f3f5; color:#495057; font-size:.74rem; font-weight:700; margin-right:.4rem; }
-      .rip-meta{ display:grid; grid-template-columns: 1.1fr .85fr .85fr; gap:.18rem .38rem; margin-top:.22rem; }
-      .rip-meta .meta-box{ background:#fafafa; border:1px solid rgba(0,0,0,.06); border-radius:.45rem; padding:.18rem .32rem; }
-      .rip-meta .meta-box label{ display:block; font-size:.65rem; color:#6c757d; margin-bottom:.08rem; text-transform:uppercase; letter-spacing:.02em; }
-      .rip-meta .meta-box input{ height:28px; font-size:.78rem; padding:.15rem .32rem; }
-      .row-status-pill{ font-size:.73rem; font-weight:700; border-radius:999px; padding:.18rem .5rem; display:inline-block; }
-      .row-status-DA_FARE{ background:#f8d7da; color:#842029; }
-      .row-status-IN_LAVORAZIONE{ background:#fff3cd; color:#664d03; }
-      .row-status-COMPLETATA{ background:#d1e7dd; color:#0f5132; }
-      .table-compact tr.row-urgent{ box-shadow: inset 4px 0 0 #dc3545; }
-      .table-compact tr.row-complete{ background:#fbfffc; }
-      .table-compact tr.row-working{ background:#fffdf7; }
-      .table-compact tr.row-todo{ background:#fffafb; }
-      .table-compact tr.row-off td{ opacity:.72; }
-      .price-input{ width:110px; min-width:110px; }
-      .status-select{ min-width:155px; }
-      .line-progress-wrap{ min-width:120px; }
-      .toolbar-badges{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.3rem; }
-      .btn-quiet{ border-color:rgba(0,0,0,.12); color:#6c757d; background:#fff; }
-      .btn-quiet:hover{ border-color:rgba(0,0,0,.22); color:#212529; background:#f8f9fa; }
+      .progbar>div{ background:linear-gradient(90deg,#ff9a3d 0%,#ff7a00 100%); }
+      .st-DA_FARE{ background:#d92d20; }
+      .st-IN_LAVORAZIONE{ background:#ffb020; }
+      .st-COMPLETATA{ background:#12b76a; }
+      .due-banner{ margin-top:10px; display:flex; align-items:center; gap:10px; min-height:24px; font-size:.92rem; font-weight:700; }
+      .grid-header{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:16px 18px 10px; border-bottom:1px solid var(--elip-line); }
+      .grid-title{ font-size:1.15rem; font-weight:800; }
+      .grid-sub{ color:var(--elip-gray); font-size:.9rem; }
+      .repairs-table{ width:100%; border-collapse:separate; border-spacing:0 12px; }
+      .repairs-table thead th{ padding:0 14px 4px; font-size:.8rem; color:var(--elip-gray); text-transform:uppercase; letter-spacing:.04em; font-weight:800; }
+      .repairs-table tbody tr{ background:#fff; }
+      .repairs-table tbody td{ padding:0 10px; vertical-align:top; }
+      .row-card{ border:1px solid var(--elip-line); border-radius:18px; box-shadow:0 4px 14px rgba(16,24,40,.03); overflow:hidden; }
+      .row-card.row-working{ border-left:4px solid #ffb020; }
+      .row-card.row-complete{ border-left:4px solid #12b76a; background:#fbfffd; }
+      .row-card.row-todo{ border-left:4px solid #d0d5dd; }
+      .row-card.row-urgent{ box-shadow:inset 3px 0 0 var(--elip-red),0 4px 14px rgba(16,24,40,.03); }
+      .row-card.row-off{ opacity:.72; }
+      .row-inner{ display:grid; grid-template-columns:42px minmax(420px,1.7fr) 180px 130px 150px; gap:10px; align-items:start; padding:12px 12px; }
+      .check-wrap{ display:flex; align-items:flex-start; justify-content:center; padding-top:14px; }
+      .check-wrap input{ width:18px; height:18px; }
+      .rip-main{ min-width:0; }
+      .rip-head{ display:flex; align-items:flex-start; gap:10px; margin-bottom:8px; }
+      .rip-code{ display:inline-flex; align-items:center; justify-content:center; min-width:64px; height:24px; padding:0 10px; border-radius:999px; background:#f2f4f7; color:#475467; font-size:.74rem; font-weight:800; }
+      .rip-name{ font-size:1.02rem; font-weight:800; line-height:1.08; }
+      .free-desc{ margin-top:2px; }
+      .mini-grid{ display:grid; grid-template-columns:1.2fr .9fr .9fr; gap:8px; }
+      .mini-box{ background:#fafbfc; border:1px solid var(--elip-line); border-radius:14px; padding:8px 10px; }
+      .mini-box label{ display:block; margin-bottom:4px; color:var(--elip-gray); font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+      .mini-box input{ height:36px; border-radius:10px; font-size:.86rem; }
+      .status-stack{ display:flex; flex-direction:column; gap:10px; padding-top:6px; }
+      .status-select{ min-width:170px; border-radius:12px; height:40px; }
+      .price-wrap{ padding-top:6px; }
+      .price-input{ width:110px; min-width:110px; border-radius:12px; height:40px; }
+      .progress-stack{ padding-top:8px; min-width:130px; }
+      .progress-pct{ margin-top:8px; font-size:.82rem; color:var(--elip-gray); font-weight:700; }
+      .footer-totals{ margin-top:10px; display:flex; justify-content:flex-end; }
+      .totals-box{ min-width:340px; background:#fafbfc; border:1px solid var(--elip-line); border-radius:18px; padding:14px 16px; }
+      .total-line{ display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; }
+      .total-line .lbl{ color:var(--elip-gray); }
+      .total-line .val{ font-weight:800; }
+      .total-line.final{ margin-top:8px; padding-top:10px; border-top:1px solid var(--elip-line); font-size:1.15rem; }
+      .btn-quiet{ border-color:#d7dde5; color:#475467; background:#fff; }
+      .btn-quiet:hover{ border-color:#c6ced8; color:#1f2937; background:#f8fafc; }
       body:not(.edit-unlocked) [data-editable="1"]{ cursor:not-allowed; }
+      body:not(.edit-unlocked) .urg-btn{ pointer-events:none; opacity:.7; }
+      @media (max-width: 1200px){
+        .hero-top{ grid-template-columns:1fr; }
+        .right-head{ align-items:flex-start; }
+        .badge-row{ justify-content:flex-start; }
+        .head-meta{ text-align:left; }
+        .row-inner{ grid-template-columns:42px minmax(320px,1fr) 170px 120px 130px; }
+      }
+      @media (max-width: 980px){
+        .form-area{ grid-template-columns:repeat(6,1fr); }
+        .col-2,.col-3,.col-4,.col-6{ grid-column:span 3; }
+        .row-inner{ grid-template-columns:42px 1fr; }
+        .status-stack,.price-wrap,.progress-stack{ padding-top:0; }
+      }
+      @media (max-width: 640px){
+        .form-area{ grid-template-columns:1fr; }
+        .col-2,.col-3,.col-4,.col-6,.col-12{ grid-column:span 1; }
+        .deadline-wrap{ grid-template-columns:1fr; }
+        .mini-grid{ grid-template-columns:1fr; }
+        .hero-card .card-body,.grid-card .card-body{ padding:16px 14px; }
+        .row-inner{ padding:10px; }
+        .record-title{ font-size:1.55rem; }
+      }
     </style>
   </head>
   <body>
@@ -153,116 +157,104 @@
       </div>
     </nav>
 
-    <div class="container container-narrow py-3">
+    <div class="container container-narrow py-4">
       <div id="errBanner" class="alert alert-warning d-none"></div>
       <div id="okBanner" class="alert alert-success d-none"></div>
 
-      <div class="card shadow-sm mb-3">
-        <div class="card-body">
-          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
-            <div>
-              <div class="small text-muted">Cliente</div>
-              <div class="h5 mb-0" id="recCliente">—</div>
-              <div class="text-muted" id="recDesc">—</div>
-              <div class="small text-muted" id="recModel"></div>
-            </div>
-            <div class="top-meta-right">
-              <div class="status-line">
-                <span id="quoteStatusBadge" class="badge bg-secondary">BOZZA</span>
-                <span id="urgentMiniBannerTop" class="urgent-chip" style="display:none;">
-                  <span class="urgent-chip-box"></span>
-                  <span>URGENTE</span>
-                </span>
-                <span id="lockState" class="badge bg-secondary">SOLO LETTURA</span>
+      <div class="page-shell">
+        <section class="hero-card">
+          <div class="card-body">
+            <div class="hero-top">
+              <div>
+                <div class="record-kicker">Cliente</div>
+                <h1 class="record-title" id="recCliente">—</h1>
+                <div class="record-desc" id="recDesc">—</div>
+                <div class="record-model" id="recModel"></div>
               </div>
-              <div id="dirtyState" class="small text-muted">Salvato</div>
-              <div class="small text-muted">ID Preventivo</div>
-              <div class="smallmono" id="quoteId">—</div>
+              <div class="right-head">
+                <div class="badge-row">
+                  <span id="quoteStatusBadge" class="top-pill gray">BOZZA</span>
+                  <span id="urgentMiniBannerTop" class="top-pill red" style="display:none;"><span class="sq"></span>URGENTE</span>
+                  <span id="lockState" class="top-pill gray">SOLO LETTURA</span>
+                </div>
+                <div class="head-meta">
+                  <div class="label" id="dirtyState">Salvato</div>
+                  <div class="label mt-1">ID Preventivo</div>
+                  <div class="value smallmono" id="quoteId">—</div>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div class="top-grid">
-            <div class="mini-field">
-              <label>Stato</label>
-              <select id="status" class="form-select">
-                <option value="BOZZA">BOZZA</option>
-                <option value="INVIATO">INVIATO</option>
-                <option value="ACCETTATO">ACCETTATO</option>
-                <option value="ANNULLATO">ANNULLATO</option>
-              </select>
-            </div>
-            <div class="mini-field">
-              <label>Data invio</label>
-              <input id="sent_at" type="date" class="form-control">
-            </div>
-            <div class="mini-field">
-              <label>Accettazione</label>
-              <input id="accepted_at" type="date" class="form-control">
-            </div>
-            <div class="mini-field">
-              <label>Consegna gg</label>
-              <input id="delivery_days" type="number" min="0" step="1" class="form-control" placeholder="es. 10">
-            </div>
-            <div class="mini-field">
-              <label>Data scadenza</label>
-              <div class="urg-inline">
-                <div class="date-wrap">
+            <div class="form-area">
+              <div class="field-card col-2">
+                <label>Stato</label>
+                <select id="status" class="form-select">
+                  <option value="BOZZA">BOZZA</option>
+                  <option value="INVIATO">INVIATO</option>
+                  <option value="ACCETTATO">ACCETTATO</option>
+                  <option value="ANNULLATO">ANNULLATO</option>
+                </select>
+              </div>
+              <div class="field-card col-2">
+                <label>Data invio</label>
+                <input id="sent_at" type="date" class="form-control">
+              </div>
+              <div class="field-card col-2">
+                <label>Accettazione</label>
+                <input id="accepted_at" type="date" class="form-control">
+              </div>
+              <div class="field-card col-2">
+                <label>Consegna gg</label>
+                <input id="delivery_days" type="number" min="0" step="1" class="form-control" placeholder="es. 10">
+              </div>
+              <div class="field-card col-4">
+                <label>Data scadenza</label>
+                <div class="deadline-wrap">
                   <input id="delivery_date" type="date" class="form-control">
-                </div>
-                <div>
-                  <input type="checkbox" id="is_urgent" hidden>
-                  <label for="is_urgent" class="urg-btn">URG</label>
+                  <div>
+                    <input type="checkbox" id="is_urgent" hidden>
+                    <label for="is_urgent" class="urg-btn">URG</label>
+                  </div>
                 </div>
               </div>
+              <div class="col-12 note-box">
+                <label class="form-label mb-2" style="color:var(--elip-gray);font-size:.82rem;font-weight:800;">Note</label>
+                <input id="notes" class="form-control" placeholder="Note interne / note al cliente…">
+              </div>
             </div>
-            <div class="mini-field">
-            </div>
-          </div>
 
-          <div class="mini-note mt-2">
-            <label class="form-label mb-1">Note</label>
-            <input id="notes" class="form-control" placeholder="Note interne / note al cliente…">
-          </div>
-
-          <div class="mt-3">
-            <div class="d-flex justify-content-between small"><span>Avanzamento preventivo</span><span id="quoteProgressTxt">0%</span></div>
-            <div class="progbar"><div id="quoteProgBar"></div></div>
-            <div class="small mt-1" id="dueLabel">—</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <strong>Voci RIP</strong>
-          <div class="small text-muted">Tabella compatta: sotto ogni voce trovi operatore, data inizio e data fine.</div>
-        </div>
-        <div class="card-body">
-          <div class="table-responsive">
-            <table class="table table-app table-compact align-middle">
-              <thead>
-                <tr>
-                  <th style="width:40px;"></th>
-                  <th>Voce RIP</th>
-                  <th style="width:180px;">Stato</th>
-                  <th style="width:140px;">Prezzo</th>
-                  <th style="width:150px;">Avanz.</th>
-                </tr>
-              </thead>
-              <tbody id="taskRows">
-                <tr><td colspan="5" class="text-center py-4 text-muted">Caricamento…</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="d-flex justify-content-end mt-3">
-            <div style="min-width:320px;" class="text-end">
-              <div class="d-flex justify-content-between"><span class="text-muted">Totale IVA esclusa</span><span class="fw-semibold" id="subtotal">€ 0,00</span></div>
-              <div class="d-flex justify-content-between"><span class="text-muted">IVA 22%</span><span class="fw-semibold" id="vat">€ 0,00</span></div>
-              <div class="d-flex justify-content-between fs-5"><span class="fw-semibold">Totale</span><span class="fw-bold" id="grand">€ 0,00</span></div>
+            <div class="progress-panel">
+              <div class="progress-head">
+                <div class="progress-title">Avanzamento preventivo</div>
+                <div class="progress-right" id="quoteProgressTxt">0%</div>
+              </div>
+              <div class="progbar"><div id="quoteProgBar"></div></div>
+              <div class="due-banner small" id="dueLabel">—</div>
             </div>
           </div>
-        </div>
+        </section>
+
+        <section class="grid-card">
+          <div class="grid-header">
+            <div>
+              <div class="grid-title">Voci RIP</div>
+              <div class="grid-sub">Layout compatto officina: sotto ogni voce trovi operatore, data inizio e data fine.</div>
+            </div>
+          </div>
+          <div class="card-body pt-2">
+            <div id="taskRows">
+              <div class="text-center py-4 text-muted">Caricamento…</div>
+            </div>
+
+            <div class="footer-totals">
+              <div class="totals-box">
+                <div class="total-line"><span class="lbl">Totale IVA esclusa</span><span class="val" id="subtotal">€ 0,00</span></div>
+                <div class="total-line"><span class="lbl">IVA 22%</span><span class="val" id="vat">€ 0,00</span></div>
+                <div class="total-line final"><span class="lbl" style="color:var(--elip-text);font-weight:800;">Totale</span><span class="val" id="grand">€ 0,00</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
 
