@@ -8,4 +8,4 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 
 // Password modifica preventivi (frontend).
 // Cambiala con una tua password. Lascia vuoto per non richiederla lato interfaccia.
-window.QUOTE_EDIT_PASSWORD = 'CAMBIA_QUESTA_PASSWORD';
+window.QUOTE_EDIT_PASSWORD = 'mio';
