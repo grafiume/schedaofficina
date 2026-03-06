@@ -47,19 +47,19 @@
       .head-meta{ text-align:right; }
       .head-meta .label{ color:var(--elip-gray); font-size:.82rem; }
       .head-meta .value{ font-size:1.02rem; font-weight:700; }
-      .form-area{ margin-top:16px; display:grid; grid-template-columns:repeat(12,1fr); gap:12px; }
-      .field-card{ background:#fafbfc; border:1px solid var(--elip-line); border-radius:16px; padding:10px 12px 12px; }
+      .form-area{ margin-top:16px; display:grid; grid-template-columns:1.15fr 1.15fr 1.15fr .9fr 1.7fr; gap:14px; align-items:start; }
+      .field-card{ background:#fafbfc; border:1px solid var(--elip-line); border-radius:16px; padding:10px 12px 12px; min-width:0; width:100%; }
       .field-card label{ display:block; margin-bottom:6px; color:var(--elip-gray); font-size:.78rem; font-weight:700; letter-spacing:.01em; }
-      .field-card input,.field-card select{ height:42px; border-radius:12px; border-color:#d7dde5; background:#fff; }
+      .field-card input,.field-card select{ width:100%; height:42px; border-radius:12px; border-color:#d7dde5; background:#fff; box-sizing:border-box; }
       .field-card input:focus,.field-card select:focus,.note-box input:focus{ border-color:#ffb36b; box-shadow:0 0 0 .2rem rgba(255,122,0,.12); }
-      .pcol-2{ grid-column:span 2; }
-      .pcol-3{ grid-column:span 3; }
-      .pcol-4{ grid-column:span 4; }
-      .pcol-6{ grid-column:span 6; }
-      .pcol-12{ grid-column:span 12; }
-      .deadline-wrap{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:end; }
+      .pcol-2{}
+      .pcol-3{}
+      .pcol-4{}
+      .pcol-6{}
+      .pcol-12{ grid-column:1 / -1; }
+      .deadline-wrap{ display:grid; grid-template-columns:minmax(210px,1fr) auto; gap:14px; align-items:end; }
       #is_urgent{ position:absolute; opacity:0; pointer-events:none; width:1px; height:1px; }
-      .urg-btn{ display:inline-flex; align-items:center; gap:7px; height:42px; padding:0 14px; border-radius:12px; border:1px solid #f0b2ac; background:var(--elip-red-soft); color:var(--elip-red); font-size:.82rem; font-weight:800; cursor:pointer; user-select:none; white-space:nowrap; transition:.18s ease; }
+      .urg-btn{ display:inline-flex; align-items:center; gap:12px; height:42px; padding:0 18px; border-radius:12px; border:1px solid #f0b2ac; background:var(--elip-red-soft); color:var(--elip-red); font-size:.82rem; font-weight:800; cursor:pointer; user-select:none; white-space:nowrap; transition:.18s ease; }
       .urg-btn::before{ content:""; width:10px; height:10px; border-radius:2px; background:#fff; border:1px solid var(--elip-red); display:inline-block; }
       #is_urgent:checked + .urg-btn{ background:#ffe3e0; border-color:#e08f86; }
       #is_urgent:checked + .urg-btn::before{ background:var(--elip-red); }
@@ -186,7 +186,7 @@
             </div>
 
             <div class="form-area">
-              <div class="field-card col-2">
+              <div class="field-card" style="grid-column:1;">
                 <label>Stato</label>
                 <select id="status" class="form-select">
                   <option value="BOZZA">BOZZA</option>
@@ -195,19 +195,19 @@
                   <option value="ANNULLATO">ANNULLATO</option>
                 </select>
               </div>
-              <div class="field-card col-2">
+              <div class="field-card" style="grid-column:2;">
                 <label>Data invio</label>
                 <input id="sent_at" type="date" class="form-control">
               </div>
-              <div class="field-card col-2">
+              <div class="field-card" style="grid-column:3;">
                 <label>Accettazione</label>
                 <input id="accepted_at" type="date" class="form-control">
               </div>
-              <div class="field-card col-2">
+              <div class="field-card" style="grid-column:4;">
                 <label>Consegna gg</label>
                 <input id="delivery_days" type="number" min="0" step="1" class="form-control" placeholder="es. 10">
               </div>
-              <div class="field-card col-4">
+              <div class="field-card" style="grid-column:5;">
                 <label>Data scadenza</label>
                 <div class="deadline-wrap">
                   <input id="delivery_date" type="date" class="form-control">
@@ -217,7 +217,7 @@
                   </div>
                 </div>
               </div>
-              <div class="col-12 note-box">
+              <div class="pcol-12 note-box">
                 <label class="form-label mb-2" style="color:var(--elip-gray);font-size:.82rem;font-weight:800;">Note</label>
                 <input id="notes" class="form-control" placeholder="Note interne / note al cliente…">
               </div>
