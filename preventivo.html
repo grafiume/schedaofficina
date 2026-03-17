@@ -1,102 +1,4 @@
 <!doctype html>
-<style>
-
-/* ===== FIX MOBILE DEFINITIVO ===== */
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  padding: 10px;
-  font-size: 16px;
-}
-
-/* HEADER */
-.header,
-.top-bar,
-.container-header {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* BADGE */
-.badge,
-.status,
-.tag {
-  display: inline-block;
-  margin: 2px 4px 2px 0;
-  padding: 4px 8px;
-  font-size: 12px;
-  border-radius: 6px;
-}
-
-/* GRID CAMPI */
-.form-grid,
-.grid,
-.fields {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-
-/* INPUT */
-input,
-select,
-textarea {
-  width: 100%;
-  font-size: 16px;
-}
-
-/* BOTTONI */
-button {
-  width: 100%;
-  padding: 10px;
-  font-size: 16px;
-}
-
-/* VOCI RIP */
-.table,
-.rip-table {
-  display: block;
-  width: 100%;
-  overflow-x: auto;
-}
-
-.table tr,
-.rip-row {
-  display: block;
-  margin-bottom: 10px;
-  border: 1px solid #ddd;
-  padding: 8px;
-  border-radius: 6px;
-}
-
-/* DESKTOP */
-@media (min-width: 768px) {
-
-  .form-grid,
-  .grid,
-  .fields {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  button {
-    width: auto;
-  }
-
-  .table tr,
-  .rip-row {
-    display: table-row;
-    border: none;
-    padding: 0;
-  }
-
-}
-
-</style>
 <html lang="it">
   <head>
     <meta charset="utf-8" />
@@ -237,23 +139,32 @@ button {
         .record-title{ font-size:1.55rem; }
       }
     
-      /* === ELIP RESPONSIVE FIX MOBILE === */
-      @media (max-width: 768px){
-        .hero-top{ grid-template-columns:1fr !important; }
-        .right-head{ align-items:flex-start !important; }
-        .record-title{ font-size:1.4rem !important; }
-        .record-desc{ font-size:1rem !important; }
-        .grid-card .card-body{ padding:14px !important; }
-        .form-control, .form-select{ font-size:16px !important; }
-        .table{ font-size:0.9rem; }
-        .badge{ font-size:0.7rem; padding:6px 8px; }
-        .btn{ width:100%; margin-bottom:6px; }
-      }
-      @media (max-width: 480px){
-        .record-title{ font-size:1.2rem !important; }
-        .record-desc{ font-size:0.95rem !important; }
-        .smallmono{ font-size:0.75rem !important; }
-      }
+@media (max-width: 768px){
+  .hero-top{
+    grid-template-columns:1fr !important;
+  }
+  .right-head{
+    align-items:flex-start !important;
+  }
+  .head-meta{
+    text-align:left !important;
+  }
+  .record-title{
+    font-size:1.5rem !important;
+  }
+  .record-desc{
+    font-size:1rem !important;
+  }
+  .form-area{
+    grid-template-columns:1fr !important;
+  }
+  .deadline-wrap{
+    grid-template-columns:1fr !important;
+  }
+  .badg-row{
+    justify-content:flex-start !important;
+  }
+}
 
 </style>
   </head>
