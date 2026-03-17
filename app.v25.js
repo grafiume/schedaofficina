@@ -216,7 +216,6 @@ window.renderHome=function(rows){
     tdFoto.appendChild(img); tr.appendChild(tdFoto);
 
     const tdData=document.createElement('td'); tdData.textContent=fmtIT(r.dataApertura); tr.appendChild(tdData);
-    const tdCassetto=document.createElement('td'); tdCassetto.textContent=r.cassetto??''; tr.appendChild(tdCassetto);
     const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; tr.appendChild(tdCliente);
     const tdDesc=document.createElement('td'); tdDesc.textContent=r.descrizione??''; tr.appendChild(tdDesc);
     const tdMod=document.createElement('td'); tdMod.textContent=r.modello??''; tr.appendChild(tdMod);
@@ -236,14 +235,13 @@ window.renderHome=function(rows){
     // Miniatura: lazy + queue (anti 429)
     mountLazyThumb(img, r.id);
   });
-  if(!rows?.length){ tb.innerHTML='<tr><td colspan="8" class="text-center text-muted py-4">Nessun record</td></tr>'; }
+  if(!rows?.length){ tb.innerHTML='<tr><td colspan="7" class="text-center text-muted py-4">Nessun record</td></tr>'; }
 };
 
 // ----------------- Ricerca -----------------
 function getSearchFilters(){
   return {
     q: document.getElementById('q').value.trim(),
-    cassetto: document.getElementById('fCassetto')?.value.trim() || '',
     noteExact: document.getElementById('noteExact')?.value.trim() || '',
     batt: document.getElementById('fBatt').value.trim(),
     asse: document.getElementById('fAsse')?.value.trim() || '',
@@ -257,11 +255,10 @@ function toNum(val){ if(val==null) return null; const s=String(val).trim().repla
 function isNumEq(fv, rv){ if(fv==null || String(fv).trim()==='') return true; const f=toNum(fv), r=toNum(rv); if(f===null||r===null) return false; return f===r; }
 function matchRow(r,f){
   if(f.q){
-    const hay=[r.cassetto,r.descrizione,r.modello,r.cliente,r.telefono,r.docTrasporto].map(norm).join(' ');
+    const hay=[r.descrizione,r.modello,r.cliente,r.telefono,r.docTrasporto].map(norm).join(' ');
     const tokens=norm(f.q).split(/\s+/).filter(Boolean);
     for(const t of tokens){ if(!hay.includes(t)) return false; }
   }
-  if(f.cassetto && norm(r.cassetto)!==norm(f.cassetto)) return false;
   if(f.noteExact && norm(r.note)!==norm(f.noteExact)) return false;
   if(!isNumEq(f.batt,r.battCollettore)) return false;
   if(!isNumEq(f.asse,r.lunghezzaAsse)) return false;
@@ -283,7 +280,6 @@ function doSearch(){
     tdFoto.appendChild(img); tr.appendChild(tdFoto);
 
     const tdData=document.createElement('td'); tdData.textContent=fmtIT(r.dataApertura); tr.appendChild(tdData);
-    const tdCassetto=document.createElement('td'); tdCassetto.textContent=r.cassetto??''; tr.appendChild(tdCassetto);
     const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; tr.appendChild(tdCliente);
     const tdDesc=document.createElement('td'); tdDesc.textContent=r.descrizione??''; tr.appendChild(tdDesc);
     const tdMod=document.createElement('td'); tdMod.textContent=r.modello??''; tr.appendChild(tdMod);
@@ -303,7 +299,7 @@ function doSearch(){
     // Miniatura: lazy + queue (anti 429)
     mountLazyThumb(img, r.id);
   });
-  if(!rows.length){ tb.innerHTML='<tr><td colspan="8" class="text-center text-muted py-4">Nessun risultato</td></tr>'; }
+  if(!rows.length){ tb.innerHTML='<tr><td colspan="7" class="text-center text-muted py-4">Nessun risultato</td></tr>'; }
 }
 
 // ----------------- Gallery (Edit) -----------------
@@ -450,7 +446,7 @@ function openEdit(id){
   setV('eDescrizione',r.descrizione); setV('eModello',r.modello);
   setV('eApertura',r.dataApertura); setV('eAcc',r.dataAccettazione); setV('eScad',r.dataScadenza);
   setV('eStato',r.statoPratica); setV('eDDT',r.docTrasporto);
-  setV('eCliente',r.cliente); setV('eTel',r.telefono); setV('eEmail',r.email); setV('eCassetto',r.cassetto);
+  setV('eCliente',r.cliente); setV('eTel',r.telefono); setV('eEmail',r.email);
   setV('eBatt',r.battCollettore); setV('eAsse',r.lunghezzaAsse); setV('ePacco',r.lunghezzaPacco); setV('eLarg',r.larghezzaPacco); setV('ePunta',r.punta); setV('eNP',r.numPunte); setV('eNote',r.note);
 
   show('page-edit');
@@ -485,7 +481,7 @@ async function saveEdit(closeAfter=true){
   const payload={
     descrizione:val('eDescrizione'), modello:val('eModello'),
     dataApertura:val('eApertura')||null, dataAccettazione:val('eAcc')||null, dataScadenza:val('eScad')||null,
-    statoPratica:val('eStato'), docTrasporto:val('eDDT'), cassetto:val('eCassetto'),
+    statoPratica:val('eStato'), docTrasporto:val('eDDT'),
     cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'),
     battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
     punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'),
@@ -543,7 +539,7 @@ async function createNewRecord(){
     dataAccettazione:toNull(getV('nAcc')),
     dataScadenza:toNull(getV('nScad')),
     statoPratica:getV('nStato')||'In attesa',
-    docTrasporto:getV('nDDT'), cassetto:getV('nCassetto'),
+    docTrasporto:getV('nDDT'),
     cliente:getV('nCliente'), telefono:getV('nTel'), email:getV('nEmail'),
     battCollettore:toNull(getV('nBatt')),
     lunghezzaAsse:toNull(getV('nAsse')),
@@ -593,7 +589,7 @@ window.loadAll=async function(){
     if(!sb){ showError('Supabase non inizializzato'); return; }
     let { data, error } = await sb
       .from('records')
-      .select('id,descrizione,modello,cliente,telefono,statoPratica,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,cassetto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
       .order('dataApertura',{ascending:false});
     if(error){
       const fb=await sb.from('records_view').select('*').order('dataApertura',{ascending:false}).limit(1000);
@@ -614,7 +610,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   H('btnApply', doSearch);
   H('btnDoSearch', doSearch);
   H('btnReset', ()=>{
-    ['q','fCassetto','noteExact','fBatt','fAsse','fPacco','fLarg','fPunta','fNP'].forEach(id=>{
+    ['q','noteExact','fBatt','fAsse','fPacco','fLarg','fPunta','fNP'].forEach(id=>{
       const el=document.getElementById(id); if(!el) return;
       if(el.tagName==='SELECT') el.selectedIndex=0; else el.value='';
     });
