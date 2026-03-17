@@ -50,6 +50,7 @@
             <tr>
               <th class="thumb-cell">Foto</th>
               <th>Data</th>
+              <th>Cassetto</th>
               <th>Cliente</th>
               <th>Descrizione</th>
               <th>Modello</th>
@@ -58,7 +59,7 @@
             </tr>
           </thead>
           <tbody id="homeRows">
-            <tr><td colspan="7" class="text-center py-4 text-muted">Caricamento…</td></tr>
+            <tr><td colspan="8" class="text-center py-4 text-muted">Caricamento…</td></tr>
           </tbody>
         </table>
       </div>
@@ -70,12 +71,13 @@
 
       <div class="row g-2 mb-2">
         <div class="col-md-10">
-          <input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT (token, no accenti)…">
+          <input id="q" class="form-control" placeholder="Cerca per cassetto, descrizione, modello, cliente, telefono, DDT (token, no accenti)…">
         </div>
         <div class="col-md-2 d-grid"><button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button></div>
       </div>
 
       <div class="row g-2 mb-3">
+        <div class="col-md-6 col-lg-3"><input id="fCassetto" class="form-control" placeholder="Cassetto (ricerca esatta)"></div>
         <div class="col-md-6 col-lg-4"><input id="noteExact" class="form-control" placeholder="Note (match esatto)"></div>
       </div>
 
@@ -110,6 +112,7 @@
             <tr>
               <th class="thumb-cell">Foto</th>
               <th>Data</th>
+              <th>Cassetto</th>
               <th>Cliente</th>
               <th>Descrizione</th>
               <th>Modello</th>
@@ -151,8 +154,9 @@
                   <div class="form-text" id="closedHint"></div>
                 </div>
 <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="eDDT" class="form-control" placeholder="Numero / riferimento DDT"></div>
+                <div class="col-md-2"><label class="form-label">Cassetto</label><input id="eCassetto" class="form-control" placeholder="es. A1" autocomplete="off"></div>
 
-                <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="eCliente" class="form-control"></div>
+                <div class="col-md-4"><label class="form-label">Nome / Ragione sociale</label><input id="eCliente" class="form-control"></div>
                 <div class="col-md-3"><label class="form-label">Telefono</label><input id="eTel" class="form-control"></div>
                 <div class="col-md-3"><label class="form-label">Email</label><input id="eEmail" class="form-control"></div>
               </div>
@@ -223,7 +227,8 @@
                   <div class="col-md-4"><label class="form-label">Stato</label>
                     <select id="nStato" class="form-select"><option>In attesa</option><option>In lavorazione</option><option>Completata</option></select></div>
 <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="nDDT" class="form-control"></div>
-                  <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="nCliente" class="form-control"></div>
+                  <div class="col-md-2"><label class="form-label">Cassetto</label><input id="nCassetto" class="form-control" placeholder="es. A1" autocomplete="off"></div>
+                  <div class="col-md-4"><label class="form-label">Nome / Ragione sociale</label><input id="nCliente" class="form-control"></div>
                   <div class="col-md-3"><label class="form-label">Telefono</label><input id="nTel" class="form-control"></div>
                   <div class="col-md-3"><label class="form-label">Email</label><input id="nEmail" class="form-control"></div>
                   <div class="col-md-3"><label class="form-label">Batt. collettore</label><input id="nBatt" class="form-control"></div>
