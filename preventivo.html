@@ -1,4 +1,102 @@
 <!doctype html>
+<style>
+
+/* ===== FIX MOBILE DEFINITIVO ===== */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 10px;
+  font-size: 16px;
+}
+
+/* HEADER */
+.header,
+.top-bar,
+.container-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* BADGE */
+.badge,
+.status,
+.tag {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+/* GRID CAMPI */
+.form-grid,
+.grid,
+.fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+/* INPUT */
+input,
+select,
+textarea {
+  width: 100%;
+  font-size: 16px;
+}
+
+/* BOTTONI */
+button {
+  width: 100%;
+  padding: 10px;
+  font-size: 16px;
+}
+
+/* VOCI RIP */
+.table,
+.rip-table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table tr,
+.rip-row {
+  display: block;
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+/* DESKTOP */
+@media (min-width: 768px) {
+
+  .form-grid,
+  .grid,
+  .fields {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  button {
+    width: auto;
+  }
+
+  .table tr,
+  .rip-row {
+    display: table-row;
+    border: none;
+    padding: 0;
+  }
+
+}
+
+</style>
 <html lang="it">
   <head>
     <meta charset="utf-8" />
