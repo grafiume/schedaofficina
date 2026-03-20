@@ -28,8 +28,6 @@
     { v:'COMPLETATA', label:'COMPLETATA', pct:100 },
   ];
 
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
-
   function $(id){ return document.getElementById(id); }
   function qs(){ return new URLSearchParams(location.search); }
   function clone(v){ return JSON.parse(JSON.stringify(v)); }
@@ -56,10 +54,6 @@
       el.classList.remove('d-none');
       setTimeout(()=>{ try{ el.classList.add('d-none'); }catch{} }, 1800);
     }
-  }
-  function setDictationState(msg){
-    const el = $('dictationState');
-    if(el) el.textContent = msg || '';
   }
   function parseNum(v){
     const raw = String(v ?? '').trim().replace(',', '.');
@@ -132,7 +126,6 @@
   let dictationDebounce = null;
   let dictationMode = 'rips';
   let lastAutoApplied = '';
-  let recognition = null;
 
   function emptyQuoteState(recordId){
     return {
@@ -386,7 +379,7 @@
       btn.onclick = (ev)=>{
         ev.preventDefault();
         ev.stopPropagation();
-        startDictationFlow(mode);
+        openDictationBox(mode);
       };
     });
   }
@@ -897,7 +890,7 @@
         "></textarea>
 
         <div style="margin-top:10px;font-size:.9rem;color:#667085;">
-          Se il browser supporta il microfono parte direttamente. Altrimenti puoi dettare con il microfono della tastiera.
+          Appena smetti di dettare o scrivere, il testo viene trasferito e la finestra si chiude da sola.
         </div>
       </div>
     `;
@@ -908,69 +901,12 @@
     $('dictationLiveInput').addEventListener('input', onDictationTyping);
   }
 
-  function startDictationFlow(mode){
+  function openDictationBox(mode){
     if(!isEditUnlocked){
       showErr('Prima sblocca le modifiche con la password.');
       return;
     }
 
-    if(SpeechRecognition){
-      startBrowserMic(mode);
-      return;
-    }
-
-    openDictationBox(mode);
-  }
-
-  function startBrowserMic(mode){
-    try{
-      if(recognition){
-        try{ recognition.abort(); }catch{}
-        recognition = null;
-      }
-
-      recognition = new SpeechRecognition();
-      recognition.lang = 'it-IT';
-      recognition.interimResults = false;
-      recognition.continuous = false;
-      recognition.maxAlternatives = 1;
-
-      dictationMode = mode;
-
-      setDictationState(
-        mode === 'rips'
-          ? 'Microfono attivo: detta per esempio RIP01 250 RIP02 90'
-          : 'Microfono attivo: detta per esempio 450 euro'
-      );
-
-      recognition.onresult = (event)=>{
-        const transcript = Array.from(event.results).map(r=>r[0]?.transcript || '').join(' ').trim();
-        setDictationState('Riconosciuto: ' + transcript);
-        const ok = applyDictation(mode, transcript);
-        if(!ok){
-          openDictationBox(mode);
-          $('dictationLiveInput').value = transcript;
-          setTimeout(()=>{ try{ $('dictationLiveInput').focus(); }catch{} }, 100);
-        }
-      };
-
-      recognition.onerror = ()=>{
-        setDictationState('Microfono non disponibile qui. Uso inserimento testo.');
-        openDictationBox(mode);
-      };
-
-      recognition.onend = ()=>{
-        recognition = null;
-      };
-
-      recognition.start();
-    }catch(e){
-      setDictationState('Microfono non disponibile qui. Uso inserimento testo.');
-      openDictationBox(mode);
-    }
-  }
-
-  function openDictationBox(mode){
     const ov = $('dictationOverlay');
     const input = $('dictationLiveInput');
     if(!ov || !input){
