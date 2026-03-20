@@ -341,8 +341,8 @@
     $('btnDelete')?.addEventListener('click', deleteQuote);
     $('btnUnlock')?.addEventListener('click', unlockEdit);
     $('btnPdf')?.addEventListener('click', downloadQuotePdf);
-    $('btnEmail')?.addEventListener('click', sendQuoteByEmail);
-    $('btnWhatsapp')?.addEventListener('click', sendQuoteByWhatsApp);
+    
+    
 
     ['status','sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{
       $(id)?.addEventListener('input', ()=>{
@@ -1271,7 +1271,7 @@
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.7);
     doc.setTextColor(102,112,133);
-    
+    doc.text('Preventivo elaborato da ELIP TAGLIENTE. Le singole quotazioni RIP non sono esposte in questo documento.', margin, footerY);
 
     const blob = doc.output('blob');
     return {
@@ -1381,3 +1381,25 @@
 
   document.addEventListener('DOMContentLoaded', init);
 })();
+
+$('btnInvia')?.addEventListener('click', sendQuoteUnified);
+
+async function sendQuoteUnified(){
+  try{
+    const { blob, filename } = await generateQuotePdfBlob();
+
+    if(navigator.share){
+      const file = new File([blob], filename, { type:'application/pdf' });
+      await navigator.share({
+        title: 'Preventivo ELIP TAGLIENTE',
+        text: 'Invio preventivo',
+        files: [file]
+      });
+    }else{
+      downloadBlob(blob, filename);
+      alert('PDF scaricato. Puoi inviarlo manualmente.');
+    }
+  }catch(e){
+    alert('Errore invio: ' + (e?.message || e));
+  }
+}
