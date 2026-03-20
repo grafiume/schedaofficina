@@ -1193,13 +1193,16 @@
 
     const ddt = getClientDdt();
     const topRows = [
-      ['Ragione sociale cliente', record?.cliente || '—'],
-      ['Descrizione', record?.descrizione || '—'],
-      ['Modello', record?.modello || '—'],
-      ['Data', fmtDateISO(getQuoteDateLabel())],
-      ['DDT', ddt || '—'],
-      ['Tempo di consegna stimato', getDeliveryEstimateText()]
-    ];
+  ['Ragione sociale cliente', record?.cliente || '—'],
+  ['Descrizione', record?.descrizione || '—'],
+  ['Modello', record?.modello || '—'],
+
+  ['Data Arrivo Merci', fmtDateISO(record?.data_arrivo || record?.created_at)],
+  ['Data Invio', fmtDateISO(quoteState?.sent_at || new Date())],
+
+  ['DDT', ddt || '—'],
+  ['Tempo di consegna stimato', getDeliveryEstimateText()]
+];
 
     doc.setFontSize(10.5);
     topRows.forEach(([label, value])=>{
