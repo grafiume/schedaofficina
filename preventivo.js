@@ -28,8 +28,6 @@
     { v:'COMPLETATA', label:'COMPLETATA', pct:100 },
   ];
 
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
-
   function $(id){ return document.getElementById(id); }
   function qs(){ return new URLSearchParams(location.search); }
   function clone(v){ return JSON.parse(JSON.stringify(v)); }
@@ -170,6 +168,7 @@
 
       bindUI();
       ensureVoiceButtons();
+      ensureDictationModal();
       recalcTotals();
       renderAll();
     }catch(e){
@@ -793,68 +792,105 @@
   }
 
   function ensureVoiceButtons(){
-    const navbarWrap = document.querySelector('.navbar .d-flex.gap-2.align-items-center.flex-wrap.justify-content-end');
-    if(navbarWrap && !$('btnDictateRips')){
-      const btn1 = document.createElement('button');
-      btn1.type = 'button';
-      btn1.id = 'btnDictateRips';
-      btn1.className = 'btn btn-outline-secondary btn-dictation';
-      btn1.textContent = '🎤 Voci RIP';
-      btn1.disabled = true;
-      btn1.addEventListener('click', ()=>startDictation('rips'));
-      navbarWrap.insertBefore(btn1, $('btnDelete') || $('btnSave') || null);
+    const wrap = document.querySelector('.navbar .d-flex.gap-2.align-items-center.flex-wrap.justify-content-end');
+    if(!wrap) return;
 
-      const btn2 = document.createElement('button');
-      btn2.type = 'button';
-      btn2.id = 'btnDictateTotal';
-      btn2.className = 'btn btn-outline-secondary btn-dictation';
-      btn2.textContent = '🎤 Totale';
-      btn2.disabled = true;
-      btn2.addEventListener('click', ()=>startDictation('total'));
-      navbarWrap.insertBefore(btn2, $('btnDelete') || $('btnSave') || null);
+    if(!$('btnDictateRips')){
+      const b1 = document.createElement('button');
+      b1.type = 'button';
+      b1.id = 'btnDictateRips';
+      b1.className = 'btn btn-outline-secondary btn-dictation';
+      b1.textContent = '🎤 Voci RIP';
+      b1.disabled = true;
+      b1.addEventListener('click', ()=>openDictationModal('rips'));
+      wrap.insertBefore(b1, $('btnDelete') || $('btnSave') || null);
+    }
+
+    if(!$('btnDictateTotal')){
+      const b2 = document.createElement('button');
+      b2.type = 'button';
+      b2.id = 'btnDictateTotal';
+      b2.className = 'btn btn-outline-secondary btn-dictation';
+      b2.textContent = '🎤 Totale';
+      b2.disabled = true;
+      b2.addEventListener('click', ()=>openDictationModal('total'));
+      wrap.insertBefore(b2, $('btnDelete') || $('btnSave') || null);
     }
   }
 
-  async function startDictation(mode){
+  function ensureDictationModal(){
+    if($('dictationModal')) return;
+
+    const div = document.createElement('div');
+    div.innerHTML = `
+      <div class="modal fade" id="dictationModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content" style="border-radius:18px;">
+            <div class="modal-header">
+              <h5 class="modal-title" id="dictationTitle">Dettatura</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+            </div>
+            <div class="modal-body">
+              <div class="small text-muted mb-2" id="dictationHelp"></div>
+              <textarea id="dictationInput" class="form-control" rows="4" placeholder=""></textarea>
+              <div class="small text-muted mt-2">Su iPhone o Android puoi toccare il microfono della tastiera e dettare qui dentro.</div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+              <button type="button" class="btn btn-orange" id="btnApplyDictation">Applica</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(div.firstElementChild);
+
+    $('btnApplyDictation')?.addEventListener('click', applyDictationFromModal);
+  }
+
+  function openDictationModal(mode){
     if(!isEditUnlocked){
       showErr('Prima sblocca le modifiche con la password.');
       return;
     }
 
-    clearErr();
+    const modalEl = $('dictationModal');
+    if(!modalEl) return;
 
-    if(!SpeechRecognition){
-      const typed = prompt(
-        mode === 'rips'
-          ? 'Detta o scrivi: RIP01 250 RIP02 90'
-          : 'Detta o scrivi il totale: 450 euro'
-      );
-      if(!typed) return;
-      applyDictation(mode, typed);
+    modalEl.dataset.mode = mode;
+    $('dictationTitle').textContent = mode === 'rips' ? 'Detta voci RIP' : 'Detta totale riparazione';
+    $('dictationHelp').textContent = mode === 'rips'
+      ? 'Esempi: RIP01 250 RIP02 90 RIP21 45'
+      : 'Esempio: 450 euro';
+    $('dictationInput').value = '';
+    $('dictationInput').placeholder = mode === 'rips'
+      ? 'Scrivi o detta qui: RIP01 250 RIP02 90'
+      : 'Scrivi o detta qui: 450 euro';
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    setTimeout(()=>{
+      try{ $('dictationInput').focus(); }catch{}
+    }, 250);
+  }
+
+  function applyDictationFromModal(){
+    const modalEl = $('dictationModal');
+    const input = $('dictationInput');
+    if(!modalEl || !input) return;
+
+    const mode = modalEl.dataset.mode || 'rips';
+    const text = String(input.value || '').trim();
+    if(!text){
+      showErr('Inserisci o detta un testo.');
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'it-IT';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+    applyDictation(mode, text);
 
-    showOk(
-      mode === 'rips'
-        ? 'Parla ora: es. RIP01 250 RIP02 90'
-        : 'Parla ora: es. 450 euro'
-    );
-
-    recognition.onresult = (event)=>{
-      const transcript = Array.from(event.results).map(r=>r[0]?.transcript || '').join(' ').trim();
-      applyDictation(mode, transcript);
-    };
-
-    recognition.onerror = ()=>{
-      showErr('Dettatura non riuscita. Riprova.');
-    };
-
-    recognition.start();
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.hide();
   }
 
   function applyDictation(mode, transcript){
