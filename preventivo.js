@@ -1174,7 +1174,7 @@
 
     const logo = await getLogoDataUrl();
     if(logo){
-      try{ doc.addImage(logo, 'JPEG', margin, 12, 34, 12); }catch{}
+      try{ doc.addImage(logo, 'PNG', margin, 10, 78, 19); }catch{}
     }
 
     doc.setFont('helvetica', 'bold');
@@ -1200,19 +1200,6 @@
     y += 8;
 
     const ddt = getClientDdt();
-
-    doc.setFillColor(248,250,252);
-    doc.setDrawColor(230,233,238);
-    doc.roundedRect(margin, y, pageW - margin*2, 16, 3, 3, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(71,84,103);
-    doc.setFontSize(9.5);
-    doc.text('Cliente', margin + 4, y + 6);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(31,41,55);
-    doc.setFontSize(13);
-    doc.text(String(record?.cliente || '—'), margin + 4, y + 12);
-    y += 22;
     const topRows = [
       ['Ragione sociale cliente', record?.cliente || '—'],
       ['Descrizione', record?.descrizione || '—'],
