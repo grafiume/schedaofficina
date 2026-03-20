@@ -487,7 +487,7 @@
             </div>
             <div class="rip-main">
               <div class="rip-head">
-                <span class="rip-code">${esc(w.code)}</span>
+                <span class="badge badge-rip">${esc(w.code)}</span>
                 <div class="rip-name">${w.free ? `<input data-editable="1" class="form-control free-desc" placeholder="Descrizione lavorazione libera…" value="${esc(item?.description || '')}" ${checked ? '' : 'disabled'}>` : esc(w.text)}</div>
               </div>
               <div class="mini-grid">
