@@ -40,3 +40,34 @@ background:#d32f2f;
 border-radius:2px;
 display:inline-block;
 }
+/* ===== BADGE RIP (CODICE LAVORAZIONE) ===== */
+
+.badge-rip{
+display:inline-block;
+padding:5px 10px;
+font-size:13px;
+font-weight:700;
+border-radius:10px;
+letter-spacing:0.4px;
+border:1px solid #ffd3a6;
+
+color:#b45309;
+background:linear-gradient(135deg,#fff7ed,#ffedd5);
+
+min-width:58px;
+text-align:center;
+}
+
+/* versione più evidente quando riga attiva */
+.row-card:not(.row-off) .badge-rip{
+background:linear-gradient(135deg,#ff7a00,#ff9500);
+color:#fff;
+border-color:#ff7a00;
+}
+
+/* leggero stacco dalla descrizione */
+.rip-head{
+display:flex;
+align-items:center;
+gap:10px;
+}
