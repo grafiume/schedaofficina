@@ -43,31 +43,42 @@ display:inline-block;
 /* ===== BADGE RIP (CODICE LAVORAZIONE) ===== */
 
 .badge-rip{
-display:inline-block;
+display:inline-flex !important;
+align-items:center;
+justify-content:center;
 padding:5px 10px;
-font-size:13px;
-font-weight:700;
+font-size:14px;
+font-weight:800;
+line-height:1;
 border-radius:10px;
 letter-spacing:0.4px;
-border:1px solid #ffd3a6;
-
-color:#b45309;
-background:linear-gradient(135deg,#fff7ed,#ffedd5);
-
-min-width:58px;
+border:1px solid #ffb36b;
+color:#b45309 !important;
+background:#fff2e6 !important;
+min-width:64px;
 text-align:center;
+white-space:nowrap;
+flex:0 0 auto;
 }
 
-/* versione più evidente quando riga attiva */
 .row-card:not(.row-off) .badge-rip{
-background:linear-gradient(135deg,#ff7a00,#ff9500);
-color:#fff;
-border-color:#ff7a00;
+background:#ff7a00 !important;
+color:#ffffff !important;
+border-color:#ff7a00 !important;
 }
 
-/* leggero stacco dalla descrizione */
 .rip-head{
 display:flex;
-align-items:center;
+align-items:flex-start;
 gap:10px;
+flex-wrap:wrap;
+}
+
+.rip-name{
+min-width:0;
+flex:1 1 240px;
+font-size:1rem;
+font-weight:800;
+line-height:1.15;
+color:#49505d;
 }
