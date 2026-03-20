@@ -320,7 +320,7 @@
   async function loadRecordData(recordId){
     const { data, error } = await sb
       .from('records')
-      .select('id,cliente,descrizione,modello')
+      .select('*')
       .eq('id', recordId)
       .single();
 
@@ -340,6 +340,9 @@
     $('btnSave')?.addEventListener('click', saveAll);
     $('btnDelete')?.addEventListener('click', deleteQuote);
     $('btnUnlock')?.addEventListener('click', unlockEdit);
+    $('btnPdf')?.addEventListener('click', downloadQuotePdf);
+    $('btnEmail')?.addEventListener('click', sendQuoteByEmail);
+    $('btnWhatsapp')?.addEventListener('click', sendQuoteByWhatsApp);
 
     ['status','sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{
       $(id)?.addEventListener('input', ()=>{
@@ -890,28 +893,12 @@
         "></textarea>
 
         <div style="margin-top:10px;font-size:.9rem;color:#667085;">
-          Detti o scrivi il testo, poi premi Conferma per applicarlo. La finestra non si chiude automaticamente.
+          Il testo resta nella finestra finché non premi Conferma. Puoi correggerlo anche a mano.
         </div>
 
-        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px;">
-          <button type="button" id="dictationCancel" style="
-            border:1px solid #d0d5dd;
-            background:#fff;
-            color:#101828;
-            border-radius:10px;
-            padding:10px 14px;
-            font-weight:700;
-            cursor:pointer;
-          ">Annulla</button>
-          <button type="button" id="dictationConfirm" style="
-            border:1px solid #101828;
-            background:#101828;
-            color:#fff;
-            border-radius:10px;
-            padding:10px 14px;
-            font-weight:700;
-            cursor:pointer;
-          ">Conferma</button>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;flex-wrap:wrap;">
+          <button type="button" id="dictationCancel" style="border:1px solid #d0d5dd;background:#fff;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;">Annulla</button>
+          <button type="button" id="dictationConfirm" style="border:1px solid #ff7a00;background:#ff7a00;color:#fff;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer;">Conferma</button>
         </div>
       </div>
     `;
@@ -920,7 +907,7 @@
 
     $('dictationClose').addEventListener('click', closeDictationBox);
     $('dictationCancel').addEventListener('click', closeDictationBox);
-    $('dictationConfirm').addEventListener('click', confirmDictation);
+    $('dictationConfirm').addEventListener('click', confirmDictationBox);
     $('dictationLiveInput').addEventListener('input', onDictationTyping);
   }
 
@@ -965,23 +952,19 @@
 
   function onDictationTyping(){
     clearTimeout(dictationDebounce);
-    dictationDebounce = setTimeout(()=>{
-      const input = $('dictationLiveInput');
-      if(!input) return;
-
-      const text = String(input.value || '').trim();
-      if(!text) return;
-      lastAutoApplied = text;
-    }, 250);
+    lastAutoApplied = '';
   }
 
-  function confirmDictation(){
+  function confirmDictationBox(){
     const input = $('dictationLiveInput');
-    if(!input) return;
+    if(!input){
+      showErr('Campo dettatura non disponibile.');
+      return;
+    }
 
     const text = String(input.value || '').trim();
     if(!text){
-      showErr('Inserisci o detta prima un testo da confermare.');
+      showErr('Inserisci o detta un contenuto prima di confermare.');
       return;
     }
 
@@ -1080,6 +1063,320 @@
     renderAll();
     showOk('Totale riparazione impostato a € ' + fmtMoney(total));
     return true;
+  }
+
+
+  function firstFilled(obj, keys){
+    if(!obj) return '';
+    for(const key of keys){
+      const val = obj[key];
+      if(val == null) continue;
+      const str = String(val).trim();
+      if(str) return str;
+    }
+    return '';
+  }
+
+  function normalizeWhatsAppPhone(value){
+    const raw = String(value || '').trim();
+    if(!raw) return '';
+    let cleaned = raw.replace(/[^\d+]/g, '');
+    if(cleaned.startsWith('00')) cleaned = '+' + cleaned.slice(2);
+    if(cleaned.startsWith('+')) return cleaned.slice(1);
+    if(cleaned.startsWith('3') && cleaned.length >= 9) return '39' + cleaned;
+    return cleaned;
+  }
+
+  function getClientEmail(){
+    return firstFilled(record, ['email','e_mail','mail','cliente_email','email_cliente','pec']);
+  }
+
+  function getClientPhone(){
+    return firstFilled(record, ['cellulare','telefono','telefono1','telefono_1','telefono_cliente','tel','whatsapp','cell']);
+  }
+
+  function getClientDdt(){
+    return firstFilled(record, ['ddt','numero_ddt','n_ddt','ddt_numero','ddt_cliente','rif_ddt','riferimento_ddt']);
+  }
+
+  function getQuoteDateLabel(){
+    return quoteState?.sent_at || new Date().toISOString().slice(0,10);
+  }
+
+  function getDeliveryEstimateText(){
+    const parts = [];
+    if(quoteState?.delivery_days !== '' && quoteState?.delivery_days != null){
+      const gg = parseInt(quoteState.delivery_days, 10);
+      if(Number.isFinite(gg) && gg > 0) parts.push(`${gg} giorni`);
+    }
+    if(quoteState?.delivery_date) parts.push(`entro il ${fmtDateISO(quoteState.delivery_date)}`);
+    if(quoteState?.is_urgent) parts.push('priorità urgente');
+    return parts.join(' • ') || 'Da concordare';
+  }
+
+  function getQuoteItemsForPdf(){
+    return WORKS.map((w, idx)=>{
+      const it = quoteState?.items?.[w.code];
+      if(!it) return null;
+      const desc = w.free ? (it.description || 'LAVORAZIONE LIBERA') : w.text;
+      return {
+        position:Number.isFinite(+it.position) ? +it.position : idx,
+        code:w.code,
+        description:desc
+      };
+    }).filter(Boolean).sort((a,b)=>a.position-b.position);
+  }
+
+  function buildQuoteFilename(){
+    const cliente = (record?.cliente || 'cliente').toString().trim().replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g,'');
+    const id = (currentQuoteId || 'nuovo').toString().replace(/[^a-z0-9_-]+/gi,'_');
+    return `preventivo_${cliente || 'cliente'}_${id}.pdf`;
+  }
+
+  async function getLogoDataUrl(){
+    const img = document.querySelector('.brand-logo');
+    if(!img || !img.src) return '';
+    return await new Promise(resolve=>{
+      const tmp = new Image();
+      tmp.crossOrigin = 'anonymous';
+      tmp.onload = ()=>{
+        try{
+          const canvas = document.createElement('canvas');
+          canvas.width = tmp.naturalWidth || tmp.width;
+          canvas.height = tmp.naturalHeight || tmp.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(tmp, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg', 0.92));
+        }catch(_e){
+          resolve('');
+        }
+      };
+      tmp.onerror = ()=>resolve('');
+      tmp.src = img.src;
+    });
+  }
+
+  async function generateQuotePdfBlob(){
+    recalcTotals();
+
+    const jspdfNs = window.jspdf;
+    if(!jspdfNs || !jspdfNs.jsPDF){
+      throw new Error('Libreria PDF non caricata.');
+    }
+
+    const doc = new jspdfNs.jsPDF({ orientation:'p', unit:'mm', format:'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    let y = 16;
+
+    doc.setFillColor(255,122,0);
+    doc.rect(0, 0, pageW, 9, 'F');
+
+    const logo = await getLogoDataUrl();
+    if(logo){
+      try{ doc.addImage(logo, 'JPEG', margin, 12, 34, 12); }catch{}
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31,41,55);
+    doc.setFontSize(18);
+    doc.text('PREVENTIVO', pageW - margin, 18, { align:'right' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(102,112,133);
+    doc.text('ELIP TAGLIENTE S.r.l.', pageW - margin, 24, { align:'right' });
+    y = 32;
+
+    doc.setDrawColor(230,233,238);
+    doc.line(margin, y, pageW - margin, y);
+    y += 8;
+
+    const ddt = getClientDdt();
+    const topRows = [
+      ['Ragione sociale cliente', record?.cliente || '—'],
+      ['Descrizione', record?.descrizione || '—'],
+      ['Modello', record?.modello || '—'],
+      ['Data', fmtDateISO(getQuoteDateLabel())],
+      ['DDT', ddt || '—'],
+      ['Tempo di consegna stimato', getDeliveryEstimateText()]
+    ];
+
+    doc.setFontSize(10.5);
+    topRows.forEach(([label, value])=>{
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(71,84,103);
+      doc.text(`${label}:`, margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(31,41,55);
+      const wrapped = doc.splitTextToSize(String(value || '—'), pageW - margin - 54);
+      doc.text(wrapped, margin + 54, y);
+      y += Math.max(6, wrapped.length * 5);
+    });
+
+    y += 2;
+    doc.setFillColor(255,242,230);
+    doc.roundedRect(margin, y, pageW - margin*2, 10, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255,122,0);
+    doc.setFontSize(11);
+    doc.text('Lavorazioni previste', margin + 4, y + 6.6);
+    y += 14;
+
+    const items = getQuoteItemsForPdf();
+    const body = items.length
+      ? items.map((it, idx)=>[String(idx + 1), it.code, it.description])
+      : [['1', 'RIP00', 'Totale riparazione']];
+
+    doc.autoTable({
+      startY:y,
+      margin:{ left:margin, right:margin },
+      head:[['#', 'Codice', 'Descrizione lavorazione']],
+      body,
+      theme:'grid',
+      styles:{ font:'helvetica', fontSize:9.5, textColor:[31,41,55], lineColor:[230,233,238], lineWidth:0.2, cellPadding:2.6 },
+      headStyles:{ fillColor:[255,122,0], textColor:[255,255,255], fontStyle:'bold' },
+      columnStyles:{ 0:{ cellWidth:10 }, 1:{ cellWidth:28 }, 2:{ cellWidth:'auto' } }
+    });
+
+    y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : y + 20;
+
+    const blockW = 74;
+    const boxX = pageW - margin - blockW;
+    doc.setFillColor(250,251,252);
+    doc.roundedRect(boxX, y, blockW, 28, 3, 3, 'F');
+    doc.setDrawColor(230,233,238);
+    doc.roundedRect(boxX, y, blockW, 28, 3, 3, 'S');
+
+    const lines = [
+      ['Totale imponibile', `€ ${fmtMoney(quoteState?.subtotal_ex_vat || 0)}`],
+      [`IVA ${VAT_RATE}%`, `€ ${fmtMoney(quoteState?.vat_total || 0)}`],
+      ['Totale complessivo', `€ ${fmtMoney(quoteState?.grand_total || 0)}`]
+    ];
+
+    let yy = y + 7;
+    lines.forEach((line, index)=>{
+      doc.setFont('helvetica', index === 2 ? 'bold' : 'normal');
+      doc.setFontSize(index === 2 ? 10.5 : 9.5);
+      doc.setTextColor(71,84,103);
+      doc.text(line[0], boxX + 4, yy);
+      doc.setTextColor(31,41,55);
+      doc.text(line[1], boxX + blockW - 4, yy, { align:'right' });
+      yy += 7;
+    });
+
+    const footerY = pageH - 16;
+    doc.setDrawColor(230,233,238);
+    doc.line(margin, footerY - 5, pageW - margin, footerY - 5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.7);
+    doc.setTextColor(102,112,133);
+    doc.text('Preventivo elaborato da ELIP TAGLIENTE. Le singole quotazioni RIP non sono esposte in questo documento.', margin, footerY);
+
+    const blob = doc.output('blob');
+    return {
+      blob,
+      filename: buildQuoteFilename(),
+      subject: `Preventivo ELIP TAGLIENTE ${record?.cliente || ''}`.trim(),
+      quoteDate: fmtDateISO(getQuoteDateLabel())
+    };
+  }
+
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  }
+
+  function buildShareText(){
+    return [
+      `Preventivo ELIP TAGLIENTE`,
+      `Cliente: ${record?.cliente || '—'}`,
+      `Data: ${fmtDateISO(getQuoteDateLabel())}`,
+      getClientDdt() ? `DDT: ${getClientDdt()}` : '',
+      `Imponibile: € ${fmtMoney(quoteState?.subtotal_ex_vat || 0)}`,
+      `IVA ${VAT_RATE}%: € ${fmtMoney(quoteState?.vat_total || 0)}`,
+      `Totale: € ${fmtMoney(quoteState?.grand_total || 0)}`,
+      `Consegna stimata: ${getDeliveryEstimateText()}`
+    ].filter(Boolean).join('\n');
+  }
+
+  async function saveIfNeededForSharing(){
+    if(isDirty() && isEditUnlocked){
+      await saveAll();
+    }
+  }
+
+  async function downloadQuotePdf(){
+    try{
+      clearErr();
+      await saveIfNeededForSharing();
+      const pdf = await generateQuotePdfBlob();
+      downloadBlob(pdf.blob, pdf.filename);
+      showOk('PDF preventivo generato');
+    }catch(e){
+      showErr('Errore creazione PDF: ' + (e?.message || e));
+    }
+  }
+
+  async function sendQuoteByEmail(){
+    try{
+      clearErr();
+      await saveIfNeededForSharing();
+      const pdf = await generateQuotePdfBlob();
+      const file = new File([pdf.blob], pdf.filename, { type:'application/pdf' });
+      const body = buildShareText();
+      if(navigator.canShare && navigator.canShare({ files:[file] }) && navigator.share){
+        await navigator.share({
+          files:[file],
+          title:pdf.subject,
+          text:'Seleziona Mail per inviare il preventivo in PDF.'
+        });
+        showOk('Condivisione aperta');
+        return;
+      }
+
+      downloadBlob(pdf.blob, pdf.filename);
+      const to = encodeURIComponent(getClientEmail());
+      const subject = encodeURIComponent(pdf.subject);
+      const mailBody = encodeURIComponent(body + '\n\nIn allegato il PDF del preventivo.');
+      location.href = `mailto:${to}?subject=${subject}&body=${mailBody}`;
+      showOk('Email preparata. Allega il PDF scaricato se necessario.');
+    }catch(e){
+      showErr('Errore invio email: ' + (e?.message || e));
+    }
+  }
+
+  async function sendQuoteByWhatsApp(){
+    try{
+      clearErr();
+      await saveIfNeededForSharing();
+      const pdf = await generateQuotePdfBlob();
+      const file = new File([pdf.blob], pdf.filename, { type:'application/pdf' });
+      const message = buildShareText();
+      if(navigator.canShare && navigator.canShare({ files:[file] }) && navigator.share){
+        await navigator.share({
+          files:[file],
+          title:pdf.subject,
+          text:'Seleziona WhatsApp per inviare il preventivo in PDF.'
+        });
+        showOk('Condivisione aperta');
+        return;
+      }
+
+      downloadBlob(pdf.blob, pdf.filename);
+      const phone = normalizeWhatsAppPhone(getClientPhone());
+      const waBase = phone ? `https://wa.me/${phone}` : 'https://wa.me/';
+      location.href = `${waBase}?text=${encodeURIComponent(message + '\n\nTi inviamo anche il PDF del preventivo.')}`;
+      showOk('WhatsApp aperto. Allega il PDF scaricato se necessario.');
+    }catch(e){
+      showErr('Errore invio WhatsApp: ' + (e?.message || e));
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);
