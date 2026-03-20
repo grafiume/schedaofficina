@@ -1,332 +1,58 @@
 <!doctype html>
 <html lang="it">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ELIP TAGLIENTE • Preventivo</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="icon" href="favicon.ico">
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icons/icon-192.png">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="preventivo.css">
-    <style>
-      :root{
-        --elip-orange:#ff7a00;
-        --elip-orange-soft:#fff2e6;
-        --elip-blue:#1f6feb;
-        --elip-blue-soft:#eaf2ff;
-        --elip-green:#198754;
-        --elip-green-soft:#eaf8f0;
-        --elip-red:#d92d20;
-        --elip-red-soft:#fff1f1;
-        --elip-gray:#667085;
-        --elip-line:#e6e9ee;
-        --elip-bg:#f5f7fa;
-        --elip-card:#ffffff;
-        --elip-text:#1f2937;
-      }
-      *{ box-sizing:border-box; }
-      body{ background:linear-gradient(180deg,#f7f8fb 0%,#f2f4f7 100%); color:var(--elip-text); }
-      .container-narrow{ max-width:1320px; }
-      .smallmono{ font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace; }
-      .navbar .container-fluid{ gap:12px; }
-      .navbar-brand{ font-weight:800; letter-spacing:.02em; }
-      .brand-logo{ max-width:100%; height:40px; width:auto; }
-      .page-shell{ display:grid; gap:18px; }
-      .hero-card,.grid-card{ background:var(--elip-card); border:1px solid var(--elip-line); border-radius:22px; box-shadow:0 8px 24px rgba(16,24,40,.05); overflow:hidden; }
-      .hero-card .card-body,.grid-card .card-body{ padding:22px 22px 20px; }
-      .hero-top{ display:grid; grid-template-columns:minmax(0,1.25fr) minmax(320px,.85fr); gap:22px; align-items:start; }
-      .record-kicker{ font-size:.86rem; color:var(--elip-gray); margin-bottom:3px; }
-      .record-title{ font-size:2rem; font-weight:800; line-height:1; margin:0 0 8px; text-transform:lowercase; }
-      .record-desc{ font-size:1.15rem; color:#4b5563; line-height:1.15; margin-bottom:6px; }
-      .record-model{ color:var(--elip-gray); font-size:1rem; }
-      .right-head{ display:flex; flex-direction:column; align-items:flex-end; gap:10px; min-width:0; }
-      .badge-row{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
-      .top-pill,.state-chip{ display:inline-flex; align-items:center; gap:8px; min-height:34px; padding:0 14px; border-radius:999px; font-size:.82rem; font-weight:800; line-height:1; border:1px solid transparent; white-space:nowrap; }
-      .top-pill.blue{ background:var(--elip-blue-soft); color:var(--elip-blue); border-color:#cfe0ff; }
-      .top-pill.green{ background:var(--elip-green-soft); color:var(--elip-green); border-color:#cbead7; }
-      .top-pill.gray{ background:#f2f4f7; color:#475467; border-color:#dde2e8; }
-      .top-pill.red{ background:var(--elip-red-soft); color:var(--elip-red); border-color:#f3b3ad; }
-      .top-pill .sq{ width:9px; height:9px; border-radius:2px; background:currentColor; display:inline-block; }
-      .head-meta{ text-align:right; max-width:100%; }
-      .head-meta .label{ color:var(--elip-gray); font-size:.82rem; }
-      .head-meta .value{ font-size:1.05rem; font-weight:800; line-height:1.25; word-break:break-all; overflow-wrap:anywhere; }
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Preventivo ELIP</title>
 
-      .voice-row{
-        display:flex;
-        flex-wrap:wrap;
-        gap:10px;
-        margin-top:16px;
-      }
-      .voice-row .btn{
-        border-radius:12px;
-        font-weight:800;
-      }
-      #dictationState{
-        margin-top:10px;
-        font-size:.92rem;
-        color:var(--elip-gray);
-      }
+<style>
+body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+.header { display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #000; padding-bottom:10px; }
+.logo { font-size:22px; font-weight:bold; }
+.section { margin-top:20px; }
+.title { font-weight:bold; margin-bottom:8px; }
+.box { border:1px solid #ccc; padding:10px; border-radius:8px; }
+.footer { margin-top:30px; font-size:12px; border-top:1px solid #ccc; padding-top:10px; }
+button { margin-top:20px; padding:10px 15px; border-radius:8px; border:0; background:#000; color:#fff; cursor:pointer;}
+</style>
 
-      .form-area{
-        margin-top:18px;
-        display:grid;
-        grid-template-columns:repeat(12,minmax(0,1fr));
-        gap:14px;
-        align-items:stretch;
-      }
-      .field-card{ background:#fafbfc; border:1px solid var(--elip-line); border-radius:16px; padding:12px; min-width:0; width:100%; }
-      .field-card label{ display:block; margin-bottom:7px; color:var(--elip-gray); font-size:.82rem; font-weight:800; letter-spacing:.01em; }
-      .field-card input,.field-card select{ width:100%; min-width:0; height:44px; border-radius:12px; border-color:#d7dde5; background:#fff; box-sizing:border-box; }
-      .field-card input:focus,.field-card select:focus,.note-box input:focus{ border-color:#ffb36b; box-shadow:0 0 0 .2rem rgba(255,122,0,.12); }
-      .fc-status{ grid-column:span 2; }
-      .fc-sent{ grid-column:span 2; }
-      .fc-accepted{ grid-column:span 2; }
-      .fc-days{ grid-column:span 2; }
-      .fc-deadline{ grid-column:span 4; }
-      .note-box{ grid-column:1 / -1; }
-      .deadline-wrap{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:end; }
-      #is_urgent{ position:absolute; opacity:0; pointer-events:none; width:1px; height:1px; }
-      .urg-btn{ display:inline-flex; align-items:center; justify-content:center; gap:10px; height:44px; padding:0 18px; border-radius:12px; border:1px solid #f0b2ac; background:var(--elip-red-soft); color:var(--elip-red); font-size:.84rem; font-weight:800; cursor:pointer; user-select:none; white-space:nowrap; transition:.18s ease; }
-      .urg-btn::before{ content:""; width:10px; height:10px; border-radius:2px; background:#fff; border:1px solid var(--elip-red); display:inline-block; }
-      #is_urgent:checked + .urg-btn{ background:#ffe3e0; border-color:#e08f86; }
-      #is_urgent:checked + .urg-btn::before{ background:var(--elip-red); }
-      .note-box label{ display:block; margin-bottom:7px; color:var(--elip-gray); font-size:.82rem; font-weight:800; }
-      .note-box input{ width:100%; min-width:0; height:48px; border-radius:14px; border:1px solid #d7dde5; background:#fff; }
-      .progress-panel{ margin-top:16px; background:#fafbfc; border:1px solid var(--elip-line); border-radius:18px; padding:16px 16px 14px; }
-      .progress-head{ display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:8px; }
-      .progress-title{ font-size:1rem; font-weight:800; }
-      .progress-right{ font-size:1rem; font-weight:800; }
-      .progbar,.linebar{ height:10px; border-radius:999px; background:#e9edf2; overflow:hidden; }
-      .progbar>div,.linebar>div{ height:100%; width:0%; }
-      .progbar>div{ background:linear-gradient(90deg,#ff9a3d 0%,#ff7a00 100%); }
-      .st-DA_FARE{ background:#d92d20; }
-      .st-IN_LAVORAZIONE{ background:#ffb020; }
-      .st-COMPLETATA{ background:#12b76a; }
-      .due-banner{ margin-top:12px; display:flex; align-items:center; gap:10px; min-height:24px; font-size:.95rem; font-weight:700; flex-wrap:wrap; }
+</head>
+<body>
 
-      .repairs-table{ width:100%; border-collapse:separate; border-spacing:0 12px; table-layout:fixed; }
-      .repairs-table thead th{ padding:0 12px 4px; font-size:.8rem; color:var(--elip-gray); text-transform:uppercase; letter-spacing:.04em; font-weight:800; }
-      .repairs-table thead th:first-child{ width:68px; }
-      .repairs-table thead th:nth-child(3){ width:180px; }
-      .repairs-table thead th:nth-child(4){ width:140px; }
-      .repairs-table thead th:nth-child(5){ width:160px; }
-      .repairs-table tbody tr{ background:transparent; }
-      .repairs-table tbody td{ padding:0 8px; vertical-align:top; }
-      .row-card{ border:1px solid var(--elip-line); border-radius:18px; box-shadow:0 4px 14px rgba(16,24,40,.03); overflow:hidden; background:#fff; }
-      .row-card.row-working{ border-left:4px solid #ffb020; }
-      .row-card.row-complete{ border-left:4px solid #12b76a; background:#fbfffd; }
-      .row-card.row-todo{ border-left:4px solid #d0d5dd; }
-      .row-card.row-urgent{ box-shadow:inset 3px 0 0 var(--elip-red),0 4px 14px rgba(16,24,40,.03); }
-      .row-card.row-off{ opacity:.78; }
-      .row-inner{
-        display:grid;
-        grid-template-columns:42px minmax(0,1.8fr) minmax(170px,.9fr) minmax(130px,.7fr) minmax(140px,.8fr);
-        gap:12px;
-        align-items:start;
-        padding:14px 14px;
-      }
-      .check-wrap{ display:flex; align-items:flex-start; justify-content:center; padding-top:16px; }
-      .check-wrap input{ width:18px; height:18px; }
-      .rip-main{ min-width:0; }
-      .rip-head{ display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
-      .rip-name{ min-width:0; flex:1 1 240px; font-size:1rem; font-weight:800; line-height:1.15; color:#49505d; }
-      .free-desc{ margin-top:2px; }
-      .mini-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
-      .mini-box{ background:#fafbfc; border:1px solid var(--elip-line); border-radius:14px; padding:8px 10px; min-width:0; }
-      .mini-box label{ display:block; margin-bottom:4px; color:var(--elip-gray); font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
-      .mini-box input{ width:100%; min-width:0; height:36px; border-radius:10px; font-size:.86rem; }
-      .status-stack,.price-wrap,.progress-stack{ min-width:0; padding-top:6px; }
-      .status-select{ width:100%; min-width:0; border-radius:12px; height:40px; }
-      .price-input{ width:100%; min-width:0; border-radius:12px; height:40px; }
-      .progress-stack{ align-self:center; }
-      .progress-pct{ margin-top:8px; font-size:.82rem; color:var(--elip-gray); font-weight:700; }
-      .footer-totals{ margin-top:12px; display:flex; justify-content:flex-end; }
-      .totals-box{ width:min(100%,360px); background:#fafbfc; border:1px solid var(--elip-line); border-radius:18px; padding:14px 16px; }
-      .total-line{ display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; }
-      .total-line .lbl{ color:var(--elip-gray); }
-      .total-line .val{ font-weight:800; }
-      .total-line.final{ margin-top:8px; padding-top:10px; border-top:1px solid var(--elip-line); font-size:1.15rem; }
-      .btn-quiet{ border-color:#d7dde5; color:#475467; background:#fff; }
-      .btn-quiet:hover{ border-color:#c6ced8; color:#1f2937; background:#f8fafc; }
-      body:not(.edit-unlocked) [data-editable="1"]{ cursor:not-allowed; }
-      body:not(.edit-unlocked) .urg-btn{ pointer-events:none; opacity:.7; }
+<div class="header">
+  <div class="logo">ELIP TAGLIENTE SRL</div>
+  <div>PREVENTIVO</div>
+</div>
 
-      @media (max-width: 1199px){
-        .hero-top{ grid-template-columns:1fr; }
-        .right-head{ align-items:flex-start; }
-        .badge-row{ justify-content:flex-start; }
-        .head-meta{ text-align:left; }
-        .form-area{ grid-template-columns:repeat(8,minmax(0,1fr)); }
-        .fc-status,.fc-sent,.fc-accepted,.fc-days{ grid-column:span 2; }
-        .fc-deadline{ grid-column:span 4; }
-        .row-inner{ grid-template-columns:42px minmax(0,1fr); }
-        .status-stack,.price-wrap,.progress-stack{ grid-column:2; padding-top:0; }
-        .status-stack{ margin-top:2px; }
-        .progress-stack{ padding-bottom:4px; }
-      }
-      @media (max-width: 991px){
-        .navbar .container-fluid{ align-items:flex-start; }
-        .navbar .d-flex.gap-2.align-items-center.flex-wrap.justify-content-end{ width:100%; justify-content:flex-start !important; }
-        .form-area{ grid-template-columns:repeat(2,minmax(0,1fr)); }
-        .fc-status,.fc-sent,.fc-accepted,.fc-days,.fc-deadline{ grid-column:span 1; }
-        .deadline-wrap{ grid-template-columns:1fr; }
-        .mini-grid{ grid-template-columns:1fr; }
-        .footer-totals{ justify-content:stretch; }
-      }
-      @media (max-width: 767px){
-        .container.container-narrow.py-4{ padding-top:1rem !important; padding-bottom:1.25rem !important; }
-        .navbar-brand{ font-size:1.55rem; }
-        .brand-logo{ height:34px; }
-        .hero-card .card-body,.grid-card .card-body{ padding:16px 14px; }
-        .record-title{ font-size:1.55rem; }
-        .record-desc{ font-size:1.03rem; }
-        .form-area{ grid-template-columns:1fr; gap:12px; }
-        .fc-status,.fc-sent,.fc-accepted,.fc-days,.fc-deadline,.note-box{ grid-column:1 / -1; }
-        .field-card{ padding:12px; }
-        .progress-panel{ padding:14px; }
-        .progress-head{ flex-wrap:wrap; }
-        .repairs-table{ border-spacing:0 10px; }
-        .repairs-table thead{ display:none; }
-        .repairs-table tbody,.repairs-table tr,.repairs-table td{ display:block; width:100%; }
-        .repairs-table tbody td{ padding:0; }
-        .row-card{ margin-bottom:10px; }
-        .row-inner{ grid-template-columns:1fr; gap:10px; padding:12px; }
-        .check-wrap{ justify-content:flex-start; padding-top:0; }
-        .status-stack,.price-wrap,.progress-stack{ grid-column:auto; }
-        .totals-box{ width:100%; }
-      }
-    </style>
-  </head>
-  <body>
-    <nav class="navbar navbar-light bg-light border-bottom sticky-top">
-      <div class="container-fluid">
-        <div class="d-flex align-items-center gap-2">
-          <img src="logo-elip.jpg" class="brand-logo" alt="ELIP">
-          <span class="navbar-brand mb-0 h1">PREVENTIVO</span>
-        </div>
-        <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
-          <button class="btn btn-outline-secondary" id="btnBack">Indietro</button>
-          <button class="btn btn-outline-secondary" id="btnOpenRecord">Scheda</button>
-          <button class="btn btn-outline-secondary" id="btnUnlock">🔒 Sblocca modifiche</button>
-          <button class="btn btn-outline-secondary" id="btnDictateRips">🎤 Voci RIP</button>
-          <button class="btn btn-outline-secondary" id="btnDictateTotal">🎤 Totale</button>
-          <button class="btn btn-outline-secondary" id="btnPdf">📄 PDF</button>
-          <button class="btn btn-outline-secondary" id="btnEmail">✉️ Email</button>
-          <button class="btn btn-outline-secondary" id="btnWhatsapp">🟢 WhatsApp</button>
-          <button class="btn btn-sm btn-quiet" id="btnDelete" title="Cancella preventivo">🗑</button>
-          <button class="btn btn-orange" id="btnSave">Salva</button>
-        </div>
-      </div>
-    </nav>
+<div class="section box">
+  <div><b>Cliente:</b> <span id="cliente"></span></div>
+  <div><b>Data arrivo:</b> <span id="dataArrivo"></span></div>
+  <div><b>Data preventivo:</b> <span id="dataPreventivo"></span></div>
+  <div><b>DDT:</b> <span id="ddt"></span></div>
+</div>
 
-    <div class="container container-narrow py-4">
-      <div id="errBanner" class="alert alert-warning d-none"></div>
-      <div id="okBanner" class="alert alert-success d-none"></div>
+<div class="section box">
+  <div class="title">Lavorazioni previste</div>
+  <div id="ripList"></div>
+</div>
 
-      <div class="page-shell">
-        <section class="hero-card">
-          <div class="card-body">
-            <div class="hero-top">
-              <div>
-                <div class="record-kicker">Cliente</div>
-                <h1 class="record-title" id="recCliente">—</h1>
-                <div class="record-desc" id="recDesc">—</div>
-                <div class="record-model" id="recModel"></div>
-              </div>
-              <div class="right-head">
-                <div class="badge-row">
-                  <span id="quoteStatusBadge" class="top-pill gray">BOZZA</span>
-                  <span id="urgentMiniBannerTop" class="top-pill red" style="display:none;"><span class="sq"></span>URGENTE</span>
-                  <span id="lockState" class="top-pill gray">SOLO LETTURA</span>
-                </div>
-                <div class="head-meta">
-                  <div class="label" id="dirtyState">Salvato</div>
-                  <div class="label mt-1">ID Preventivo</div>
-                  <div class="value smallmono" id="quoteId">—</div>
-                </div>
-              </div>
-            </div>
+<div class="section box">
+  <div><b>Imponibile:</b> <span id="imponibile"></span></div>
+  <div><b>IVA:</b> <span id="iva"></span></div>
+  <div><b>TOTALE:</b> <span id="totale"></span></div>
+</div>
 
-            <div class="voice-row">
-              <button class="btn btn-outline-secondary" id="btnDictateRips2">🎤 Detta codici RIP</button>
-              <button class="btn btn-outline-secondary" id="btnDictateTotal2">🎤 Detta totale riparazione</button>
-            </div>
-            <div id="dictationState">Dopo lo sblocco puoi dettare voci tipo “RIP01 250 RIP02 90” oppure “450 euro” in modalità totale.</div>
+<div class="section box">
+  <div><b>Tempo di consegna stimato:</b> <span id="consegna"></span></div>
+</div>
 
-            <div class="form-area">
-              <div class="field-card fc-status">
-                <label>Stato</label>
-                <select id="status" class="form-select">
-                  <option value="BOZZA">BOZZA</option>
-                  <option value="INVIATO">INVIATO</option>
-                  <option value="ACCETTATO">ACCETTATO</option>
-                  <option value="ANNULLATO">ANNULLATO</option>
-                </select>
-              </div>
-              <div class="field-card fc-sent">
-                <label>Data invio</label>
-                <input id="sent_at" type="date" class="form-control">
-              </div>
-              <div class="field-card fc-accepted">
-                <label>Accettazione</label>
-                <input id="accepted_at" type="date" class="form-control">
-              </div>
-              <div class="field-card fc-days">
-                <label>Consegna gg</label>
-                <input id="delivery_days" type="number" min="0" step="1" class="form-control" placeholder="es. 10">
-              </div>
-              <div class="field-card fc-deadline">
-                <label>Data scadenza</label>
-                <div class="deadline-wrap">
-                  <input id="delivery_date" type="date" class="form-control">
-                  <div>
-                    <input type="checkbox" id="is_urgent" hidden>
-                    <label for="is_urgent" class="urg-btn">URG</label>
-                  </div>
-                </div>
-              </div>
-              <div class="note-box">
-                <label class="form-label mb-2" style="color:var(--elip-gray);font-size:.82rem;font-weight:800;">Note</label>
-                <input id="notes" class="form-control" placeholder="Note interne / note al cliente…">
-              </div>
-            </div>
+<div class="footer">
+ELIP TAGLIENTE SRL – Officina elettromeccanica<br>
+Contatti: info@elip.it – Tel: XXX
+</div>
 
-            <div class="progress-panel">
-              <div class="progress-head">
-                <div class="progress-title">Avanzamento preventivo</div>
-                <div class="progress-right" id="quoteProgressTxt">0%</div>
-              </div>
-              <div class="progbar"><div id="quoteProgBar"></div></div>
-              <div class="due-banner small" id="dueLabel">—</div>
-            </div>
-          </div>
-        </section>
+<button onclick="generaPDF()">Genera PDF</button>
 
-        <section class="grid-card">
-          <div class="card-body pt-2">
-            <div id="taskRows">
-              <div class="text-center py-4 text-muted">Caricamento…</div>
-            </div>
-
-            <div class="footer-totals">
-              <div class="totals-box">
-                <div class="total-line"><span class="lbl">Totale IVA esclusa</span><span class="val" id="subtotal">€ 0,00</span></div>
-                <div class="total-line"><span class="lbl">IVA 22%</span><span class="val" id="vat">€ 0,00</span></div>
-                <div class="total-line final"><span class="lbl" style="color:var(--elip-text);font-weight:800;">Totale</span><span class="val" id="grand">€ 0,00</span></div>
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-    <script src="preventivo.js"></script>
-  </body>
+<script src="preventivo.js"></script>
+</body>
 </html>
