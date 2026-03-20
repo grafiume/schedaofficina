@@ -42,7 +42,8 @@
     }
   }
   function parseNum(v){
-    const x=Number(String(v ?? '').replace(/\./g,'').replace(',', '.').trim());
+    const raw = String(v ?? '').trim().replace(',', '.');
+    const x = Number(raw);
     return isFinite(x) ? x : 0;
   }
   function fmtMoney(n){ return Number(n||0).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -95,6 +96,10 @@
   let isEditUnlocked = false;
   let isSaving = false;
   let editPassword = '';
+
+  let dictationDebounce = null;
+  let dictationMode = 'rips';
+  let lastAutoApplied = '';
 
   function emptyQuoteState(recordId){
     return {
@@ -168,7 +173,7 @@
 
       bindUI();
       ensureVoiceButtons();
-      ensureDictationModal();
+      ensureDictationBox();
       recalcTotals();
       renderAll();
     }catch(e){
@@ -802,7 +807,7 @@
       b1.className = 'btn btn-outline-secondary btn-dictation';
       b1.textContent = '🎤 Voci RIP';
       b1.disabled = true;
-      b1.addEventListener('click', ()=>openDictationModal('rips'));
+      b1.addEventListener('click', ()=>openDictationBox('rips'));
       wrap.insertBefore(b1, $('btnDelete') || $('btnSave') || null);
     }
 
@@ -813,102 +818,137 @@
       b2.className = 'btn btn-outline-secondary btn-dictation';
       b2.textContent = '🎤 Totale';
       b2.disabled = true;
-      b2.addEventListener('click', ()=>openDictationModal('total'));
+      b2.addEventListener('click', ()=>openDictationBox('total'));
       wrap.insertBefore(b2, $('btnDelete') || $('btnSave') || null);
     }
   }
 
-  function ensureDictationModal(){
-    if($('dictationModal')) return;
+  function ensureDictationBox(){
+    if($('dictationOverlay')) return;
 
-    const div = document.createElement('div');
-    div.innerHTML = `
-      <div class="modal fade" id="dictationModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-          <div class="modal-content" style="border-radius:18px;">
-            <div class="modal-header">
-              <h5 class="modal-title" id="dictationTitle">Dettatura</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
-            </div>
-            <div class="modal-body">
-              <div class="small text-muted mb-2" id="dictationHelp"></div>
-              <textarea id="dictationInput" class="form-control" rows="4" placeholder=""></textarea>
-              <div class="small text-muted mt-2">Su iPhone o Android puoi toccare il microfono della tastiera e dettare qui dentro.</div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
-              <button type="button" class="btn btn-orange" id="btnApplyDictation">Applica</button>
-            </div>
+    const wrap = document.createElement('div');
+    wrap.id = 'dictationOverlay';
+    wrap.style.cssText = `
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,.45);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:99999;
+      padding:18px;
+    `;
+
+    wrap.innerHTML = `
+      <div style="
+        width:min(100%,680px);
+        background:#fff;
+        border-radius:20px;
+        box-shadow:0 24px 60px rgba(0,0,0,.18);
+        padding:18px;
+      ">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;">
+          <div>
+            <div id="dictationBoxTitle" style="font-size:1.1rem;font-weight:800;">Dettatura</div>
+            <div id="dictationBoxHelp" style="font-size:.9rem;color:#667085;margin-top:4px;"></div>
           </div>
+          <button type="button" id="dictationClose" style="
+            border:1px solid #d0d5dd;
+            background:#fff;
+            border-radius:10px;
+            padding:8px 12px;
+            font-weight:700;
+            cursor:pointer;
+          ">Chiudi</button>
+        </div>
+
+        <textarea id="dictationLiveInput" rows="4" style="
+          width:100%;
+          border:1px solid #d0d5dd;
+          border-radius:14px;
+          padding:12px;
+          font-size:16px;
+          outline:none;
+          resize:vertical;
+        "></textarea>
+
+        <div style="margin-top:10px;font-size:.9rem;color:#667085;">
+          Usa il microfono della tastiera. Appena smetti di dettare o scrivere, il testo viene trasferito e la finestra si chiude da sola.
         </div>
       </div>
     `;
-    document.body.appendChild(div.firstElementChild);
 
-    $('btnApplyDictation')?.addEventListener('click', applyDictationFromModal);
+    document.body.appendChild(wrap);
+
+    $('dictationClose')?.addEventListener('click', closeDictationBox);
+    $('dictationLiveInput')?.addEventListener('input', onDictationTyping);
   }
 
-  function openDictationModal(mode){
+  function openDictationBox(mode){
     if(!isEditUnlocked){
       showErr('Prima sblocca le modifiche con la password.');
       return;
     }
 
-    const modalEl = $('dictationModal');
-    if(!modalEl) return;
+    dictationMode = mode;
+    lastAutoApplied = '';
 
-    modalEl.dataset.mode = mode;
-    $('dictationTitle').textContent = mode === 'rips' ? 'Detta voci RIP' : 'Detta totale riparazione';
-    $('dictationHelp').textContent = mode === 'rips'
-      ? 'Esempi: RIP01 250 RIP02 90 RIP21 45'
+    $('dictationBoxTitle').textContent = mode === 'rips' ? 'Detta voci RIP' : 'Detta totale riparazione';
+    $('dictationBoxHelp').textContent = mode === 'rips'
+      ? 'Esempio: RIP01 250 RIP02 90 RIP21 45'
       : 'Esempio: 450 euro';
-    $('dictationInput').value = '';
-    $('dictationInput').placeholder = mode === 'rips'
-      ? 'Scrivi o detta qui: RIP01 250 RIP02 90'
-      : 'Scrivi o detta qui: 450 euro';
 
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.show();
+    const input = $('dictationLiveInput');
+    input.value = '';
+    input.placeholder = mode === 'rips'
+      ? 'Detta o scrivi qui: RIP01 250 RIP02 90'
+      : 'Detta o scrivi qui: 450 euro';
+
+    $('dictationOverlay').style.display = 'flex';
 
     setTimeout(()=>{
-      try{ $('dictationInput').focus(); }catch{}
-    }, 250);
+      try{ input.focus(); }catch{}
+    }, 150);
   }
 
-  function applyDictationFromModal(){
-    const modalEl = $('dictationModal');
-    const input = $('dictationInput');
-    if(!modalEl || !input) return;
+  function closeDictationBox(){
+    clearTimeout(dictationDebounce);
+    const ov = $('dictationOverlay');
+    if(ov) ov.style.display = 'none';
+  }
 
-    const mode = modalEl.dataset.mode || 'rips';
-    const text = String(input.value || '').trim();
-    if(!text){
-      showErr('Inserisci o detta un testo.');
-      return;
-    }
+  function onDictationTyping(){
+    clearTimeout(dictationDebounce);
+    dictationDebounce = setTimeout(()=>{
+      const input = $('dictationLiveInput');
+      if(!input) return;
 
-    applyDictation(mode, text);
+      const text = String(input.value || '').trim();
+      if(!text) return;
+      if(text === lastAutoApplied) return;
 
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.hide();
+      const ok = applyDictation(dictationMode, text);
+      if(ok){
+        lastAutoApplied = text;
+        closeDictationBox();
+      }
+    }, 1000);
   }
 
   function applyDictation(mode, transcript){
     const clean = normalizeVoiceText(transcript);
-    if(!clean) return;
+    if(!clean) return false;
 
     if(mode === 'rips'){
-      applyRipDictation(clean);
-    } else {
-      applyTotalDictation(clean);
+      return applyRipDictation(clean);
     }
+    return applyTotalDictation(clean);
   }
 
   function normalizeVoiceText(text){
     return String(text || '')
       .toUpperCase()
       .replace(/[€]/g, ' EURO ')
-      .replace(/\./g, ' ')
       .replace(/,/g, '.')
       .replace(/RIP\s+/g, 'RIP')
       .replace(/\s+/g, ' ')
@@ -922,7 +962,7 @@
 
     if(!matches.length){
       showErr('Nessun codice RIP riconosciuto. Esempio: RIP01 250 RIP02 90');
-      return;
+      return false;
     }
 
     const applied = [];
@@ -945,31 +985,32 @@
 
     if(!applied.length){
       showErr('I codici dettati non corrispondono alle voci RIP disponibili.');
-      return;
+      return false;
     }
 
     recalcTotals();
     renderAll();
     showOk('Dettatura acquisita: ' + applied.join(' • '));
+    return true;
   }
 
   function applyTotalDictation(clean){
     const match = clean.match(/(\d+(?:\.\d+)?)/);
     if(!match){
       showErr('Nessun totale riconosciuto. Esempio: 450 euro');
-      return;
+      return false;
     }
 
     const total = parseNum(match[1]);
     if(!(total > 0)){
       showErr('Totale non valido.');
-      return;
+      return false;
     }
 
     const hasExisting = getSelectedItems().length > 0;
     if(hasExisting){
       const ok = confirm('Vuoi sostituire le voci attuali con un totale unico di riparazione?');
-      if(!ok) return;
+      if(!ok) return false;
     }
 
     quoteState.items = {};
@@ -983,6 +1024,7 @@
     recalcTotals();
     renderAll();
     showOk('Totale riparazione impostato a € ' + fmtMoney(total));
+    return true;
   }
 
   document.addEventListener('DOMContentLoaded', init);
