@@ -31,12 +31,26 @@
   function $(id){ return document.getElementById(id); }
   function qs(){ return new URLSearchParams(location.search); }
   function clone(v){ return JSON.parse(JSON.stringify(v)); }
-  function showErr(msg){ const el=$('errBanner'); if(el){ el.textContent=msg; el.classList.remove('d-none'); } else { alert(msg); } }
-  function clearErr(){ const el=$('errBanner'); if(el){ el.classList.add('d-none'); el.textContent=''; } }
-  function showOk(msg){
-    const el=$('okBanner');
+  function showErr(msg){
+    const el = $('errBanner');
     if(el){
-      el.textContent=msg;
+      el.textContent = msg;
+      el.classList.remove('d-none');
+    }else{
+      alert(msg);
+    }
+  }
+  function clearErr(){
+    const el = $('errBanner');
+    if(el){
+      el.classList.add('d-none');
+      el.textContent = '';
+    }
+  }
+  function showOk(msg){
+    const el = $('okBanner');
+    if(el){
+      el.textContent = msg;
       el.classList.remove('d-none');
       setTimeout(()=>{ try{ el.classList.add('d-none'); }catch{} }, 1800);
     }
@@ -46,10 +60,22 @@
     const x = Number(raw);
     return isFinite(x) ? x : 0;
   }
-  function fmtMoney(n){ return Number(n||0).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-  function statusMeta(v){ return STATUS.find(x=>x.v===v) || STATUS[0]; }
-  function today0(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
-  function esc(s){ return (s ?? '').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
+  function fmtMoney(n){
+    return Number(n || 0).toLocaleString('it-IT', {
+      minimumFractionDigits:2,
+      maximumFractionDigits:2
+    });
+  }
+  function statusMeta(v){ return STATUS.find(x => x.v === v) || STATUS[0]; }
+  function today0(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
+  function esc(s){
+    return (s ?? '').toString()
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'",'&#39;');
+  }
   function fmtDateISO(d){
     const x = (d instanceof Date) ? d : new Date(d);
     if(isNaN(x.getTime())) return '—';
@@ -74,16 +100,16 @@
       return { text:'Nessuna scadenza impostata', cls:'text-muted' };
     }
 
-    const diff = Math.round((expected.getTime()-now.getTime())/(1000*60*60*24));
+    const diff = Math.round((expected.getTime() - now.getTime()) / (1000*60*60*24));
 
     if(diff < 0){
-      return { text:`${q.is_urgent?'URGENTE • ':''}in ritardo di ${Math.abs(diff)} gg • scadenza ${fmtDateISO(expected)}`, cls:'text-danger fw-semibold' };
+      return { text:`${q.is_urgent ? 'URGENTE • ' : ''}in ritardo di ${Math.abs(diff)} gg • scadenza ${fmtDateISO(expected)}`, cls:'text-danger fw-semibold' };
     }
     if(diff === 0){
-      return { text:`${q.is_urgent?'URGENTE • ':''}scade oggi • ${fmtDateISO(expected)}`, cls:q.is_urgent?'text-danger fw-semibold':'text-warning fw-semibold' };
+      return { text:`${q.is_urgent ? 'URGENTE • ' : ''}scade oggi • ${fmtDateISO(expected)}`, cls:q.is_urgent ? 'text-danger fw-semibold' : 'text-warning fw-semibold' };
     }
     if(diff <= 2 || q.is_urgent){
-      return { text:`${q.is_urgent?'URGENTE • ':''}mancano ${diff} gg • scadenza ${fmtDateISO(expected)}`, cls:q.is_urgent?'text-danger fw-semibold':'text-warning fw-semibold' };
+      return { text:`${q.is_urgent ? 'URGENTE • ' : ''}mancano ${diff} gg • scadenza ${fmtDateISO(expected)}`, cls:q.is_urgent ? 'text-danger fw-semibold' : 'text-warning fw-semibold' };
     }
     return { text:`Fine lavori prevista ${fmtDateISO(expected)} • mancano ${diff} gg`, cls:'text-muted' };
   }
@@ -171,12 +197,13 @@
       if(id) await loadQuoteById(id);
       else await loadByRecord(recordId);
 
-      bindUI();
-      ensureVoiceButtons();
       ensureDictationBox();
+      bindUI();
+      bindDictationButtons();
       recalcTotals();
       renderAll();
     }catch(e){
+      console.error(e);
       showErr('Errore inizializzazione preventivo: ' + (e?.message || e));
     }
   }
@@ -319,7 +346,6 @@
         quoteState[id] = $(id).value || '';
         touch();
       });
-
       $(id)?.addEventListener('change', ()=>{
         quoteState[id] = $(id).value || '';
         touch();
@@ -337,6 +363,24 @@
       if(isSaving || !isDirty()) return;
       ev.preventDefault();
       ev.returnValue = '';
+    });
+  }
+
+  function bindDictationButtons(){
+    [
+      ['btnDictateRips', 'rips'],
+      ['btnDictateTotal', 'total'],
+      ['btnDictateRips2', 'rips'],
+      ['btnDictateTotal2', 'total']
+    ].forEach(([id, mode])=>{
+      const btn = $(id);
+      if(!btn) return;
+      btn.disabled = !isEditUnlocked;
+      btn.onclick = (ev)=>{
+        ev.preventDefault();
+        ev.stopPropagation();
+        openDictationBox(mode);
+      };
     });
   }
 
@@ -361,6 +405,7 @@
       editPassword = String(p);
       isEditUnlocked = true;
       renderEditState();
+      bindDictationButtons();
       showOk('Modifica sbloccata');
     }catch(e){
       showErr('Errore verifica password: ' + (e?.message || e));
@@ -557,7 +602,6 @@
       check.addEventListener('change', ()=>{
         if(check.checked) ensureLocalItem(w, idx);
         else delete quoteState.items[w.code];
-
         recalcTotals();
         renderTasks();
         renderEditState();
@@ -796,33 +840,6 @@
     }
   }
 
-  function ensureVoiceButtons(){
-    const wrap = document.querySelector('.navbar .d-flex.gap-2.align-items-center.flex-wrap.justify-content-end');
-    if(!wrap) return;
-
-    if(!$('btnDictateRips')){
-      const b1 = document.createElement('button');
-      b1.type = 'button';
-      b1.id = 'btnDictateRips';
-      b1.className = 'btn btn-outline-secondary btn-dictation';
-      b1.textContent = '🎤 Voci RIP';
-      b1.disabled = true;
-      b1.addEventListener('click', ()=>openDictationBox('rips'));
-      wrap.insertBefore(b1, $('btnDelete') || $('btnSave') || null);
-    }
-
-    if(!$('btnDictateTotal')){
-      const b2 = document.createElement('button');
-      b2.type = 'button';
-      b2.id = 'btnDictateTotal';
-      b2.className = 'btn btn-outline-secondary btn-dictation';
-      b2.textContent = '🎤 Totale';
-      b2.disabled = true;
-      b2.addEventListener('click', ()=>openDictationBox('total'));
-      wrap.insertBefore(b2, $('btnDelete') || $('btnSave') || null);
-    }
-  }
-
   function ensureDictationBox(){
     if($('dictationOverlay')) return;
 
@@ -873,20 +890,27 @@
         "></textarea>
 
         <div style="margin-top:10px;font-size:.9rem;color:#667085;">
-          Usa il microfono della tastiera. Appena smetti di dettare o scrivere, il testo viene trasferito e la finestra si chiude da sola.
+          Appena smetti di dettare o scrivere, il testo viene trasferito e la finestra si chiude da sola.
         </div>
       </div>
     `;
 
     document.body.appendChild(wrap);
 
-    $('dictationClose')?.addEventListener('click', closeDictationBox);
-    $('dictationLiveInput')?.addEventListener('input', onDictationTyping);
+    $('dictationClose').addEventListener('click', closeDictationBox);
+    $('dictationLiveInput').addEventListener('input', onDictationTyping);
   }
 
   function openDictationBox(mode){
     if(!isEditUnlocked){
       showErr('Prima sblocca le modifiche con la password.');
+      return;
+    }
+
+    const ov = $('dictationOverlay');
+    const input = $('dictationLiveInput');
+    if(!ov || !input){
+      showErr('Finestra dettatura non disponibile.');
       return;
     }
 
@@ -898,17 +922,16 @@
       ? 'Esempio: RIP01 250 RIP02 90 RIP21 45'
       : 'Esempio: 450 euro';
 
-    const input = $('dictationLiveInput');
     input.value = '';
     input.placeholder = mode === 'rips'
       ? 'Detta o scrivi qui: RIP01 250 RIP02 90'
       : 'Detta o scrivi qui: 450 euro';
 
-    $('dictationOverlay').style.display = 'flex';
+    ov.style.display = 'flex';
 
     setTimeout(()=>{
       try{ input.focus(); }catch{}
-    }, 150);
+    }, 120);
   }
 
   function closeDictationBox(){
@@ -939,9 +962,7 @@
     const clean = normalizeVoiceText(transcript);
     if(!clean) return false;
 
-    if(mode === 'rips'){
-      return applyRipDictation(clean);
-    }
+    if(mode === 'rips') return applyRipDictation(clean);
     return applyTotalDictation(clean);
   }
 
