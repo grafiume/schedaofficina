@@ -1271,7 +1271,7 @@
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.7);
     doc.setTextColor(102,112,133);
-    doc.text('Preventivo elaborato da ELIP TAGLIENTE. Le singole quotazioni RIP non sono esposte in questo documento.', margin, footerY);
+    
 
     const blob = doc.output('blob');
     return {
