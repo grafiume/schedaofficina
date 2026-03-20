@@ -71,13 +71,13 @@
 
       <div class="row g-2 mb-2">
         <div class="col-md-10">
-          <input id="q" class="form-control" placeholder="Cerca per cassetto, descrizione, modello, cliente, telefono, DDT (token, no accenti)…">
+          <input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT (token, no accenti)…">
         </div>
         <div class="col-md-2 d-grid"><button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button></div>
       </div>
 
       <div class="row g-2 mb-3">
-        <div class="col-md-6 col-lg-3"><input id="fCassetto" class="form-control" placeholder="Cassetto (ricerca esatta)"></div>
+        <div class="col-md-4 col-lg-3"><input id="cassettoSearch" class="form-control" placeholder="Cassetto (match esatto)"></div>
         <div class="col-md-6 col-lg-4"><input id="noteExact" class="form-control" placeholder="Note (match esatto)"></div>
       </div>
 
@@ -153,10 +153,10 @@
                   </select>
                   <div class="form-text" id="closedHint"></div>
                 </div>
-<div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="eDDT" class="form-control" placeholder="Numero / riferimento DDT"></div>
-                <div class="col-md-2"><label class="form-label">Cassetto</label><input id="eCassetto" class="form-control" placeholder="es. A1" autocomplete="off"></div>
+                <div class="col-md-4"><label class="form-label">Cassetto</label><input id="eCassetto" class="form-control" placeholder="es. A1"></div>
+                <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="eDDT" class="form-control" placeholder="Numero / riferimento DDT"></div>
 
-                <div class="col-md-4"><label class="form-label">Nome / Ragione sociale</label><input id="eCliente" class="form-control"></div>
+                <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="eCliente" class="form-control"></div>
                 <div class="col-md-3"><label class="form-label">Telefono</label><input id="eTel" class="form-control"></div>
                 <div class="col-md-3"><label class="form-label">Email</label><input id="eEmail" class="form-control"></div>
               </div>
@@ -226,9 +226,9 @@
                   <div class="col-md-4"><label class="form-label">Data scadenza</label><input id="nScad" type="date" class="form-control"></div>
                   <div class="col-md-4"><label class="form-label">Stato</label>
                     <select id="nStato" class="form-select"><option>In attesa</option><option>In lavorazione</option><option>Completata</option></select></div>
-<div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="nDDT" class="form-control"></div>
-                  <div class="col-md-2"><label class="form-label">Cassetto</label><input id="nCassetto" class="form-control" placeholder="es. A1" autocomplete="off"></div>
-                  <div class="col-md-4"><label class="form-label">Nome / Ragione sociale</label><input id="nCliente" class="form-control"></div>
+                  <div class="col-md-4"><label class="form-label">Cassetto</label><input id="nCassetto" class="form-control" placeholder="es. A1"></div>
+                  <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="nDDT" class="form-control"></div>
+                  <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="nCliente" class="form-control"></div>
                   <div class="col-md-3"><label class="form-label">Telefono</label><input id="nTel" class="form-control"></div>
                   <div class="col-md-3"><label class="form-label">Email</label><input id="nEmail" class="form-control"></div>
                   <div class="col-md-3"><label class="form-label">Batt. collettore</label><input id="nBatt" class="form-control"></div>
@@ -281,6 +281,6 @@
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="app.js"></script>
+    <script src="app.v25.js?v=26"></script>
   </body>
 </html>
