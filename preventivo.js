@@ -341,8 +341,7 @@
     $('btnDelete')?.addEventListener('click', deleteQuote);
     $('btnUnlock')?.addEventListener('click', unlockEdit);
     $('btnPdf')?.addEventListener('click', downloadQuotePdf);
-    
-    
+    $('btnInvia')?.addEventListener('click', sendQuoteUnified);
 
     ['status','sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{
       $(id)?.addEventListener('input', ()=>{
@@ -1271,7 +1270,7 @@
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.7);
     doc.setTextColor(102,112,133);
-    doc.text('Preventivo elaborato da ELIP TAGLIENTE. Le singole quotazioni RIP non sono esposte in questo documento.', margin, footerY);
+    
 
     const blob = doc.output('blob');
     return {
@@ -1321,6 +1320,160 @@
       showOk('PDF preventivo generato');
     }catch(e){
       showErr('Errore creazione PDF: ' + (e?.message || e));
+    }
+  }
+
+
+  function ensureSendOverlay(){
+    if($('sendOverlay')) return;
+
+    const wrap = document.createElement('div');
+    wrap.id = 'sendOverlay';
+    wrap.style.cssText = `
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,.45);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:99999;
+      padding:18px;
+    `;
+
+    wrap.innerHTML = `
+      <div style="
+        width:min(100%,520px);
+        background:#fff;
+        border-radius:20px;
+        box-shadow:0 24px 60px rgba(0,0,0,.18);
+        padding:18px;
+      ">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;">
+          <div>
+            <div style="font-size:1.1rem;font-weight:800;">Invia preventivo</div>
+            <div style="font-size:.9rem;color:#667085;margin-top:4px;">Scegli come condividere il PDF del preventivo.</div>
+          </div>
+          <button type="button" id="sendClose" style="
+            border:1px solid #d0d5dd;
+            background:#fff;
+            border-radius:10px;
+            padding:8px 12px;
+            font-weight:700;
+            cursor:pointer;
+          ">Chiudi</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-top:14px;">
+          <button type="button" id="sendNative" style="border:1px solid #ff7a00;background:#ff7a00;color:#fff;border-radius:12px;padding:12px 14px;font-weight:800;cursor:pointer;">Condividi</button>
+          <button type="button" id="sendEmail" style="border:1px solid #d0d5dd;background:#fff;border-radius:12px;padding:12px 14px;font-weight:700;cursor:pointer;">Email</button>
+          <button type="button" id="sendWhatsapp" style="border:1px solid #d0d5dd;background:#fff;border-radius:12px;padding:12px 14px;font-weight:700;cursor:pointer;">WhatsApp</button>
+          <button type="button" id="sendDownload" style="border:1px solid #d0d5dd;background:#fff;border-radius:12px;padding:12px 14px;font-weight:700;cursor:pointer;">Scarica PDF</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(wrap);
+
+    $('sendClose')?.addEventListener('click', closeSendOverlay);
+    wrap.addEventListener('click', (ev)=>{
+      if(ev.target === wrap) closeSendOverlay();
+    });
+
+    $('sendNative')?.addEventListener('click', async ()=>{
+      try{
+        await shareQuoteNative();
+        closeSendOverlay();
+      }catch(e){
+        showErr('Errore condivisione: ' + (e?.message || e));
+      }
+    });
+
+    $('sendEmail')?.addEventListener('click', async ()=>{
+      try{
+        await sendQuoteByEmail();
+        closeSendOverlay();
+      }catch(e){
+        showErr('Errore invio email: ' + (e?.message || e));
+      }
+    });
+
+    $('sendWhatsapp')?.addEventListener('click', async ()=>{
+      try{
+        await sendQuoteByWhatsApp();
+        closeSendOverlay();
+      }catch(e){
+        showErr('Errore invio WhatsApp: ' + (e?.message || e));
+      }
+    });
+
+    $('sendDownload')?.addEventListener('click', async ()=>{
+      try{
+        clearErr();
+        await saveIfNeededForSharing();
+        const pdf = await generateQuotePdfBlob();
+        downloadBlob(pdf.blob, pdf.filename);
+        showOk('PDF scaricato');
+        closeSendOverlay();
+      }catch(e){
+        showErr('Errore download PDF: ' + (e?.message || e));
+      }
+    });
+  }
+
+  function closeSendOverlay(){
+    const ov = $('sendOverlay');
+    if(ov) ov.style.display = 'none';
+  }
+
+  function canNativeSharePdf(file){
+    return !!(navigator.share && navigator.canShare && navigator.canShare({ files:[file] }));
+  }
+
+  async function shareQuoteNative(){
+    clearErr();
+    await saveIfNeededForSharing();
+    const pdf = await generateQuotePdfBlob();
+    const file = new File([pdf.blob], pdf.filename, { type:'application/pdf' });
+
+    if(canNativeSharePdf(file)){
+      await navigator.share({
+        files:[file],
+        title:pdf.subject,
+        text:'Invio preventivo ELIP TAGLIENTE'
+      });
+      showOk('Condivisione aperta');
+      return true;
+    }
+
+    return false;
+  }
+
+  async function sendQuoteUnified(){
+    try{
+      clearErr();
+      const pdf = await generateQuotePdfBlob();
+      const file = new File([pdf.blob], pdf.filename, { type:'application/pdf' });
+
+      if(canNativeSharePdf(file)){
+        await saveIfNeededForSharing();
+        await navigator.share({
+          files:[file],
+          title:pdf.subject,
+          text:'Invio preventivo ELIP TAGLIENTE'
+        });
+        showOk('Condivisione aperta');
+        return;
+      }
+
+      ensureSendOverlay();
+      const nativeBtn = $('sendNative');
+      if(nativeBtn){
+        nativeBtn.style.display = canNativeSharePdf(file) ? '' : 'none';
+      }
+      const ov = $('sendOverlay');
+      if(ov) ov.style.display = 'flex';
+    }catch(e){
+      showErr('Errore apertura invio: ' + (e?.message || e));
     }
   }
 
@@ -1381,25 +1534,3 @@
 
   document.addEventListener('DOMContentLoaded', init);
 })();
-
-$('btnInvia')?.addEventListener('click', sendQuoteUnified);
-
-async function sendQuoteUnified(){
-  try{
-    const { blob, filename } = await generateQuotePdfBlob();
-
-    if(navigator.share){
-      const file = new File([blob], filename, { type:'application/pdf' });
-      await navigator.share({
-        title: 'Preventivo ELIP TAGLIENTE',
-        text: 'Invio preventivo',
-        files: [file]
-      });
-    }else{
-      downloadBlob(blob, filename);
-      alert('PDF scaricato. Puoi inviarlo manualmente.');
-    }
-  }catch(e){
-    alert('Errore invio: ' + (e?.message || e));
-  }
-}
