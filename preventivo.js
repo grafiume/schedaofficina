@@ -133,7 +133,6 @@
 
   let dictationDebounce = null;
   let dictationMode = 'rips';
-  let lastAutoApplied = '';
 
   function emptyQuoteState(recordId){
     return {
@@ -705,6 +704,149 @@
     if($('quoteProgBar')) $('quoteProgBar').style.width = `${Math.max(0, Math.min(100, prog))}%`;
   }
 
+  function buildQuotePayload(){
+    return {
+      id: currentQuoteId || null,
+      record_id: quoteState.record_id,
+      status: quoteState.status || 'BOZZA',
+      sent_at: quoteState.sent_at || null,
+      accepted_at: quoteState.accepted_at || null,
+      delivery_days: quoteState.delivery_days === '' ? null : parseInt(quoteState.delivery_days, 10),
+      delivery_date: quoteState.delivery_date || null,
+      notes: quoteState.notes || null,
+      is_urgent: !!quoteState.is_urgent,
+      subtotal_ex_vat: Number(quoteState.subtotal_ex_vat || 0),
+      vat_rate: VAT_RATE,
+      vat_total: Number(quoteState.vat_total || 0),
+      grand_total: Number(quoteState.grand_total || 0),
+      progress_percent: Number(quoteState.progress_percent || 0)
+    };
+  }
+
+  function buildItemsPayload(){
+    return WORKS.map((w, idx)=>{
+      const it = quoteState.items[w.code];
+      if(!it) return null;
+
+      return {
+        position: idx,
+        rip_code: w.code,
+        description: w.free ? (it.description || '') : w.text,
+        qty: 1,
+        unit_price_ex_vat: Number(it.unit_price_ex_vat || 0),
+        line_total_ex_vat: Number(it.line_total_ex_vat || 0),
+        line_progress_percent: Number(it.line_progress_percent || 0),
+        work_status: it.work_status || 'DA_FARE',
+        operatore: it.operatore || null,
+        started_at: it.started_at || null,
+        finished_at: it.finished_at || null
+      };
+    }).filter(Boolean);
+  }
+
+  async function deleteQuote(){
+    if(!currentQuoteId){
+      showErr('Questo preventivo non è ancora salvato.');
+      return;
+    }
+
+    if(!isEditUnlocked || !editPassword){
+      showErr('Prima sblocca le modifiche con la password.');
+      return;
+    }
+
+    const ok = confirm('Vuoi cancellare definitivamente questo preventivo?');
+    if(!ok) return;
+
+    clearErr();
+
+    try{
+      const { error } = await sb.rpc('delete_quote_with_password', {
+        p_password: editPassword,
+        p_quote_id: currentQuoteId
+      });
+
+      if(error) throw error;
+
+      showOk('Preventivo cancellato');
+
+      const recId = quoteState?.record_id || record?.id;
+      currentQuoteId = null;
+      quoteState = emptyQuoteState(recId);
+      originalState = clone(quoteState);
+      renderAll();
+
+      setTimeout(()=>{
+        if(recId){
+          location.href = 'preventivo.html?record_id=' + encodeURIComponent(recId);
+        } else {
+          history.back();
+        }
+      }, 500);
+    }catch(e){
+      showErr('Errore cancellazione preventivo: ' + (e?.message || e));
+    }
+  }
+
+  async function saveAll(){
+    if(!isEditUnlocked || !editPassword){
+      showErr('Prima sblocca le modifiche con la password.');
+      return;
+    }
+
+    clearErr();
+    isSaving = true;
+
+    try{
+      recalcTotals();
+
+      if(!hasMeaningfulData(quoteState)){
+        showErr('Preventivo non salvato: non ci sono voci RIP o dati utili compilati.');
+        return;
+      }
+
+      const qPayload = buildQuotePayload();
+      const itemsPayload = buildItemsPayload();
+
+      const { data, error } = await sb.rpc('save_quote_with_password', {
+        p_password: editPassword,
+        p_quote: qPayload,
+        p_items: itemsPayload
+      });
+
+      if(error) throw error;
+      if(!data) throw new Error('Salvataggio non riuscito.');
+
+      currentQuoteId = data;
+      quoteState.id = data;
+
+      try{
+        const u = new URL(location.href);
+        u.searchParams.delete('record_id');
+        u.searchParams.set('id', data);
+        history.replaceState({}, '', u.toString());
+      }catch{}
+
+      const { data: savedRow, error: savedErr } = await sb
+        .from('quotes')
+        .select('*')
+        .eq('id', currentQuoteId)
+        .single();
+
+      if(savedErr) throw savedErr;
+
+      quoteState = await buildStateFromQuoteRow(savedRow);
+      originalState = clone(quoteState);
+
+      showOk('Preventivo salvato');
+      renderAll();
+    }catch(e){
+      showErr(e?.message || e);
+    }finally{
+      isSaving = false;
+    }
+  }
+
   function ensureDictationBox(){
     if($('dictationOverlay')) return;
 
@@ -776,7 +918,6 @@
     }
 
     dictationMode = mode;
-    lastAutoApplied = '';
 
     $('dictationBoxTitle').textContent = mode === 'rips'
       ? '🎤 DETTA CODICI RIP'
