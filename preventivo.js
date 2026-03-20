@@ -1181,28 +1181,47 @@
     doc.setTextColor(31,41,55);
     doc.setFontSize(18);
     doc.text('PREVENTIVO', pageW - margin, 18, { align:'right' });
-    doc.setFontSize(10);
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31,41,55);
+    doc.text('Elip Tagliente Srl', pageW - margin, 24, { align:'right' });
+
+    doc.setFontSize(9.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(102,112,133);
-    doc.text('ELIP TAGLIENTE S.r.l.', pageW - margin, 24, { align:'right' });
-    y = 32;
+    doc.text('Via Conchia 54/E, Monopoli (BA)', pageW - margin, 29, { align:'right' });
+    doc.text('Email: info@eliptagliente.it', pageW - margin, 33.5, { align:'right' });
+    doc.text('TEL: +39 080 777 090 - +39 080 887 675', pageW - margin, 38, { align:'right' });
+    y = 44;
 
     doc.setDrawColor(230,233,238);
     doc.line(margin, y, pageW - margin, y);
     y += 8;
 
     const ddt = getClientDdt();
+
+    doc.setFillColor(248,250,252);
+    doc.setDrawColor(230,233,238);
+    doc.roundedRect(margin, y, pageW - margin*2, 16, 3, 3, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(71,84,103);
+    doc.setFontSize(9.5);
+    doc.text('Cliente', margin + 4, y + 6);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31,41,55);
+    doc.setFontSize(13);
+    doc.text(String(record?.cliente || '—'), margin + 4, y + 12);
+    y += 22;
     const topRows = [
-  ['Ragione sociale cliente', record?.cliente || '—'],
-  ['Descrizione', record?.descrizione || '—'],
-  ['Modello', record?.modello || '—'],
-
-  ['Data Arrivo Merci', fmtDateISO(record?.data_arrivo || record?.created_at)],
-  ['Data Invio', fmtDateISO(quoteState?.sent_at || new Date())],
-
-  ['DDT', ddt || '—'],
-  ['Tempo di consegna stimato', getDeliveryEstimateText()]
-];
+      ['Ragione sociale cliente', record?.cliente || '—'],
+      ['Descrizione', record?.descrizione || '—'],
+      ['Modello', record?.modello || '—'],
+      ['Data Arrivo Merci', fmtDateISO(record?.data_arrivo || record?.created_at)],
+      ['Data Invio', fmtDateISO(quoteState?.sent_at || new Date())],
+      ['DDT', ddt || '—'],
+      ['Tempo di consegna stimato', getDeliveryEstimateText()]
+    ];
 
     doc.setFontSize(10.5);
     topRows.forEach(([label, value])=>{
@@ -1273,6 +1292,8 @@
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.7);
     doc.setTextColor(102,112,133);
+    doc.text('Elip Tagliente Srl • Via Conchia 54/E, Monopoli (BA)', margin, footerY);
+    doc.text('info@eliptagliente.it • +39 080 777 090 - +39 080 887 675', pageW - margin, footerY, { align:'right' });
     
 
     const blob = doc.output('blob');
