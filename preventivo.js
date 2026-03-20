@@ -900,64 +900,60 @@
     $('dictationClose').addEventListener('click', closeDictationBox);
     $('dictationLiveInput').addEventListener('input', onDictationTyping);
   }
+function openDictationBox(mode){
+  const ov = $('dictationOverlay');
+  const input = $('dictationLiveInput');
 
-  function openDictationBox(mode){
-    if(!isEditUnlocked){
-      showErr('Prima sblocca le modifiche con la password.');
-      return;
-    }
-
-    const ov = $('dictationOverlay');
-    const input = $('dictationLiveInput');
-    if(!ov || !input){
-      showErr('Finestra dettatura non disponibile.');
-      return;
-    }
-
-    dictationMode = mode;
-    lastAutoApplied = '';
-
-    $('dictationBoxTitle').textContent = mode === 'rips' ? 'Detta voci RIP' : 'Detta totale riparazione';
-    $('dictationBoxHelp').textContent = mode === 'rips'
-      ? 'Esempio: RIP01 250 RIP02 90 RIP21 45'
-      : 'Esempio: 450 euro';
-
-    input.value = '';
-    input.placeholder = mode === 'rips'
-      ? 'Detta o scrivi qui: RIP01 250 RIP02 90'
-      : 'Detta o scrivi qui: 450 euro';
-
-    ov.style.display = 'flex';
-
-    setTimeout(()=>{
-      try{ input.focus(); }catch{}
-    }, 120);
+  if(!ov || !input){
+    showErr('Finestra dettatura non disponibile.');
+    return;
   }
 
-  function closeDictationBox(){
-    clearTimeout(dictationDebounce);
-    const ov = $('dictationOverlay');
-    if(ov) ov.style.display = 'none';
-  }
+  dictationMode = mode;
+  lastAutoApplied = '';
+
+  $('dictationBoxTitle').textContent = mode === 'rips'
+    ? '🎤 DETTA CODICI RIP'
+    : '🎤 DETTA TOTALE RIPARAZIONE';
+
+  $('dictationBoxHelp').textContent = mode === 'rips'
+    ? 'Esempio: RIP01 250 RIP02 90'
+    : 'Esempio: 450 euro';
+
+  input.value = '';
+
+  ov.style.display = 'flex';
+
+  setTimeout(()=>{
+    try{
+      input.focus();
+
+      // 🔥 TRUCCO IMPORTANTE PER MOBILE
+      input.click();
+
+    }catch{}
+  }, 200);
+}
+
 
   function onDictationTyping(){
-    clearTimeout(dictationDebounce);
-    dictationDebounce = setTimeout(()=>{
-      const input = $('dictationLiveInput');
-      if(!input) return;
+  clearTimeout(dictationDebounce);
 
-      const text = String(input.value || '').trim();
-      if(!text) return;
-      if(text === lastAutoApplied) return;
+  dictationDebounce = setTimeout(()=>{
+    const input = $('dictationLiveInput');
+    if(!input) return;
 
-      const ok = applyDictation(dictationMode, text);
-      if(ok){
-        lastAutoApplied = text;
-        closeDictationBox();
-      }
-    }, 1000);
-  }
+    const text = String(input.value || '').trim();
+    if(!text) return;
 
+    const ok = applyDictation(dictationMode, text);
+
+    if(ok){
+      closeDictationBox();
+    }
+
+  }, 800); // più reattivo
+}
   function applyDictation(mode, transcript){
     const clean = normalizeVoiceText(transcript);
     if(!clean) return false;
