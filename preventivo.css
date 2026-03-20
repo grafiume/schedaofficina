@@ -40,7 +40,7 @@ background:#d32f2f;
 border-radius:2px;
 display:inline-block;
 }
-/* ===== BADGE RIP (CODICE LAVORAZIONE) ===== */
+/* ===== BADGE RIP VISIBILE E PIÙ GRANDE ===== */
 
 .badge-rip{
 display:inline-flex !important;
@@ -53,12 +53,13 @@ line-height:1;
 border-radius:10px;
 letter-spacing:0.4px;
 border:1px solid #ffb36b;
-color:#b45309 !important;
 background:#fff2e6 !important;
+color:#b45309 !important;
 min-width:64px;
 text-align:center;
 white-space:nowrap;
 flex:0 0 auto;
+box-shadow:none;
 }
 
 .row-card:not(.row-off) .badge-rip{
@@ -81,4 +82,14 @@ font-size:1rem;
 font-weight:800;
 line-height:1.15;
 color:#49505d;
+}
+
+/* nasconde intestazione blocco Voci RIP */
+.grid-header{
+display:none !important;
+}
+
+/* toglie spazio sopra la tabella dopo aver nascosto l'intestazione */
+.grid-card .card-body.pt-2{
+padding-top:0 !important;
 }
