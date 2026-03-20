@@ -28,10 +28,11 @@
     { v:'COMPLETATA', label:'COMPLETATA', pct:100 },
   ];
 
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+
   function $(id){ return document.getElementById(id); }
   function qs(){ return new URLSearchParams(location.search); }
   function clone(v){ return JSON.parse(JSON.stringify(v)); }
-
   function showErr(msg){
     const el = $('errBanner');
     if(el){
@@ -41,7 +42,6 @@
       alert(msg);
     }
   }
-
   function clearErr(){
     const el = $('errBanner');
     if(el){
@@ -49,7 +49,6 @@
       el.textContent = '';
     }
   }
-
   function showOk(msg){
     const el = $('okBanner');
     if(el){
@@ -58,23 +57,23 @@
       setTimeout(()=>{ try{ el.classList.add('d-none'); }catch{} }, 1800);
     }
   }
-
+  function setDictationState(msg){
+    const el = $('dictationState');
+    if(el) el.textContent = msg || '';
+  }
   function parseNum(v){
     const raw = String(v ?? '').trim().replace(',', '.');
     const x = Number(raw);
     return isFinite(x) ? x : 0;
   }
-
   function fmtMoney(n){
     return Number(n || 0).toLocaleString('it-IT', {
       minimumFractionDigits:2,
       maximumFractionDigits:2
     });
   }
-
   function statusMeta(v){ return STATUS.find(x => x.v === v) || STATUS[0]; }
   function today0(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
-
   function esc(s){
     return (s ?? '').toString()
       .replaceAll('&','&amp;')
@@ -83,7 +82,6 @@
       .replaceAll('"','&quot;')
       .replaceAll("'",'&#39;');
   }
-
   function fmtDateISO(d){
     const x = (d instanceof Date) ? d : new Date(d);
     if(isNaN(x.getTime())) return '—';
@@ -133,6 +131,8 @@
 
   let dictationDebounce = null;
   let dictationMode = 'rips';
+  let lastAutoApplied = '';
+  let recognition = null;
 
   function emptyQuoteState(recordId){
     return {
@@ -386,7 +386,7 @@
       btn.onclick = (ev)=>{
         ev.preventDefault();
         ev.stopPropagation();
-        openDictationBox(mode);
+        startDictationFlow(mode);
       };
     });
   }
@@ -897,7 +897,7 @@
         "></textarea>
 
         <div style="margin-top:10px;font-size:.9rem;color:#667085;">
-          Appena smetti di dettare o scrivere, il testo viene trasferito e la finestra si chiude da sola.
+          Se il browser supporta il microfono parte direttamente. Altrimenti puoi dettare con il microfono della tastiera.
         </div>
       </div>
     `;
@@ -908,34 +908,94 @@
     $('dictationLiveInput').addEventListener('input', onDictationTyping);
   }
 
+  function startDictationFlow(mode){
+    if(!isEditUnlocked){
+      showErr('Prima sblocca le modifiche con la password.');
+      return;
+    }
+
+    if(SpeechRecognition){
+      startBrowserMic(mode);
+      return;
+    }
+
+    openDictationBox(mode);
+  }
+
+  function startBrowserMic(mode){
+    try{
+      if(recognition){
+        try{ recognition.abort(); }catch{}
+        recognition = null;
+      }
+
+      recognition = new SpeechRecognition();
+      recognition.lang = 'it-IT';
+      recognition.interimResults = false;
+      recognition.continuous = false;
+      recognition.maxAlternatives = 1;
+
+      dictationMode = mode;
+
+      setDictationState(
+        mode === 'rips'
+          ? 'Microfono attivo: detta per esempio RIP01 250 RIP02 90'
+          : 'Microfono attivo: detta per esempio 450 euro'
+      );
+
+      recognition.onresult = (event)=>{
+        const transcript = Array.from(event.results).map(r=>r[0]?.transcript || '').join(' ').trim();
+        setDictationState('Riconosciuto: ' + transcript);
+        const ok = applyDictation(mode, transcript);
+        if(!ok){
+          openDictationBox(mode);
+          $('dictationLiveInput').value = transcript;
+          setTimeout(()=>{ try{ $('dictationLiveInput').focus(); }catch{} }, 100);
+        }
+      };
+
+      recognition.onerror = ()=>{
+        setDictationState('Microfono non disponibile qui. Uso inserimento testo.');
+        openDictationBox(mode);
+      };
+
+      recognition.onend = ()=>{
+        recognition = null;
+      };
+
+      recognition.start();
+    }catch(e){
+      setDictationState('Microfono non disponibile qui. Uso inserimento testo.');
+      openDictationBox(mode);
+    }
+  }
+
   function openDictationBox(mode){
     const ov = $('dictationOverlay');
     const input = $('dictationLiveInput');
-
     if(!ov || !input){
       showErr('Finestra dettatura non disponibile.');
       return;
     }
 
     dictationMode = mode;
+    lastAutoApplied = '';
 
-    $('dictationBoxTitle').textContent = mode === 'rips'
-      ? '🎤 DETTA CODICI RIP'
-      : '🎤 DETTA TOTALE RIPARAZIONE';
-
+    $('dictationBoxTitle').textContent = mode === 'rips' ? 'Detta voci RIP' : 'Detta totale riparazione';
     $('dictationBoxHelp').textContent = mode === 'rips'
-      ? 'Esempio: RIP01 250 RIP02 90'
+      ? 'Esempio: RIP01 250 RIP02 90 RIP21 45'
       : 'Esempio: 450 euro';
 
     input.value = '';
+    input.placeholder = mode === 'rips'
+      ? 'Detta o scrivi qui: RIP01 250 RIP02 90'
+      : 'Detta o scrivi qui: 450 euro';
+
     ov.style.display = 'flex';
 
     setTimeout(()=>{
-      try{
-        input.focus();
-        input.click();
-      }catch{}
-    }, 200);
+      try{ input.focus(); }catch{}
+    }, 120);
   }
 
   function closeDictationBox(){
@@ -946,19 +1006,20 @@
 
   function onDictationTyping(){
     clearTimeout(dictationDebounce);
-
     dictationDebounce = setTimeout(()=>{
       const input = $('dictationLiveInput');
       if(!input) return;
 
       const text = String(input.value || '').trim();
       if(!text) return;
+      if(text === lastAutoApplied) return;
 
       const ok = applyDictation(dictationMode, text);
       if(ok){
+        lastAutoApplied = text;
         closeDictationBox();
       }
-    }, 800);
+    }, 1000);
   }
 
   function applyDictation(mode, transcript){
