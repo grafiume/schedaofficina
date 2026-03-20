@@ -890,7 +890,28 @@
         "></textarea>
 
         <div style="margin-top:10px;font-size:.9rem;color:#667085;">
-          Appena smetti di dettare o scrivere, il testo viene trasferito e la finestra si chiude da sola.
+          Detti o scrivi il testo, poi premi Conferma per applicarlo. La finestra non si chiude automaticamente.
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px;">
+          <button type="button" id="dictationCancel" style="
+            border:1px solid #d0d5dd;
+            background:#fff;
+            color:#101828;
+            border-radius:10px;
+            padding:10px 14px;
+            font-weight:700;
+            cursor:pointer;
+          ">Annulla</button>
+          <button type="button" id="dictationConfirm" style="
+            border:1px solid #101828;
+            background:#101828;
+            color:#fff;
+            border-radius:10px;
+            padding:10px 14px;
+            font-weight:700;
+            cursor:pointer;
+          ">Conferma</button>
         </div>
       </div>
     `;
@@ -898,6 +919,8 @@
     document.body.appendChild(wrap);
 
     $('dictationClose').addEventListener('click', closeDictationBox);
+    $('dictationCancel').addEventListener('click', closeDictationBox);
+    $('dictationConfirm').addEventListener('click', confirmDictation);
     $('dictationLiveInput').addEventListener('input', onDictationTyping);
   }
 
@@ -948,14 +971,25 @@
 
       const text = String(input.value || '').trim();
       if(!text) return;
-      if(text === lastAutoApplied) return;
+      lastAutoApplied = text;
+    }, 250);
+  }
 
-      const ok = applyDictation(dictationMode, text);
-      if(ok){
-        lastAutoApplied = text;
-        closeDictationBox();
-      }
-    }, 1000);
+  function confirmDictation(){
+    const input = $('dictationLiveInput');
+    if(!input) return;
+
+    const text = String(input.value || '').trim();
+    if(!text){
+      showErr('Inserisci o detta prima un testo da confermare.');
+      return;
+    }
+
+    const ok = applyDictation(dictationMode, text);
+    if(ok){
+      lastAutoApplied = text;
+      closeDictationBox();
+    }
   }
 
   function applyDictation(mode, transcript){
