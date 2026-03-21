@@ -655,3 +655,49 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
 });
+// ===== PREVENTIVO BADGE =====
+
+async function getPreventiviMap(){
+  const { data } = await sb
+    .from('quotes')
+    .select('record_id, stato');
+
+  const map = {};
+
+  (data || []).forEach(q => {
+    const id = q.record_id;
+    if (!map[id]) map[id] = [];
+
+    map[id].push((q.stato || '').toLowerCase());
+  });
+
+  return map;
+}
+
+function getPClass(stati, statoLavoro){
+  if (!stati || !stati.length) return 'p-gray';
+
+  if (stati.some(s => s.includes('accettato'))) {
+    if (statoLavoro === 'Completata') return 'p-green';
+    if (statoLavoro === 'In lavorazione') return 'p-orange';
+    return 'p-blue';
+  }
+
+  if (stati.some(s => s.includes('inviato'))) return 'p-yellow';
+
+  return 'p-gray';
+}
+
+function getPTitle(stati, statoLavoro){
+  if (!stati || !stati.length) return 'Nessun preventivo';
+
+  if (stati.some(s => s.includes('accettato'))) {
+    if (statoLavoro === 'Completata') return 'Accettato • chiuso';
+    if (statoLavoro === 'In lavorazione') return 'Accettato • in lavorazione';
+    return 'Accettato';
+  }
+
+  if (stati.some(s => s.includes('inviato'))) return 'Preventivo inviato';
+
+  return 'Bozza';
+}
