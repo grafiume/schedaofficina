@@ -44,14 +44,10 @@
     return null;
   }
 
-  // IMPORTANT:
-  // We now consider a drawer occupied whenever a record has a non-empty cassetto
-  // and its stato is not closed/completed.
-  // This fixes false "free" drawers even when DB unique index blocks duplicates.
   async function getOccupied(sb, excludeId){
     let q = sb
       .from('records')
-      .select('id,cassetto,cassetto_occupato,statoPratica,stato')
+      .select('id,cassetto,cassetto_occupato,statoPratica')
       .not('cassetto','is',null);
 
     if (excludeId != null) q = q.neq('id', excludeId);
@@ -63,7 +59,7 @@
       .map(r => ({
         ...r,
         cassetto: s(r.cassetto).toUpperCase(),
-        statoRaw: s(r.statoPratica || r.stato)
+        statoRaw: s(r.statoPratica)
       }))
       .filter(r => r.cassetto)
       .filter(r => !isClosed(r.statoRaw));
@@ -93,10 +89,10 @@
     try {
       const occ = await getOccupied(sb, excludeId);
       const map = new Map(occ.map(r => [r.cassetto, true]));
-      rows = CASSETTI.map(c => ({ cassetto:c, occupato:!!map.get(c), record_id:null }));
+      rows = CASSETTI.map(c => ({ cassetto:c, occupato:!!map.get(c) }));
     } catch(e){
       console.error('Errore mappa cassetti', e);
-      rows = CASSETTI.map(c => ({ cassetto:c, occupato:false, record_id:null }));
+      rows = CASSETTI.map(c => ({ cassetto:c, occupato:false }));
     }
 
     container.innerHTML = rows.map(r => {
@@ -108,11 +104,11 @@
     }).join('');
   }
 
-  function bindMapPick(container, input, getExcludeId){
+  function bindMapPick(container, input){
     if (!container || !input || container.dataset.boundCassPick === '1') return;
     container.dataset.boundCassPick = '1';
 
-    container.addEventListener('click', async (ev) => {
+    container.addEventListener('click', (ev) => {
       const box = ev.target.closest('.cass-box');
       if (!box) return;
 
@@ -162,23 +158,18 @@
     const ddt = s(document.getElementById('nDDT')?.value);
 
     const candidates = [];
-    if (ddt) candidates.push(['ddt', ddt], ['docTrasporto', ddt]);
+    if (ddt) candidates.push(['docTrasporto', ddt]);
     if (cliente) candidates.push(['cliente', cliente]);
     if (descrizione) candidates.push(['descrizione', descrizione]);
     if (modello) candidates.push(['modello', modello]);
 
-    const dateFields = ['created_at','createdAt','data','apertura','data_apertura','inserted_at','dataApertura'];
-
     for (const [field, value] of candidates) {
       try {
-        let query = sb.from('records').select('*').eq(field, value).limit(10);
-        for (const dateField of dateFields) {
-          try {
-            const res = await query.order(dateField, { ascending:false });
-            if (!res.error && res.data && res.data.length) return res.data[0];
-          } catch(e){}
-        }
-        const res = await query;
+        const res = await sb.from('records')
+          .select('*')
+          .eq(field, value)
+          .order('dataApertura', { ascending:false })
+          .limit(10);
         if (!res.error && res.data && res.data.length) return res.data[0];
       } catch(e){}
     }
@@ -223,8 +214,8 @@
     const editMap = document.getElementById('editCassMap');
     const newMap = document.getElementById('newCassMap');
 
-    bindMapPick(editMap, eInput, () => guessCurrentRecordId());
-    bindMapPick(newMap, nInput, () => null);
+    bindMapPick(editMap, eInput);
+    bindMapPick(newMap, nInput);
 
     async function refreshAllMaps(){
       await renderMap(editMap, s(eInput?.value).toUpperCase(), guessCurrentRecordId());
@@ -259,7 +250,6 @@
       await refreshAllMaps();
     });
 
-    // Pre-check BEFORE existing save runs, so user gets a clear message instead of DB duplicate error
     document.getElementById('btnSave')?.addEventListener('click', async (ev) => {
       const ok = await validateInputBeforeSave(eInput, eStato?.value, guessCurrentRecordId());
       if (!ok) {
@@ -280,7 +270,6 @@
       }
     }, true);
 
-    // Persist edit after existing app save
     document.getElementById('btnSave')?.addEventListener('click', async () => {
       try{
         const idBefore = guessCurrentRecordId();
@@ -295,7 +284,6 @@
       }
     });
 
-    // Persist new after existing app save
     document.getElementById('btnNewSave')?.addEventListener('click', async () => {
       try{
         await wait(1200);
