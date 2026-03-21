@@ -36,18 +36,10 @@
       || null;
   }
 
-  async function rpcPrimoLibero(sb){
-    try{
-      const { data, error } = await sb.rpc('get_primo_cassetto_libero');
-      if (!error && data) return data;
-    }catch(e){}
-    return null;
-  }
-
   async function getOccupied(sb, excludeId){
     let q = sb
       .from('records')
-      .select('id,cassetto,cassetto_occupato,statoPratica')
+      .select('id,cassetto,statoPratica')
       .not('cassetto','is',null);
 
     if (excludeId != null) q = q.neq('id', excludeId);
@@ -57,7 +49,7 @@
 
     return (data || [])
       .map(r => ({
-        ...r,
+        id: r.id,
         cassetto: s(r.cassetto).toUpperCase(),
         statoRaw: s(r.statoPratica)
       }))
@@ -71,9 +63,6 @@
   }
 
   async function getPrimoLibero(sb, excludeId){
-    const viaRpc = await rpcPrimoLibero(sb);
-    if (viaRpc) return viaRpc;
-
     const used = new Set((await getOccupied(sb, excludeId)).map(r => r.cassetto));
     const free = CASSETTI.find(c => !used.has(c));
     if (!free) throw new Error('Nessun cassetto libero disponibile.');
@@ -222,8 +211,32 @@
       await renderMap(newMap, s(nInput?.value).toUpperCase(), null);
     }
 
+    // CAPTURE PHASE: stop invalid save before app.js runs
+    document.getElementById('btnSave')?.addEventListener('click', async (ev) => {
+      const ok = await validateInputBeforeSave(eInput, eStato?.value, guessCurrentRecordId());
+      if (!ok) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.stopImmediatePropagation();
+        await refreshAllMaps();
+        return false;
+      }
+    }, true);
+
+    document.getElementById('btnNewSave')?.addEventListener('click', async (ev) => {
+      const ok = await validateInputBeforeSave(nInput, nStato?.value, null);
+      if (!ok) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.stopImmediatePropagation();
+        await refreshAllMaps();
+        return false;
+      }
+    }, true);
+
     document.getElementById('btnEditCassAuto')?.addEventListener('click', async () => {
       try {
+        await refreshAllMaps();
         eInput.value = await getPrimoLibero(sb, guessCurrentRecordId());
         await refreshAllMaps();
       } catch(err){ alert(err.message || 'Errore cassetto'); }
@@ -240,6 +253,7 @@
 
     document.getElementById('btnNewCassAuto')?.addEventListener('click', async () => {
       try {
+        await refreshAllMaps();
         nInput.value = await getPrimoLibero(sb, null);
         await refreshAllMaps();
       } catch(err){ alert(err.message || 'Errore cassetto'); }
@@ -250,26 +264,7 @@
       await refreshAllMaps();
     });
 
-    document.getElementById('btnSave')?.addEventListener('click', async (ev) => {
-      const ok = await validateInputBeforeSave(eInput, eStato?.value, guessCurrentRecordId());
-      if (!ok) {
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-        await refreshAllMaps();
-        return false;
-      }
-    }, true);
-
-    document.getElementById('btnNewSave')?.addEventListener('click', async (ev) => {
-      const ok = await validateInputBeforeSave(nInput, nStato?.value, null);
-      if (!ok) {
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-        await refreshAllMaps();
-        return false;
-      }
-    }, true);
-
+    // bubble phase after app save
     document.getElementById('btnSave')?.addEventListener('click', async () => {
       try{
         const idBefore = guessCurrentRecordId();
@@ -280,7 +275,6 @@
         await refreshAllMaps();
       }catch(err){
         console.error('Errore post-save cassetto edit', err);
-        alert(err.message || 'Errore salvataggio cassetto');
       }
     });
 
@@ -293,7 +287,6 @@
         await refreshAllMaps();
       }catch(err){
         console.error('Errore post-save cassetto new', err);
-        alert(err.message || 'Errore salvataggio cassetto');
       }
     });
 
