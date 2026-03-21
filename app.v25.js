@@ -217,7 +217,7 @@ window.renderHome=function(rows){
 
     const tdData=document.createElement('td'); tdData.textContent=fmtIT(r.dataApertura); tr.appendChild(tdData);
     const tdCassetto=document.createElement('td'); tdCassetto.textContent=r.cassetto??''; tr.appendChild(tdCassetto);
-    const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; appendPreventivoBadge(tdCliente, r); tr.appendChild(tdCliente);
+    const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; tr.appendChild(tdCliente);
     const tdDesc=document.createElement('td'); tdDesc.textContent=r.descrizione??''; tr.appendChild(tdDesc);
     const tdMod=document.createElement('td'); tdMod.textContent=r.modello??''; tr.appendChild(tdMod);
 
@@ -284,7 +284,7 @@ function doSearch(){
 
     const tdData=document.createElement('td'); tdData.textContent=fmtIT(r.dataApertura); tr.appendChild(tdData);
     const tdCassetto=document.createElement('td'); tdCassetto.textContent=r.cassetto??''; tr.appendChild(tdCassetto);
-    const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; appendPreventivoBadge(tdCliente, r); tr.appendChild(tdCliente);
+    const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; tr.appendChild(tdCliente);
     const tdDesc=document.createElement('td'); tdDesc.textContent=r.descrizione??''; tr.appendChild(tdDesc);
     const tdMod=document.createElement('td'); tdMod.textContent=r.modello??''; tr.appendChild(tdMod);
 
@@ -585,130 +585,6 @@ async function createNewRecord(){
   alert('Creato!');
 }
 
-
-// ===== PREVENTIVO BADGE =====
-async function getPreventiviMap(){
-  try{
-    const { data, error } = await sb
-      .from('quotes')
-      .select('id,record_id,status,sent_at,accepted_at,created_at');
-
-    if (error) {
-      console.warn('Errore lettura quotes per badge P', error);
-      return {};
-    }
-
-    const map = {};
-
-    function rankStatus(status){
-      const s = norm(status || '');
-      if (s.includes('accettato')) return 4;
-      if (s.includes('inviato')) return 3;
-      if (s.includes('bozza')) return 2;
-      if (s.includes('annullato')) return 1;
-      return 0;
-    }
-
-    (data || []).forEach(q => {
-      const recordId = q.record_id;
-      if (!recordId) return;
-
-      const status = (q.status || '').toString();
-      const row = {
-        id: q.id,
-        status,
-        rank: rankStatus(status),
-        ts: q.accepted_at || q.sent_at || q.created_at || ''
-      };
-
-      if (!map[recordId]) {
-        map[recordId] = { items: [row], best: row };
-        return;
-      }
-
-      map[recordId].items.push(row);
-      const best = map[recordId].best;
-      const bestTs = String(best.ts || '');
-      const rowTs = String(row.ts || '');
-
-      if (row.rank > best.rank || (row.rank === best.rank && rowTs > bestTs)) {
-        map[recordId].best = row;
-      }
-    });
-
-    return map;
-  }catch(e){
-    console.warn('Eccezione badge P', e);
-    return {};
-  }
-}
-
-function getPClass(info, statoLavoro){
-  if (!info || !info.best) return 'p-gray';
-
-  const bestStatus = norm(info.best.status);
-  const stato = (statoLavoro || '').toString();
-
-  if (bestStatus.includes('accettato')) {
-    if (stato === 'Completata') return 'p-green';
-    if (stato === 'In lavorazione') return 'p-orange';
-    return 'p-blue';
-  }
-
-  if (bestStatus.includes('inviato')) return 'p-yellow';
-  if (bestStatus.includes('bozza')) return 'p-gray';
-
-  return 'p-gray';
-}
-
-function getPTitle(info, statoLavoro){
-  if (!info || !info.best) return 'Preventivo non inviato';
-
-  const bestStatus = norm(info.best.status);
-  const stato = (statoLavoro || '').toString();
-
-  if (bestStatus.includes('accettato')) {
-    if (stato === 'Completata') return 'Preventivo accettato • chiuso';
-    if (stato === 'In lavorazione') return 'Preventivo accettato • in lavorazione';
-    return 'Preventivo accettato';
-  }
-
-  if (bestStatus.includes('inviato')) return 'Preventivo inviato';
-  if (bestStatus.includes('bozza')) return 'Preventivo in bozza';
-
-  return 'Preventivo non inviato';
-}
-
-function openPreventivoFromBadge(recordId){
-  const info = window._preventiviMap && window._preventiviMap[recordId];
-  if (info && info.best && info.best.id) {
-    try{
-      location.href = 'preventivo.html?id=' + encodeURIComponent(info.best.id);
-      return;
-    }catch(e){}
-  }
-  alert('Preventivo non inviato');
-}
-
-function appendPreventivoBadge(tdCliente, record){
-  try{
-    const info = window._preventiviMap && window._preventiviMap[record.id];
-    const span = document.createElement('span');
-    span.className = 'badge-p ' + getPClass(info, record.statoPratica);
-    span.title = getPTitle(info, record.statoPratica);
-    span.textContent = 'P';
-    span.style.cursor = 'pointer';
-    span.addEventListener('click', (ev)=>{
-      ev.stopPropagation();
-      openPreventivoFromBadge(record.id);
-    });
-    tdCliente.appendChild(span);
-  }catch(e){
-    console.warn('Errore append badge P', e);
-  }
-}
-
-
 // ----------------- Boot -----------------
 function showError(msg){ try{ const el=document.getElementById('errBanner'); if(el){ el.textContent=msg; el.classList.remove('d-none'); } }catch{} console.error(msg); }
 
@@ -725,7 +601,6 @@ window.loadAll=async function(){
       data=fb.data;
     }
     window.state.all=data||[];
-    window._preventiviMap = await getPreventiviMap();
     renderHome(window.state.all);
   }catch(e){ showError('Eccezione loadAll: '+(e?.message||e)); renderHome([]); }
 };
@@ -780,3 +655,49 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
 });
+// ===== PREVENTIVO BADGE =====
+
+async function getPreventiviMap(){
+  const { data } = await sb
+    .from('quotes')
+    .select('record_id, stato');
+
+  const map = {};
+
+  (data || []).forEach(q => {
+    const id = q.record_id;
+    if (!map[id]) map[id] = [];
+
+    map[id].push((q.stato || '').toLowerCase());
+  });
+
+  return map;
+}
+
+function getPClass(stati, statoLavoro){
+  if (!stati || !stati.length) return 'p-gray';
+
+  if (stati.some(s => s.includes('accettato'))) {
+    if (statoLavoro === 'Completata') return 'p-green';
+    if (statoLavoro === 'In lavorazione') return 'p-orange';
+    return 'p-blue';
+  }
+
+  if (stati.some(s => s.includes('inviato'))) return 'p-yellow';
+
+  return 'p-gray';
+}
+
+function getPTitle(stati, statoLavoro){
+  if (!stati || !stati.length) return 'Nessun preventivo';
+
+  if (stati.some(s => s.includes('accettato'))) {
+    if (statoLavoro === 'Completata') return 'Accettato • chiuso';
+    if (statoLavoro === 'In lavorazione') return 'Accettato • in lavorazione';
+    return 'Accettato';
+  }
+
+  if (stati.some(s => s.includes('inviato'))) return 'Preventivo inviato';
+
+  return 'Bozza';
+}

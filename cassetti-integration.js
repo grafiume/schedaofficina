@@ -1,4 +1,3 @@
-
 (function(){
   'use strict';
 
@@ -28,6 +27,15 @@
     return null;
   }
 
+  function guessCurrentRecordId(){
+    return window.currentRecordId
+      || window.recordId
+      || window.editRecordId
+      || window.selectedRecordId
+      || window.state?.editing?.id
+      || null;
+  }
+
   async function rpcPrimoLibero(sb){
     try{
       const { data, error } = await sb.rpc('get_primo_cassetto_libero');
@@ -36,52 +44,87 @@
     return null;
   }
 
+  // IMPORTANT:
+  // We now consider a drawer occupied whenever a record has a non-empty cassetto
+  // and its stato is not closed/completed.
+  // This fixes false "free" drawers even when DB unique index blocks duplicates.
   async function getOccupied(sb, excludeId){
-    let q = sb.from('records').select('id,cassetto,cassetto_occupato').eq('cassetto_occupato', true).not('cassetto','is',null);
+    let q = sb
+      .from('records')
+      .select('id,cassetto,cassetto_occupato,statoPratica,stato')
+      .not('cassetto','is',null);
+
     if (excludeId != null) q = q.neq('id', excludeId);
+
     const { data, error } = await q;
     if (error) throw error;
-    return (data||[]).map(r => ({...r, cassetto:s(r.cassetto).toUpperCase()})).filter(r => r.cassetto);
+
+    return (data || [])
+      .map(r => ({
+        ...r,
+        cassetto: s(r.cassetto).toUpperCase(),
+        statoRaw: s(r.statoPratica || r.stato)
+      }))
+      .filter(r => r.cassetto)
+      .filter(r => !isClosed(r.statoRaw));
+  }
+
+  async function isCassOccupied(sb, cass, excludeId){
+    const occ = await getOccupied(sb, excludeId);
+    return occ.some(r => r.cassetto === cass);
   }
 
   async function getPrimoLibero(sb, excludeId){
     const viaRpc = await rpcPrimoLibero(sb);
     if (viaRpc) return viaRpc;
+
     const used = new Set((await getOccupied(sb, excludeId)).map(r => r.cassetto));
     const free = CASSETTI.find(c => !used.has(c));
     if (!free) throw new Error('Nessun cassetto libero disponibile.');
     return free;
   }
 
-  async function renderMap(container, activeCass){
+  async function renderMap(container, activeCass, excludeId){
     if (!container) return;
     const sb = getSb();
     if (!sb) return;
+
     let rows = [];
     try {
-      const { data, error } = await sb.rpc('get_mappa_cassetti');
-      if (!error && Array.isArray(data)) rows = data;
-    } catch(e){}
-    if (!rows.length){
-      const occ = await getOccupied(sb);
+      const occ = await getOccupied(sb, excludeId);
       const map = new Map(occ.map(r => [r.cassetto, true]));
       rows = CASSETTI.map(c => ({ cassetto:c, occupato:!!map.get(c), record_id:null }));
+    } catch(e){
+      console.error('Errore mappa cassetti', e);
+      rows = CASSETTI.map(c => ({ cassetto:c, occupato:false, record_id:null }));
     }
+
     container.innerHTML = rows.map(r => {
       const c = s(r.cassetto).toUpperCase();
       const cls = r.occupato ? 'occupied' : 'free';
       const active = c && activeCass === c ? 'active' : '';
-      return `<div class="cass-box ${cls} ${active}" data-cassetto="${c}">${c}<small>${r.occupato ? 'Occupato' : 'Libero'}</small></div>`;
+      const title = r.occupato ? 'Occupato' : 'Libero';
+      return `<div class="cass-box ${cls} ${active}" data-cassetto="${c}" data-occupied="${r.occupato ? '1' : '0'}" title="${title}">${c}<small>${title}</small></div>`;
     }).join('');
   }
 
-  function bindMapPick(container, input){
+  function bindMapPick(container, input, getExcludeId){
     if (!container || !input || container.dataset.boundCassPick === '1') return;
     container.dataset.boundCassPick = '1';
-    container.addEventListener('click', (ev) => {
+
+    container.addEventListener('click', async (ev) => {
       const box = ev.target.closest('.cass-box');
       if (!box) return;
+
       const cass = s(box.dataset.cassetto);
+      const occupied = box.dataset.occupied === '1';
+      const activeCass = s(input.value).toUpperCase();
+
+      if (occupied && cass !== activeCass) {
+        alert(`Il cassetto ${cass} è già occupato.`);
+        return;
+      }
+
       input.value = cass;
       [...container.querySelectorAll('.cass-box')].forEach(el => el.classList.toggle('active', el === box));
     });
@@ -90,8 +133,17 @@
   async function ensureOccupancyById(recordId, cassValue, statoValue){
     const sb = getSb();
     if (!sb || !recordId) return;
+
     const cass = normCass(cassValue || '');
     const closed = isClosed(statoValue);
+
+    if (!closed && cass) {
+      const occupied = await isCassOccupied(sb, cass, recordId);
+      if (occupied) {
+        throw new Error(`Il cassetto ${cass} è già occupato da un'altra scheda.`);
+      }
+    }
+
     const payload = closed || !cass
       ? { cassetto: null, cassetto_occupato: false }
       : { cassetto: cass, cassetto_occupato: true };
@@ -110,12 +162,12 @@
     const ddt = s(document.getElementById('nDDT')?.value);
 
     const candidates = [];
-    if (ddt) candidates.push(['ddt', ddt]);
+    if (ddt) candidates.push(['ddt', ddt], ['docTrasporto', ddt]);
     if (cliente) candidates.push(['cliente', cliente]);
     if (descrizione) candidates.push(['descrizione', descrizione]);
     if (modello) candidates.push(['modello', modello]);
 
-    const dateFields = ['created_at','createdAt','data','apertura','data_apertura','inserted_at'];
+    const dateFields = ['created_at','createdAt','data','apertura','data_apertura','inserted_at','dataApertura'];
 
     for (const [field, value] of candidates) {
       try {
@@ -133,8 +185,30 @@
     return null;
   }
 
-  function guessCurrentRecordId(){
-    return window.currentRecordId || window.recordId || window.editRecordId || window.selectedRecordId || null;
+  async function validateInputBeforeSave(input, statoValue, excludeId){
+    const sb = getSb();
+    if (!sb) return true;
+
+    const raw = s(input?.value);
+    if (!raw) return true;
+    if (isClosed(statoValue)) return true;
+
+    let cass;
+    try {
+      cass = normCass(raw);
+    } catch(err) {
+      alert(err.message || 'Cassetto non valido.');
+      return false;
+    }
+
+    const occupied = await isCassOccupied(sb, cass, excludeId);
+    if (occupied) {
+      alert(`Il cassetto ${cass} è già occupato.`);
+      return false;
+    }
+
+    input.value = cass;
+    return true;
   }
 
   async function setupButtons(){
@@ -148,12 +222,13 @@
 
     const editMap = document.getElementById('editCassMap');
     const newMap = document.getElementById('newCassMap');
-    bindMapPick(editMap, eInput);
-    bindMapPick(newMap, nInput);
+
+    bindMapPick(editMap, eInput, () => guessCurrentRecordId());
+    bindMapPick(newMap, nInput, () => null);
 
     async function refreshAllMaps(){
-      await renderMap(editMap, s(eInput?.value).toUpperCase());
-      await renderMap(newMap, s(nInput?.value).toUpperCase());
+      await renderMap(editMap, s(eInput?.value).toUpperCase(), guessCurrentRecordId());
+      await renderMap(newMap, s(nInput?.value).toUpperCase(), null);
     }
 
     document.getElementById('btnEditCassAuto')?.addEventListener('click', async () => {
@@ -184,6 +259,27 @@
       await refreshAllMaps();
     });
 
+    // Pre-check BEFORE existing save runs, so user gets a clear message instead of DB duplicate error
+    document.getElementById('btnSave')?.addEventListener('click', async (ev) => {
+      const ok = await validateInputBeforeSave(eInput, eStato?.value, guessCurrentRecordId());
+      if (!ok) {
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        await refreshAllMaps();
+        return false;
+      }
+    }, true);
+
+    document.getElementById('btnNewSave')?.addEventListener('click', async (ev) => {
+      const ok = await validateInputBeforeSave(nInput, nStato?.value, null);
+      if (!ok) {
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        await refreshAllMaps();
+        return false;
+      }
+    }, true);
+
     // Persist edit after existing app save
     document.getElementById('btnSave')?.addEventListener('click', async () => {
       try{
@@ -195,6 +291,7 @@
         await refreshAllMaps();
       }catch(err){
         console.error('Errore post-save cassetto edit', err);
+        alert(err.message || 'Errore salvataggio cassetto');
       }
     });
 
@@ -208,10 +305,10 @@
         await refreshAllMaps();
       }catch(err){
         console.error('Errore post-save cassetto new', err);
+        alert(err.message || 'Errore salvataggio cassetto');
       }
     });
 
-    // Auto-liberazione lato UI se lo stato diventa chiuso/completata/consegnata
     eStato?.addEventListener('change', async () => {
       if (isClosed(eStato.value)) eInput.value = '';
       await refreshAllMaps();
@@ -222,13 +319,11 @@
       await refreshAllMaps();
     });
 
-    // Quando apri la nuova scheda aggiorna solo la mappa, senza assegnare automaticamente alcun cassetto
     document.getElementById('btnNew')?.addEventListener('click', async () => {
       await wait(200);
       await refreshAllMaps();
     });
 
-    // Keep map synced when user types manually
     [eInput, nInput].forEach(inp => inp && inp.addEventListener('input', refreshAllMaps));
 
     await refreshAllMaps();
