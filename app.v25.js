@@ -194,10 +194,12 @@ function buildQuoteBadge(record){
   return span;
 }
 function buildPriorityBadge(record){
+  const qinfo = getQuoteInfo(record.id);
+  const hasEconomicOk = (Number(record?.importoConcordato || 0) > 0) || !!(qinfo && qinfo.accepted);
+  if (!hasEconomicOk) return document.createTextNode('');
   const span = document.createElement('span');
-  span.className = 'prio-badge ' + (record.priorita_class || 'prio-bassa');
-  span.textContent = record.priorita_label || 'BASSA';
-  span.title = record.priorita_title || '';
+  span.className = 'econ-dot';
+  span.title = Number(record?.importoConcordato || 0) > 0 ? 'Importo pattuito' : 'Preventivo accettato';
   return span;
 }
 
@@ -389,64 +391,102 @@ async function createOrUpdateAutoQuoteItems(quoteId, amount){
   }
   return false;
 }
+
 async function syncAutoQuoteForRecord(record, forcedAmount){
-  if(!sb || !record?.id) return;
+  if(!sb || !record?.id) return null;
+
   const amount = parseImporto(forcedAmount != null ? forcedAmount : record.importoConcordato);
-  if(!(amount > 0)) return;
+  if(!(amount > 0)) return null;
 
   const acceptedAt = record.dataApertura || new Date().toISOString().slice(0,10);
+  const acceptedAtIso = String(acceptedAt).length === 10 ? acceptedAt + 'T00:00:00' : acceptedAt;
   const autoNote = '[AUTO_RIP00] Creato automaticamente da importo concordato';
+  const lineText = 'Riparazione come da importo concordato';
 
-  let existing = null;
+  let rows = [];
   try{
-    const { data } = await sb
+    const res = await sb
       .from('quotes')
       .select('id,record_id,status,notes,subtotal_ex_vat,accepted_at,created_at')
       .eq('record_id', record.id)
       .order('created_at', { ascending:false })
-      .limit(5);
-    const rows = data || [];
-    const manual = rows.find(x => !String(x.notes || '').includes('[AUTO_RIP00]'));
-    if(manual) return; // non toccare preventivi manuali
-    existing = rows.find(x => String(x.notes || '').includes('[AUTO_RIP00]')) || null;
+      .limit(20);
+    if(res.error) throw res.error;
+    rows = res.data || [];
   }catch(e){
     console.warn('lookup quotes failed', e);
-    return;
+    return null;
   }
 
-  const basePayload = {
-    record_id: record.id,
-    status: 'ACCETTATO',
-    accepted_at: acceptedAt,
-    subtotal_ex_vat: amount,
-    notes: autoNote
-  };
+  const manual = rows.find(x => !String(x.notes || '').includes('[AUTO_RIP00]'));
+  if(manual) return manual.id || null;
 
-  let quoteId = existing?.id || null;
-  if(quoteId){
-    try{
-      const { error } = await sb.from('quotes').update(basePayload).eq('id', quoteId);
-      if(error) throw error;
-    }catch(e){
-      console.warn('update auto quote failed', e);
-      return;
+  let quoteId = (rows.find(x => String(x.notes || '').includes('[AUTO_RIP00]')) || {}).id || null;
+
+  if(!quoteId){
+    const payloads = [
+      { record_id: record.id, status: 'ACCETTATO', accepted_at: acceptedAt, subtotal_ex_vat: amount, notes: autoNote },
+      { record_id: record.id, status: 'ACCETTATO', accepted_at: acceptedAtIso, subtotal_ex_vat: amount, notes: autoNote },
+      { record_id: record.id, status: 'ACCETTATO', accepted_at: acceptedAt, sent_at: acceptedAt, subtotal_ex_vat: amount, notes: autoNote },
+      { record_id: record.id, status: 'ACCETTATO', accepted_at: acceptedAt, notes: autoNote },
+      { record_id: record.id, status: 'ACCETTATO', accepted_at: acceptedAtIso, notes: autoNote }
+    ];
+
+    for(const payload of payloads){
+      try{
+        const res = await sb.from('quotes').insert(payload).select('id').single();
+        if(!res.error && res.data?.id){
+          quoteId = res.data.id;
+          break;
+        }
+      }catch(e){}
+    }
+
+    if(!quoteId){
+      // fallback: maybe record_id relation exists but insert response shape differs
+      try{
+        const verify = await sb.from('quotes').select('id,notes').eq('record_id', record.id).order('created_at',{ascending:false}).limit(5);
+        const existing = (verify.data || []).find(x => String(x.notes || '').includes('[AUTO_RIP00]'));
+        if(existing?.id) quoteId = existing.id;
+      }catch(e){}
     }
   } else {
-    try{
-      let res = await sb.from('quotes').insert(basePayload).select('id').single();
-      if(res.error){
-        const fallback = { record_id: record.id, status: 'ACCETTATO', accepted_at: acceptedAt, notes: autoNote };
-        res = await sb.from('quotes').insert(fallback).select('id').single();
-      }
-      if(res.error || !res.data?.id) return;
-      quoteId = res.data.id;
-    }catch(e){
-      console.warn('create auto quote failed', e);
-      return;
+    const updatePayloads = [
+      { status:'ACCETTATO', accepted_at: acceptedAt, subtotal_ex_vat: amount, notes: autoNote },
+      { status:'ACCETTATO', accepted_at: acceptedAtIso, subtotal_ex_vat: amount, notes: autoNote },
+      { status:'ACCETTATO', accepted_at: acceptedAt, notes: autoNote },
+      { status:'ACCETTATO', accepted_at: acceptedAtIso, notes: autoNote }
+    ];
+    for(const payload of updatePayloads){
+      try{
+        const res = await sb.from('quotes').update(payload).eq('id', quoteId);
+        if(!res.error) break;
+      }catch(e){}
     }
   }
 
-  await createOrUpdateAutoQuoteItems(quoteId, amount);
+  if(!quoteId) return null;
+
+  // crea/aggiorna riga RIP 00
+  try { await sb.from('quote_items').delete().eq('quote_id', quoteId); } catch(e) {}
+
+  const itemPayloads = [
+    { quote_id: quoteId, code:'RIP 00', description:lineText, qty:1, unit_price:amount, line_total:amount },
+    { quote_id: quoteId, codice:'RIP 00', descrizione:lineText, quantita:1, prezzo:amount, totale:amount },
+    { quote_id: quoteId, sku:'RIP 00', description:lineText, quantity:1, unit_price:amount, total:amount },
+    { quote_id: quoteId, item_code:'RIP 00', descrizione:lineText, qta:1, prezzo_unitario:amount, totale_riga:amount },
+    { quote_id: quoteId, codice_articolo:'RIP 00', descrizione:lineText, quantita:1, prezzo_unitario:amount, totale:amount }
+  ];
+
+  for(const payload of itemPayloads){
+    try{
+      const res = await sb.from('quote_items').insert(payload);
+      if(!res.error) break;
+    }catch(e){}
+  }
+
+  await refreshQuoteCache();
+  return quoteId;
 }
 
 // ----------------- KPI + Home render -----------------
@@ -485,7 +525,7 @@ window.renderHome=function(rows){
     const tdStato=document.createElement('td');
     const closed=norm(r.statoPratica).includes('completata');
     tdStato.appendChild(buildPriorityBadge(r));
-    const statoTxt=document.createElement('span'); statoTxt.textContent=' ' + (r.statoPratica??'');
+    const statoTxt=document.createElement('span'); statoTxt.textContent=(r.statoPratica??'');
     tdStato.appendChild(statoTxt);
     if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
     tr.appendChild(tdStato);
@@ -559,7 +599,7 @@ function doSearch(){
     const tdStato=document.createElement('td');
     const closed=norm(r.statoPratica).includes('completata');
     tdStato.appendChild(buildPriorityBadge(r));
-    const statoTxt=document.createElement('span'); statoTxt.textContent=' ' + (r.statoPratica??'');
+    const statoTxt=document.createElement('span'); statoTxt.textContent=(r.statoPratica??'');
     tdStato.appendChild(statoTxt);
     if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
     tr.appendChild(tdStato);
@@ -736,7 +776,7 @@ function openEdit(id){
         await refreshQuoteCache();
         const q = getQuoteInfo(r.id);
         if (q && q.quoteId) location.href = 'preventivo.html?id=' + encodeURIComponent(q.quoteId);
-        else alert('Preventivo non creato automaticamente');
+        else location.href = 'preventivo.html?record_id=' + encodeURIComponent(r.id);
       }
       catch(e){}
     };
@@ -776,9 +816,9 @@ async function saveEdit(closeAfter=true){
     data = retry.data; error = retry.error;
   }
   if(error){ alert('Errore salvataggio: '+error.message); return; }
-  await syncAutoQuoteForRecord(Object.assign({}, data, { importoConcordato: localImportoConcordato }), localImportoConcordato);
+  const createdQuoteId = await syncAutoQuoteForRecord(Object.assign({}, data, { importoConcordato: localImportoConcordato }), localImportoConcordato);
   await refreshQuoteCache();
-  Object.assign(r, data, enrichPriority(Object.assign({}, r, data), getQuoteInfo(r.id)));
+  Object.assign(r, data, { importoConcordato: localImportoConcordato }, enrichPriority(Object.assign({}, r, data, { importoConcordato: localImportoConcordato }), getQuoteInfo(r.id)));
   renderHome(window.state.all);
   if (closeAfter){
     // torna alla Home come richiesto
@@ -867,11 +907,11 @@ async function createNewRecord(){
     const pv=document.getElementById('nPreview'); if(pv){ pv.innerHTML='Nessuna immagine'; }
   }
 
-  await syncAutoQuoteForRecord(Object.assign({}, data, { importoConcordato: localImportoConcordato }), localImportoConcordato);
+  const createdQuoteId = await syncAutoQuoteForRecord(Object.assign({}, data, { importoConcordato: localImportoConcordato }), localImportoConcordato);
   await refreshQuoteCache();
 
   // aggiorna cache & UI
-  const enrichedNew = Object.assign({}, data, enrichPriority(data, getQuoteInfo(data.id)));
+  const enrichedNew = Object.assign({}, data, { importoConcordato: localImportoConcordato }, enrichPriority(Object.assign({}, data, { importoConcordato: localImportoConcordato }), getQuoteInfo(data.id)));
   window.state.all.unshift(enrichedNew);
   renderHome(window.state.all);
 
