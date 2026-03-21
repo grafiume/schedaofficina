@@ -389,9 +389,9 @@ async function createOrUpdateAutoQuoteItems(quoteId, amount){
   }
   return false;
 }
-async function syncAutoQuoteForRecord(record){
+async function syncAutoQuoteForRecord(record, forcedAmount){
   if(!sb || !record?.id) return;
-  const amount = parseImporto(record.importoConcordato);
+  const amount = parseImporto(forcedAmount != null ? forcedAmount : record.importoConcordato);
   if(!(amount > 0)) return;
 
   const acceptedAt = record.dataApertura || new Date().toISOString().slice(0,10);
@@ -731,11 +731,12 @@ function openEdit(id){
   if(qBtn){
     qBtn.onclick=async ()=>{
       try{
-        await syncAutoQuoteForRecord(r);
+        const forced = document.getElementById('eImportoConcordato')?.value || r.importoConcordato || null;
+        await syncAutoQuoteForRecord(Object.assign({}, r, { importoConcordato: forced }), forced);
         await refreshQuoteCache();
         const q = getQuoteInfo(r.id);
         if (q && q.quoteId) location.href = 'preventivo.html?id=' + encodeURIComponent(q.quoteId);
-        else location.href = 'preventivo.html?record_id=' + encodeURIComponent(r.id);
+        else alert('Preventivo non creato automaticamente');
       }
       catch(e){}
     };
@@ -758,6 +759,7 @@ function openEdit(id){
 // Salva + chiudi richiesta: dopo salvataggio torniamo in Home
 async function saveEdit(closeAfter=true){
   const r=window.state.editing; if(!r) return;
+  const localImportoConcordato = val('eImportoConcordato');
   const payload={
     descrizione:val('eDescrizione'), modello:val('eModello'),
     dataApertura:val('eApertura')||null, dataAccettazione:val('eAcc')||null, dataScadenza:val('eScad')||null,
@@ -774,7 +776,7 @@ async function saveEdit(closeAfter=true){
     data = retry.data; error = retry.error;
   }
   if(error){ alert('Errore salvataggio: '+error.message); return; }
-  await syncAutoQuoteForRecord(data);
+  await syncAutoQuoteForRecord(Object.assign({}, data, { importoConcordato: localImportoConcordato }), localImportoConcordato);
   await refreshQuoteCache();
   Object.assign(r, data, enrichPriority(Object.assign({}, r, data), getQuoteInfo(r.id)));
   renderHome(window.state.all);
@@ -820,6 +822,7 @@ function previewNewFiles(){
 
 async function createNewRecord(){
   const dtAper=getV('nApertura')||todayISO();
+  const localImportoConcordato = getV('nImportoConcordato');
   const payload={
     descrizione:getV('nDescrizione'),
     modello:getV('nModello'),
@@ -864,7 +867,7 @@ async function createNewRecord(){
     const pv=document.getElementById('nPreview'); if(pv){ pv.innerHTML='Nessuna immagine'; }
   }
 
-  await syncAutoQuoteForRecord(data);
+  await syncAutoQuoteForRecord(Object.assign({}, data, { importoConcordato: localImportoConcordato }), localImportoConcordato);
   await refreshQuoteCache();
 
   // aggiorna cache & UI
