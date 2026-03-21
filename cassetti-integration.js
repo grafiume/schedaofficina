@@ -211,20 +211,20 @@
       }
     });
 
-    // Auto-liberazione se stato edit passa a Completata
+    // Auto-liberazione lato UI se lo stato diventa chiuso/completata/consegnata
     eStato?.addEventListener('change', async () => {
-      if (isClosed(eStato.value)) {
-        eInput.value = '';
-        await refreshAllMaps();
-      }
+      if (isClosed(eStato.value)) eInput.value = '';
+      await refreshAllMaps();
     });
 
-    // Auto-assegnazione soft on open new modal if empty
+    nStato?.addEventListener('change', async () => {
+      if (isClosed(nStato.value)) nInput.value = '';
+      await refreshAllMaps();
+    });
+
+    // Quando apri la nuova scheda aggiorna solo la mappa, senza assegnare automaticamente alcun cassetto
     document.getElementById('btnNew')?.addEventListener('click', async () => {
       await wait(200);
-      if (nInput && !s(nInput.value)) {
-        try { nInput.value = await getPrimoLibero(sb, null); } catch(e){}
-      }
       await refreshAllMaps();
     });
 
