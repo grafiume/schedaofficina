@@ -34,6 +34,8 @@ let _newMainName=null;
       return window.statusOrder(a.statoPratica) - window.statusOrder(b.statoPratica);
     };
   }
+})();
+
 
 function parseDateLoose(v){
   if(!v) return null;
@@ -43,97 +45,19 @@ function parseDateLoose(v){
 function daysDiffFromToday(v){
   const d = parseDateLoose(v);
   if(!d) return null;
-  const now = new Date();
-  now.setHours(0,0,0,0);
+  const now = new Date(); now.setHours(0,0,0,0);
   d.setHours(0,0,0,0);
-  return Math.round((d.getTime() - now.getTime()) / 86400000);
+  return Math.round((d.getTime()-now.getTime())/86400000);
 }
 function daysSince(v){
   const d = parseDateLoose(v);
   if(!d) return null;
-  const now = new Date();
-  now.setHours(0,0,0,0);
+  const now = new Date(); now.setHours(0,0,0,0);
   d.setHours(0,0,0,0);
-  return Math.round((now.getTime() - d.getTime()) / 86400000);
+  return Math.round((now.getTime()-d.getTime())/86400000);
 }
 function emptyQuoteInfo(){
   return { quoteId:null, status:'', accepted:false, sent:false, urgent:false, sentAt:null, acceptedAt:null };
-}
-function enrichPriority(record, qinfo){
-  const q = qinfo || emptyQuoteInfo();
-  let score = 0;
-  const reasons = [];
-
-  if (q.accepted){
-    score += 80;
-    reasons.push('Prezzo confermato');
-  } else if (q.sent){
-    score += 35;
-    reasons.push('Preventivo inviato');
-  } else {
-    score += 10;
-    reasons.push('Da definire');
-  }
-
-  const stato = String(record?.statoPratica || '');
-  if (norm(stato).includes('lavorazione')){
-    score += 15;
-    reasons.push('In lavorazione');
-  }
-
-  const dueDays = daysDiffFromToday(record?.dataScadenza);
-  if (dueDays !== null){
-    if (dueDays < 0){
-      score += 35;
-      reasons.push('Scadenza superata');
-    } else if (dueDays <= 2){
-      score += 25;
-      reasons.push('Scadenza vicina');
-    } else if (dueDays <= 5){
-      score += 12;
-      reasons.push('Scadenza prossima');
-    }
-  }
-
-  const ageDays = daysSince(record?.dataApertura);
-  if (ageDays !== null){
-    if (ageDays >= 20){
-      score += 20;
-      reasons.push('Aperta da 20+ giorni');
-    } else if (ageDays >= 15){
-      score += 15;
-      reasons.push('Aperta da 15+ giorni');
-    } else if (ageDays >= 10){
-      score += 10;
-      reasons.push('Aperta da 10+ giorni');
-    } else if (ageDays >= 5){
-      score += 5;
-      reasons.push('Aperta da 5+ giorni');
-    }
-  }
-
-  if (q.urgent){
-    score += 30;
-    reasons.push('Preventivo urgente');
-  }
-
-  let label = 'BASSA', cls = 'prio-bassa';
-  if (score >= 110){ label = 'URG'; cls = 'prio-urgente'; }
-  else if (score >= 70){ label = 'ALTA'; cls = 'prio-alta'; }
-  else if (score >= 35){ label = 'MEDIA'; cls = 'prio-media'; }
-
-  return {
-    priorita_score: score,
-    priorita_label: label,
-    priorita_class: cls,
-    priorita_title: reasons.join(' • ')
-  };
-}
-function byPriorityHomeOrder(a,b){
-  const pa = Number(a?.priorita_score || 0);
-  const pb = Number(b?.priorita_score || 0);
-  if (pb !== pa) return pb - pa;
-  return byHomeOrder(a,b);
 }
 async function refreshQuoteCache(){
   window.state.quoteMap = {};
@@ -143,23 +67,21 @@ async function refreshQuoteCache(){
       .from('quotes')
       .select('id,record_id,status,accepted_at,sent_at,is_urgent,created_at')
       .limit(1000);
-    if(error) return;
+    if(error){ console.warn('refreshQuoteCache error', error); return; }
 
-    const rank = (row) => {
+    function rank(row){
       const st = String(row?.status || '').toUpperCase();
       if (st === 'ACCETTATO' || row?.accepted_at) return 4;
       if (st === 'INVIATO' || row?.sent_at) return 3;
       if (st === 'BOZZA') return 2;
       return 1;
-    };
+    }
 
     for(const row of (data || [])){
       const key = row.record_id;
       if(!key) continue;
       const prev = window.state.quoteMap[key];
-      if(!prev || rank(row) > rank(prev)){
-        window.state.quoteMap[key] = row;
-      }
+      if(!prev || rank(row) > rank(prev)) window.state.quoteMap[key] = row;
     }
   }catch(e){
     console.warn('refreshQuoteCache failed', e);
@@ -178,6 +100,53 @@ function getQuoteInfo(recordId){
     sentAt: row.sent_at || null,
     acceptedAt: row.accepted_at || null
   };
+}
+function enrichPriority(record, qinfo){
+  const q = qinfo || emptyQuoteInfo();
+  let score = 0;
+  const reasons = [];
+
+  if (q.accepted){ score += 80; reasons.push('Prezzo confermato'); }
+  else if (q.sent){ score += 35; reasons.push('Preventivo inviato'); }
+  else { score += 10; reasons.push('Da definire'); }
+
+  const stato = String(record?.statoPratica || '');
+  if (norm(stato).includes('lavorazione')){ score += 15; reasons.push('In lavorazione'); }
+
+  const dueDays = daysDiffFromToday(record?.dataScadenza);
+  if (dueDays !== null){
+    if (dueDays < 0){ score += 35; reasons.push('Scadenza superata'); }
+    else if (dueDays <= 2){ score += 25; reasons.push('Scadenza vicina'); }
+    else if (dueDays <= 5){ score += 12; reasons.push('Scadenza prossima'); }
+  }
+
+  const ageDays = daysSince(record?.dataApertura);
+  if (ageDays !== null){
+    if (ageDays >= 20){ score += 20; reasons.push('Aperta da 20+ giorni'); }
+    else if (ageDays >= 15){ score += 15; reasons.push('Aperta da 15+ giorni'); }
+    else if (ageDays >= 10){ score += 10; reasons.push('Aperta da 10+ giorni'); }
+    else if (ageDays >= 5){ score += 5; reasons.push('Aperta da 5+ giorni'); }
+  }
+
+  if (q.urgent){ score += 30; reasons.push('Preventivo urgente'); }
+
+  let label = 'BASSA', cls = 'prio-bassa';
+  if (score >= 110){ label = 'URG'; cls = 'prio-urgente'; }
+  else if (score >= 70){ label = 'ALTA'; cls = 'prio-alta'; }
+  else if (score >= 35){ label = 'MEDIA'; cls = 'prio-media'; }
+
+  return {
+    priorita_score: score,
+    priorita_label: label,
+    priorita_class: cls,
+    priorita_title: reasons.join(' • ')
+  };
+}
+function byPriorityHomeOrder(a,b){
+  const pa = Number(a?.priorita_score || 0);
+  const pb = Number(b?.priorita_score || 0);
+  if (pb !== pa) return pb - pa;
+  return byHomeOrder(a,b);
 }
 function getPClassFromQuoteInfo(qinfo, statoLavoro){
   if (!qinfo || !qinfo.quoteId) return 'p-gray';
@@ -199,7 +168,7 @@ function getPTitleFromQuoteInfo(qinfo, statoLavoro){
   if (qinfo.sent) return 'Preventivo inviato';
   return 'Preventivo presente';
 }
-function appendQuoteBadge(tdCliente, record){
+function buildQuoteBadge(record){
   const qinfo = getQuoteInfo(record.id);
   const span = document.createElement('span');
   span.className = 'badge-p ' + getPClassFromQuoteInfo(qinfo, record.statoPratica);
@@ -209,13 +178,19 @@ function appendQuoteBadge(tdCliente, record){
   span.addEventListener('click', (ev) => {
     ev.stopPropagation();
     if (qinfo && qinfo.quoteId) {
-      try{ location.href = 'preventivo.html?id=' + encodeURIComponent(qinfo.quoteId); }
-      catch(e){}
+      try{ location.href = 'preventivo.html?id=' + encodeURIComponent(qinfo.quoteId); }catch(e){}
     } else {
       alert('Preventivo non inviato');
     }
   });
-  tdCliente.appendChild(span);
+  return span;
+}
+function buildPriorityBadge(record){
+  const span = document.createElement('span');
+  span.className = 'prio-badge ' + (record.priorita_class || 'prio-bassa');
+  span.textContent = record.priorita_label || 'BASSA';
+  span.title = record.priorita_title || '';
+  return span;
 }
 
 function show(id){
@@ -399,15 +374,20 @@ window.renderHome=function(rows){
 
     const tdData=document.createElement('td'); tdData.textContent=fmtIT(r.dataApertura); tr.appendChild(tdData);
     const tdCassetto=document.createElement('td'); tdCassetto.textContent=r.cassetto??''; tr.appendChild(tdCassetto);
-    const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; appendQuoteBadge(tdCliente, r); tr.appendChild(tdCliente);
+
+    const tdCliente=document.createElement('td');
+    tdCliente.textContent=r.cliente??'';
+    tdCliente.appendChild(buildQuoteBadge(r));
+    tr.appendChild(tdCliente);
+
     const tdDesc=document.createElement('td'); tdDesc.textContent=r.descrizione??''; tr.appendChild(tdDesc);
     const tdMod=document.createElement('td'); tdMod.textContent=r.modello??''; tr.appendChild(tdMod);
 
     const tdStato=document.createElement('td');
     const closed=norm(r.statoPratica).includes('completata');
-    const pBadge=document.createElement('span'); pBadge.className='prio-badge ' + (r.priorita_class || 'prio-bassa'); pBadge.textContent = r.priorita_label || 'BASSA'; pBadge.title = r.priorita_title || '';
-    tdStato.appendChild(pBadge);
-    const statoTxt = document.createElement('span'); statoTxt.textContent = ' ' + (r.statoPratica??''); tdStato.appendChild(statoTxt);
+    tdStato.appendChild(buildPriorityBadge(r));
+    const statoTxt=document.createElement('span'); statoTxt.textContent=' ' + (r.statoPratica??'');
+    tdStato.appendChild(statoTxt);
     if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
     tr.appendChild(tdStato);
 
@@ -468,15 +448,20 @@ function doSearch(){
 
     const tdData=document.createElement('td'); tdData.textContent=fmtIT(r.dataApertura); tr.appendChild(tdData);
     const tdCassetto=document.createElement('td'); tdCassetto.textContent=r.cassetto??''; tr.appendChild(tdCassetto);
-    const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; appendQuoteBadge(tdCliente, r); tr.appendChild(tdCliente);
+
+    const tdCliente=document.createElement('td');
+    tdCliente.textContent=r.cliente??'';
+    tdCliente.appendChild(buildQuoteBadge(r));
+    tr.appendChild(tdCliente);
+
     const tdDesc=document.createElement('td'); tdDesc.textContent=r.descrizione??''; tr.appendChild(tdDesc);
     const tdMod=document.createElement('td'); tdMod.textContent=r.modello??''; tr.appendChild(tdMod);
 
     const tdStato=document.createElement('td');
     const closed=norm(r.statoPratica).includes('completata');
-    const pBadge=document.createElement('span'); pBadge.className='prio-badge ' + (r.priorita_class || 'prio-bassa'); pBadge.textContent = r.priorita_label || 'BASSA'; pBadge.title = r.priorita_title || '';
-    tdStato.appendChild(pBadge);
-    const statoTxt = document.createElement('span'); statoTxt.textContent = ' ' + (r.statoPratica??''); tdStato.appendChild(statoTxt);
+    tdStato.appendChild(buildPriorityBadge(r));
+    const statoTxt=document.createElement('span'); statoTxt.textContent=' ' + (r.statoPratica??'');
+    tdStato.appendChild(statoTxt);
     if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
     tr.appendChild(tdStato);
 
@@ -844,3 +829,49 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
 });
+// ===== PREVENTIVO BADGE =====
+
+async function getPreventiviMap(){
+  const { data } = await sb
+    .from('quotes')
+    .select('record_id, stato');
+
+  const map = {};
+
+  (data || []).forEach(q => {
+    const id = q.record_id;
+    if (!map[id]) map[id] = [];
+
+    map[id].push((q.stato || '').toLowerCase());
+  });
+
+  return map;
+}
+
+function getPClass(stati, statoLavoro){
+  if (!stati || !stati.length) return 'p-gray';
+
+  if (stati.some(s => s.includes('accettato'))) {
+    if (statoLavoro === 'Completata') return 'p-green';
+    if (statoLavoro === 'In lavorazione') return 'p-orange';
+    return 'p-blue';
+  }
+
+  if (stati.some(s => s.includes('inviato'))) return 'p-yellow';
+
+  return 'p-gray';
+}
+
+function getPTitle(stati, statoLavoro){
+  if (!stati || !stati.length) return 'Nessun preventivo';
+
+  if (stati.some(s => s.includes('accettato'))) {
+    if (statoLavoro === 'Completata') return 'Accettato • chiuso';
+    if (statoLavoro === 'In lavorazione') return 'Accettato • in lavorazione';
+    return 'Accettato';
+  }
+
+  if (stati.some(s => s.includes('inviato'))) return 'Preventivo inviato';
+
+  return 'Bozza';
+}
