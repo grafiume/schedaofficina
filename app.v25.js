@@ -206,6 +206,7 @@ function renderKPIs(rows){
 }
 
 window.renderHome=function(rows){
+  getPreventiviMap().then(m=>window._preventiviMap=m);
   const tb=document.getElementById('homeRows'); if(!tb) return;
   tb.innerHTML=''; renderKPIs(rows);
   (rows||[]).sort(byHomeOrder).forEach(r=>{
@@ -217,7 +218,13 @@ window.renderHome=function(rows){
 
     const tdData=document.createElement('td'); tdData.textContent=fmtIT(r.dataApertura); tr.appendChild(tdData);
     const tdCassetto=document.createElement('td'); tdCassetto.textContent=r.cassetto??''; tr.appendChild(tdCassetto);
-    const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; tr.appendChild(tdCliente);
+    const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??'';
+    const stati = window._preventiviMap && window._preventiviMap[r.id];
+    const span = document.createElement('span');
+    span.className = 'badge-p ' + getPClass(stati, r.statoPratica);
+    span.title = getPTitle(stati, r.statoPratica);
+    span.textContent = 'P';
+    tdCliente.appendChild(span); tr.appendChild(tdCliente);
     const tdDesc=document.createElement('td'); tdDesc.textContent=r.descrizione??''; tr.appendChild(tdDesc);
     const tdMod=document.createElement('td'); tdMod.textContent=r.modello??''; tr.appendChild(tdMod);
 
@@ -284,7 +291,13 @@ function doSearch(){
 
     const tdData=document.createElement('td'); tdData.textContent=fmtIT(r.dataApertura); tr.appendChild(tdData);
     const tdCassetto=document.createElement('td'); tdCassetto.textContent=r.cassetto??''; tr.appendChild(tdCassetto);
-    const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??''; tr.appendChild(tdCliente);
+    const tdCliente=document.createElement('td'); tdCliente.textContent=r.cliente??'';
+    const stati = window._preventiviMap && window._preventiviMap[r.id];
+    const span = document.createElement('span');
+    span.className = 'badge-p ' + getPClass(stati, r.statoPratica);
+    span.title = getPTitle(stati, r.statoPratica);
+    span.textContent = 'P';
+    tdCliente.appendChild(span); tr.appendChild(tdCliente);
     const tdDesc=document.createElement('td'); tdDesc.textContent=r.descrizione??''; tr.appendChild(tdDesc);
     const tdMod=document.createElement('td'); tdMod.textContent=r.modello??''; tr.appendChild(tdMod);
 
