@@ -1,8 +1,6 @@
-
 (function(){
   'use strict';
 
-  const CASSETTI = Array.from({length:50}, (_,i)=>`A${i+1}`);
   const CHIUSI = new Set(['completata','chiusa','chiuso','consegnata']);
 
   function wait(ms){ return new Promise(r=>setTimeout(r, ms)); }
@@ -28,63 +26,8 @@
     return null;
   }
 
-  async function rpcPrimoLibero(sb){
-    try{
-      const { data, error } = await sb.rpc('get_primo_cassetto_libero');
-      if (!error && data) return data;
-    }catch(e){}
-    return null;
-  }
-
-  async function getOccupied(sb, excludeId){
-    let q = sb.from('records').select('id,cassetto,cassetto_occupato').eq('cassetto_occupato', true).not('cassetto','is',null);
-    if (excludeId != null) q = q.neq('id', excludeId);
-    const { data, error } = await q;
-    if (error) throw error;
-    return (data||[]).map(r => ({...r, cassetto:s(r.cassetto).toUpperCase()})).filter(r => r.cassetto);
-  }
-
-  async function getPrimoLibero(sb, excludeId){
-    const viaRpc = await rpcPrimoLibero(sb);
-    if (viaRpc) return viaRpc;
-    const used = new Set((await getOccupied(sb, excludeId)).map(r => r.cassetto));
-    const free = CASSETTI.find(c => !used.has(c));
-    if (!free) throw new Error('Nessun cassetto libero disponibile.');
-    return free;
-  }
-
-  async function renderMap(container, activeCass){
-    if (!container) return;
-    const sb = getSb();
-    if (!sb) return;
-    let rows = [];
-    try {
-      const { data, error } = await sb.rpc('get_mappa_cassetti');
-      if (!error && Array.isArray(data)) rows = data;
-    } catch(e){}
-    if (!rows.length){
-      const occ = await getOccupied(sb);
-      const map = new Map(occ.map(r => [r.cassetto, true]));
-      rows = CASSETTI.map(c => ({ cassetto:c, occupato:!!map.get(c), record_id:null }));
-    }
-    container.innerHTML = rows.map(r => {
-      const c = s(r.cassetto).toUpperCase();
-      const cls = r.occupato ? 'occupied' : 'free';
-      const active = c && activeCass === c ? 'active' : '';
-      return `<div class="cass-box ${cls} ${active}" data-cassetto="${c}">${c}<small>${r.occupato ? 'Occupato' : 'Libero'}</small></div>`;
-    }).join('');
-  }
-
-  function bindMapPick(container, input){
-    if (!container || !input || container.dataset.boundCassPick === '1') return;
-    container.dataset.boundCassPick = '1';
-    container.addEventListener('click', (ev) => {
-      const box = ev.target.closest('.cass-box');
-      if (!box) return;
-      const cass = s(box.dataset.cassetto);
-      input.value = cass;
-      [...container.querySelectorAll('.cass-box')].forEach(el => el.classList.toggle('active', el === box));
-    });
+  function guessCurrentRecordId(){
+    return window.currentRecordId || window.recordId || window.editRecordId || window.selectedRecordId || null;
   }
 
   async function ensureOccupancyById(recordId, cassValue, statoValue){
@@ -92,6 +35,7 @@
     if (!sb || !recordId) return;
     const cass = normCass(cassValue || '');
     const closed = isClosed(statoValue);
+
     const payload = closed || !cass
       ? { cassetto: null, cassetto_occupato: false }
       : { cassetto: cass, cassetto_occupato: true };
@@ -133,107 +77,55 @@
     return null;
   }
 
-  function guessCurrentRecordId(){
-    return window.currentRecordId || window.recordId || window.editRecordId || window.selectedRecordId || null;
+  function bindUppercase(input){
+    if (!input || input.dataset.boundCassUpper === '1') return;
+    input.dataset.boundCassUpper = '1';
+    input.addEventListener('blur', () => {
+      const v = s(input.value).toUpperCase();
+      input.value = v;
+    });
   }
 
-  async function setupButtons(){
-    const sb = getSb();
-    if (!sb) { setTimeout(setupButtons, 800); return; }
-
+  async function setup(){
     const eInput = document.getElementById('eCassetto');
     const nInput = document.getElementById('nCassetto');
     const eStato = document.getElementById('eStato');
     const nStato = document.getElementById('nStato');
 
-    const editMap = document.getElementById('editCassMap');
-    const newMap = document.getElementById('newCassMap');
-    bindMapPick(editMap, eInput);
-    bindMapPick(newMap, nInput);
+    bindUppercase(eInput);
+    bindUppercase(nInput);
 
-    async function refreshAllMaps(){
-      await renderMap(editMap, s(eInput?.value).toUpperCase());
-      await renderMap(newMap, s(nInput?.value).toUpperCase());
-    }
-
-    document.getElementById('btnEditCassAuto')?.addEventListener('click', async () => {
-      try {
-        eInput.value = await getPrimoLibero(sb, guessCurrentRecordId());
-        await refreshAllMaps();
-      } catch(err){ alert(err.message || 'Errore cassetto'); }
-    });
-
-    document.getElementById('btnEditCassFree')?.addEventListener('click', async () => {
-      try {
-        const id = guessCurrentRecordId();
-        eInput.value = '';
-        if (id) await ensureOccupancyById(id, '', 'Completata');
-        await refreshAllMaps();
-      } catch(err){ alert(err.message || 'Errore liberazione cassetto'); }
-    });
-
-    document.getElementById('btnNewCassAuto')?.addEventListener('click', async () => {
-      try {
-        nInput.value = await getPrimoLibero(sb, null);
-        await refreshAllMaps();
-      } catch(err){ alert(err.message || 'Errore cassetto'); }
-    });
-
-    document.getElementById('btnNewCassClear')?.addEventListener('click', async () => {
-      nInput.value = '';
-      await refreshAllMaps();
-    });
-
-    // Persist edit after existing app save
     document.getElementById('btnSave')?.addEventListener('click', async () => {
-      try{
+      try {
         const idBefore = guessCurrentRecordId();
         await wait(900);
         const idAfter = guessCurrentRecordId() || idBefore;
         if (!idAfter) return;
         await ensureOccupancyById(idAfter, eInput?.value, eStato?.value);
-        await refreshAllMaps();
-      }catch(err){
+      } catch(err) {
         console.error('Errore post-save cassetto edit', err);
       }
     });
 
-    // Persist new after existing app save
     document.getElementById('btnNewSave')?.addEventListener('click', async () => {
-      try{
+      try {
         await wait(1200);
         const rec = await findLatestRecordFromNewForm();
-        if (!rec || !rec.id) { await refreshAllMaps(); return; }
+        if (!rec || !rec.id) return;
         await ensureOccupancyById(rec.id, nInput?.value, nStato?.value);
-        await refreshAllMaps();
-      }catch(err){
+      } catch(err) {
         console.error('Errore post-save cassetto new', err);
       }
     });
 
-    // Auto-liberazione se stato edit passa a Completata
-    eStato?.addEventListener('change', async () => {
-      if (isClosed(eStato.value)) {
-        eInput.value = '';
-        await refreshAllMaps();
-      }
+    eStato?.addEventListener('change', () => {
+      if (isClosed(eStato.value) && eInput) eInput.value = '';
     });
 
-    // Auto-assegnazione soft on open new modal if empty
-    document.getElementById('btnNew')?.addEventListener('click', async () => {
-      await wait(200);
-      if (nInput && !s(nInput.value)) {
-        try { nInput.value = await getPrimoLibero(sb, null); } catch(e){}
-      }
-      await refreshAllMaps();
+    nStato?.addEventListener('change', () => {
+      if (isClosed(nStato.value) && nInput) nInput.value = '';
     });
-
-    // Keep map synced when user types manually
-    [eInput, nInput].forEach(inp => inp && inp.addEventListener('input', refreshAllMaps));
-
-    await refreshAllMaps();
-    setInterval(refreshAllMaps, 15000);
   }
 
-  document.addEventListener('DOMContentLoaded', setupButtons);
+  document.addEventListener('DOMContentLoaded', setup);
 })();
