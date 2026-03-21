@@ -47,6 +47,10 @@
       .cass-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:.35rem;vertical-align:middle}
       .cass-dot.free{background:#cdeed4}
       .cass-dot.occupied{background:#ffd4c7}
+
+      .importo-card{border:2px solid #f28c28;border-radius:14px;background:#fffaf5}
+      .importo-card .label{font-size:.95rem;font-weight:700;color:#8a5a1f;margin-bottom:.35rem}
+      .importo-card input{text-align:center;font-size:1.2rem;font-weight:700}
     </style>
 
   </head>
@@ -61,6 +65,7 @@
           <button class="btn btn-outline-secondary" id="btnHome">Home</button>
           <button class="btn btn-outline-secondary" id="btnRicerca">Ricerca</button>
           <button class="btn btn-outline-secondary" id="btnPreventivi">Preventivi</button>
+          <button class="btn btn-outline-secondary" id="btnPrioritaReport">Priorità</button>
           <button class="btn btn-orange" id="btnNew">Nuova scheda</button>
         </div>
       </div>
@@ -203,11 +208,21 @@
                 </div>
                 <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="eDDT" class="form-control" placeholder="Numero / riferimento DDT"></div>
 
-                <div class="col-md-4"><label class="form-label">Importo concordato (€)</label><input id="eImportoConcordato" class="form-control" inputmode="decimal" placeholder="es. 120,00"></div>
-
+                
                 <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="eCliente" class="form-control"></div>
                 <div class="col-md-3"><label class="form-label">Telefono</label><input id="eTel" class="form-control"></div>
                 <div class="col-md-3"><label class="form-label">Email</label><input id="eEmail" class="form-control"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mt-3 importo-card">
+            <div class="card-body text-center">
+              <div class="label">Importo concordato (€)</div>
+              <div class="row justify-content-center">
+                <div class="col-md-6">
+                  <input id="eImportoConcordato" class="form-control" inputmode="decimal" placeholder="es. 120,00">
+                </div>
               </div>
             </div>
           </div>
@@ -298,8 +313,7 @@
                   </div>
                 </div>
                   <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="nDDT" class="form-control"></div>
-                  <div class="col-md-4"><label class="form-label">Importo concordato (€)</label><input id="nImportoConcordato" class="form-control" inputmode="decimal" placeholder="es. 120,00"></div>
-                  <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="nCliente" class="form-control"></div>
+                                    <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="nCliente" class="form-control"></div>
                   <div class="col-md-3"><label class="form-label">Telefono</label><input id="nTel" class="form-control"></div>
                   <div class="col-md-3"><label class="form-label">Email</label><input id="nEmail" class="form-control"></div>
                   <div class="col-md-3"><label class="form-label">Batt. collettore</label><input id="nBatt" class="form-control"></div>
@@ -310,6 +324,17 @@
                     <select id="nPunta" class="form-select"><option></option><option>Sinistra</option><option>Destra</option><option>Dritta</option></select></div>
                   <div class="col-md-3"><label class="form-label">N. punte</label><input id="nNP" class="form-control"></div>
                   <div class="col-md-6"><label class="form-label">Note</label><input id="nNote" class="form-control"></div>
+                </div>
+
+                <div class="card mt-3 importo-card">
+                  <div class="card-body text-center">
+                    <div class="label">Importo concordato (€)</div>
+                    <div class="row justify-content-center">
+                      <div class="col-md-8">
+                        <input id="nImportoConcordato" class="form-control" inputmode="decimal" placeholder="es. 120,00">
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="col-lg-5">

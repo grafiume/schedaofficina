@@ -154,12 +154,6 @@ function enrichPriority(record, qinfo){
   };
 }
 function byPriorityHomeOrder(a,b){
-  const aClosed = norm(a?.statoPratica || '').includes('completata');
-  const bClosed = norm(b?.statoPratica || '').includes('completata');
-  if (aClosed !== bClosed) return aClosed ? 1 : -1;
-  const pa = Number(a?.priorita_score || 0);
-  const pb = Number(b?.priorita_score || 0);
-  if (pb !== pa) return pb - pa;
   return byHomeOrder(a,b);
 }
 function getPClassFromQuoteInfo(qinfo, statoLavoro){
@@ -470,7 +464,7 @@ function renderKPIs(rows){
 window.renderHome=function(rows){
   const tb=document.getElementById('homeRows'); if(!tb) return;
   tb.innerHTML=''; renderKPIs(rows);
-  (rows||[]).sort(byPriorityHomeOrder).forEach(r=>{
+  (rows||[]).sort(byHomeOrder).forEach(r=>{
     const tr=document.createElement('tr');
 
     const tdFoto=document.createElement('td'); tdFoto.className='thumb-cell';
@@ -542,7 +536,7 @@ function matchRow(r,f){
 }
 function doSearch(){
   const f=getSearchFilters();
-  const rows=(window.state.all||[]).filter(r=>matchRow(r,f)).sort(byPriorityHomeOrder);
+  const rows=(window.state.all||[]).filter(r=>matchRow(r,f)).sort(byHomeOrder);
   const tb=document.getElementById('searchRows'); tb.innerHTML='';
   rows.forEach(r=>{
     const tr=document.createElement('tr');
@@ -924,6 +918,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   H('btnHome', ()=>show('page-home'));
   H('btnRicerca', ()=>show('page-search'));
   H('btnPreventivi', ()=>{ try{ location.href='preventivi.html'; }catch(e){} });
+  H('btnPrioritaReport', ()=>{ alert('Report priorità in preparazione'); });
   H('btnApply', doSearch);
   H('btnDoSearch', doSearch);
   H('btnReset', ()=>{
