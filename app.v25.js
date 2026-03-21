@@ -105,13 +105,27 @@ function enrichPriority(record, qinfo){
   const q = qinfo || emptyQuoteInfo();
   let score = 0;
   const reasons = [];
-
-  if (q.accepted){ score += 80; reasons.push('Prezzo confermato'); }
-  else if (q.sent){ score += 35; reasons.push('Preventivo inviato'); }
-  else { score += 10; reasons.push('Da definire'); }
-
   const stato = String(record?.statoPratica || '');
-  if (norm(stato).includes('lavorazione')){ score += 15; reasons.push('In lavorazione'); }
+
+  const importo = Number(record?.importoConcordato || 0);
+  if (importo > 0){
+    score += 85;
+    reasons.push('Importo concordato');
+  } else if (q.accepted){
+    score += 80;
+    reasons.push('Preventivo accettato');
+  } else if (q.sent){
+    score += 35;
+    reasons.push('Preventivo inviato');
+  } else {
+    score += 10;
+    reasons.push('Da definire');
+  }
+
+  if (norm(stato).includes('lavorazione')){
+    score += 15;
+    reasons.push('In lavorazione');
+  }
 
   const dueDays = daysDiffFromToday(record?.dataScadenza);
   if (dueDays !== null){
@@ -128,21 +142,21 @@ function enrichPriority(record, qinfo){
     else if (ageDays >= 5){ score += 5; reasons.push('Aperta da 5+ giorni'); }
   }
 
-  if (q.urgent){ score += 30; reasons.push('Preventivo urgente'); }
-
+  const completed = norm(stato).includes('completata');
   let label = 'BASSA', cls = 'prio-bassa';
-  if (score >= 110){ label = 'URG'; cls = 'prio-urgente'; }
-  else if (score >= 70){ label = 'ALTA'; cls = 'prio-alta'; }
-  else if (score >= 35){ label = 'MEDIA'; cls = 'prio-media'; }
+  if (!completed && score >= 70){ label = 'ALTA'; cls = 'prio-alta'; }
 
   return {
-    priorita_score: score,
+    priorita_score: completed ? -9999 : score,
     priorita_label: label,
     priorita_class: cls,
     priorita_title: reasons.join(' • ')
   };
 }
 function byPriorityHomeOrder(a,b){
+  const aClosed = norm(a?.statoPratica || '').includes('completata');
+  const bClosed = norm(b?.statoPratica || '').includes('completata');
+  if (aClosed !== bClosed) return aClosed ? 1 : -1;
   const pa = Number(a?.priorita_score || 0);
   const pb = Number(b?.priorita_score || 0);
   if (pb !== pa) return pb - pa;
@@ -348,6 +362,97 @@ function mountLazyThumb(imgEl, recordId){
 function openLightbox(url){
   if (typeof window.__openOverlay === 'function') window.__openOverlay(url);
   else { try{ window.location.assign(url); } catch(e){ window.location.href = url; } }
+}
+
+
+function parseImporto(v){
+  if(v == null) return null;
+  const s = String(v).trim().replace(',', '.');
+  if(!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+function isImportoColumnError(error){
+  const msg = String(error?.message || '').toLowerCase();
+  return msg.includes('importoconcordato') && (msg.includes('does not exist'));
+}
+async function createOrUpdateAutoQuoteItems(quoteId, amount){
+  const noteText = 'Riparazione come da importo concordato';
+  try { await sb.from('quote_items').delete().eq('quote_id', quoteId); } catch(e) {}
+
+  const candidates = [
+    { quote_id: quoteId, code:'RIP 00', description:noteText, qty:1, unit_price:amount, line_total:amount },
+    { quote_id: quoteId, codice:'RIP 00', descrizione:noteText, quantita:1, prezzo:amount, totale:amount },
+    { quote_id: quoteId, sku:'RIP 00', description:noteText, quantity:1, unit_price:amount, total:amount },
+    { quote_id: quoteId, item_code:'RIP 00', descrizione:noteText, qta:1, prezzo_unitario:amount, totale_riga:amount }
+  ];
+
+  for(const payload of candidates){
+    try{
+      const { error } = await sb.from('quote_items').insert(payload);
+      if(!error) return true;
+    }catch(e){}
+  }
+  return false;
+}
+async function syncAutoQuoteForRecord(record){
+  if(!sb || !record?.id) return;
+  const amount = parseImporto(record.importoConcordato);
+  if(!(amount > 0)) return;
+
+  const acceptedAt = record.dataApertura || new Date().toISOString().slice(0,10);
+  const autoNote = '[AUTO_RIP00] Creato automaticamente da importo concordato';
+
+  let existing = null;
+  try{
+    const { data } = await sb
+      .from('quotes')
+      .select('id,record_id,status,notes,subtotal_ex_vat,accepted_at,created_at')
+      .eq('record_id', record.id)
+      .order('created_at', { ascending:false })
+      .limit(5);
+    const rows = data || [];
+    const manual = rows.find(x => !String(x.notes || '').includes('[AUTO_RIP00]'));
+    if(manual) return; // non toccare preventivi manuali
+    existing = rows.find(x => String(x.notes || '').includes('[AUTO_RIP00]')) || null;
+  }catch(e){
+    console.warn('lookup quotes failed', e);
+    return;
+  }
+
+  const basePayload = {
+    record_id: record.id,
+    status: 'ACCETTATO',
+    accepted_at: acceptedAt,
+    subtotal_ex_vat: amount,
+    notes: autoNote
+  };
+
+  let quoteId = existing?.id || null;
+  if(quoteId){
+    try{
+      const { error } = await sb.from('quotes').update(basePayload).eq('id', quoteId);
+      if(error) throw error;
+    }catch(e){
+      console.warn('update auto quote failed', e);
+      return;
+    }
+  } else {
+    try{
+      let res = await sb.from('quotes').insert(basePayload).select('id').single();
+      if(res.error){
+        const fallback = { record_id: record.id, status: 'ACCETTATO', accepted_at: acceptedAt, notes: autoNote };
+        res = await sb.from('quotes').insert(fallback).select('id').single();
+      }
+      if(res.error || !res.data?.id) return;
+      quoteId = res.data.id;
+    }catch(e){
+      console.warn('create auto quote failed', e);
+      return;
+    }
+  }
+
+  await createOrUpdateAutoQuoteItems(quoteId, amount);
 }
 
 // ----------------- KPI + Home render -----------------
@@ -621,7 +726,7 @@ function openEdit(id){
   setV('eDescrizione',r.descrizione); setV('eModello',r.modello);
   setV('eApertura',r.dataApertura); setV('eAcc',r.dataAccettazione); setV('eScad',r.dataScadenza);
   setV('eStato',r.statoPratica); setV('eDDT',r.docTrasporto);
-  setV('eCliente',r.cliente); setV('eTel',r.telefono); setV('eEmail',r.email); setV('eCassetto',r.cassetto);
+  setV('eCliente',r.cliente); setV('eTel',r.telefono); setV('eEmail',r.email); setV('eCassetto',r.cassetto); setV('eImportoConcordato',r.importoConcordato);
   setV('eBatt',r.battCollettore); setV('eAsse',r.lunghezzaAsse); setV('ePacco',r.lunghezzaPacco); setV('eLarg',r.larghezzaPacco); setV('ePunta',r.punta); setV('eNP',r.numPunte); setV('eNote',r.note);
 
   show('page-edit');
@@ -630,8 +735,14 @@ function openEdit(id){
   // Preventivo collegato al record
   const qBtn=document.getElementById('btnQuoteOpen');
   if(qBtn){
-    qBtn.onclick=()=>{
-      try{ location.href = 'preventivo.html?record_id=' + encodeURIComponent(r.id); }
+    qBtn.onclick=async ()=>{
+      try{
+        await syncAutoQuoteForRecord(r);
+        await refreshQuoteCache();
+        const q = getQuoteInfo(r.id);
+        if (q && q.quoteId) location.href = 'preventivo.html?id=' + encodeURIComponent(q.quoteId);
+        else location.href = 'preventivo.html?record_id=' + encodeURIComponent(r.id);
+      }
       catch(e){}
     };
   }
@@ -657,12 +768,20 @@ async function saveEdit(closeAfter=true){
     descrizione:val('eDescrizione'), modello:val('eModello'),
     dataApertura:val('eApertura')||null, dataAccettazione:val('eAcc')||null, dataScadenza:val('eScad')||null,
     statoPratica:val('eStato'), docTrasporto:val('eDDT'), cassetto:val('eCassetto'),
-    cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'),
+    cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'), importoConcordato:val('eImportoConcordato')||null,
     battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
     punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'),
   };
-  const { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
+  let { data, error } = await sb.from('records').update(payload).eq('id', r.id).select().single();
+  if(error && String(error.message || '').includes('importoConcordato')){
+    const retryPayload = Object.assign({}, payload);
+    delete retryPayload.importoConcordato;
+    const retry = await sb.from('records').update(retryPayload).eq('id', r.id).select().single();
+    data = retry.data; error = retry.error;
+  }
   if(error){ alert('Errore salvataggio: '+error.message); return; }
+  await syncAutoQuoteForRecord(data);
+  await refreshQuoteCache();
   Object.assign(r, data, enrichPriority(Object.assign({}, r, data), getQuoteInfo(r.id)));
   renderHome(window.state.all);
   if (closeAfter){
@@ -715,7 +834,7 @@ async function createNewRecord(){
     dataScadenza:toNull(getV('nScad')),
     statoPratica:getV('nStato')||'In attesa',
     docTrasporto:getV('nDDT'), cassetto:getV('nCassetto'),
-    cliente:getV('nCliente'), telefono:getV('nTel'), email:getV('nEmail'),
+    cliente:getV('nCliente'), telefono:getV('nTel'), email:getV('nEmail'), importoConcordato:toNull(getV('nImportoConcordato')),
     battCollettore:toNull(getV('nBatt')),
     lunghezzaAsse:toNull(getV('nAsse')),
     lunghezzaPacco:toNull(getV('nPacco')),
@@ -732,7 +851,13 @@ async function createNewRecord(){
   let rid = _newGeneratedId || (sessionStorage.getItem('ELIP_NEW_ID')||null);
   if(!rid){ rid = crypto?.randomUUID?.() || (Date.now().toString(16)+'-'+Math.random().toString(16).slice(2,10)); _newGeneratedId=rid; try{ sessionStorage.setItem('ELIP_NEW_ID', rid); }catch{} }
   const body = Object.assign({ id: rid }, payload);
-  const { data, error } = await sb.from('records').upsert(body, { onConflict: 'id' }).select().single();
+  let { data, error } = await sb.from('records').upsert(body, { onConflict: 'id' }).select().single();
+  if(error && String(error.message || '').includes('importoConcordato')){
+    const retryBody = Object.assign({}, body);
+    delete retryBody.importoConcordato;
+    const retry = await sb.from('records').upsert(retryBody, { onConflict: 'id' }).select().single();
+    data = retry.data; error = retry.error;
+  }
   if(error){ if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Salva'; } _creatingNew=false; alert('Errore creazione: '+error.message); return; }
   if(error){ alert('Errore creazione: '+error.message); return; }
 
@@ -744,6 +869,9 @@ async function createNewRecord(){
     document.getElementById('nFiles').value='';
     const pv=document.getElementById('nPreview'); if(pv){ pv.innerHTML='Nessuna immagine'; }
   }
+
+  await syncAutoQuoteForRecord(data);
+  await refreshQuoteCache();
 
   // aggiorna cache & UI
   const enrichedNew = Object.assign({}, data, enrichPriority(data, getQuoteInfo(data.id)));
@@ -765,8 +893,19 @@ window.loadAll=async function(){
     if(!sb){ showError('Supabase non inizializzato'); return; }
     let { data, error } = await sb
       .from('records')
-      .select('id,descrizione,modello,cliente,telefono,statoPratica,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,cassetto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,cassetto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email,importoConcordato')
       .order('dataApertura',{ascending:false});
+    if(error){
+      const msg = String(error.message || '');
+      if (msg.includes('importoConcordato')){
+        const retry = await sb
+          .from('records')
+          .select('id,descrizione,modello,cliente,telefono,statoPratica,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,cassetto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
+          .order('dataApertura',{ascending:false});
+        data = retry.data || [];
+        error = retry.error;
+      }
+    }
     if(error){
       const fb=await sb.from('records_view').select('*').order('dataApertura',{ascending:false}).limit(1000);
       if(fb.error){ showError('Errore lettura records: '+error.message+' / '+fb.error.message); renderHome([]); return; }
