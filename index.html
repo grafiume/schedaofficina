@@ -9,6 +9,23 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="styles.css">
+  
+    <style>
+      .cass-tools{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.35rem}
+      .cass-tools .btn{white-space:nowrap}
+      .cass-map-card .card-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem}
+      .cass-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:.5rem}
+      .cass-box{border:1px solid #ddd;border-radius:12px;padding:.55rem .35rem;text-align:center;font-weight:700;background:#fff;cursor:pointer;user-select:none}
+      .cass-box small{display:block;font-weight:500;font-size:.72rem;color:#666}
+      .cass-box.free{background:#eefaf0}
+      .cass-box.occupied{background:#fff1ec}
+      .cass-box.active{outline:2px solid #f28c28;outline-offset:1px}
+      .cass-legend{display:flex;gap:1rem;flex-wrap:wrap;font-size:.9rem;color:#666}
+      .cass-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:.35rem;vertical-align:middle}
+      .cass-dot.free{background:#cdeed4}
+      .cass-dot.occupied{background:#ffd4c7}
+    </style>
+
   </head>
   <body>
     <nav class="navbar navbar-light bg-light border-bottom sticky-top">
@@ -153,7 +170,14 @@
                   </select>
                   <div class="form-text" id="closedHint"></div>
                 </div>
-                <div class="col-md-4"><label class="form-label">Cassetto</label><input id="eCassetto" class="form-control" placeholder="es. A1"></div>
+                <div class="col-md-4">
+                  <label class="form-label">Cassetto</label>
+                  <input id="eCassetto" class="form-control" placeholder="es. A1">
+                  <div class="cass-tools">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnEditCassAuto">Primo libero</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnEditCassFree">Libera</button>
+                  </div>
+                </div>
                 <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="eDDT" class="form-control" placeholder="Numero / riferimento DDT"></div>
 
                 <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="eCliente" class="form-control"></div>
@@ -179,6 +203,20 @@
                 <div class="col-md-3"><label class="form-label">N. punte</label><input id="eNP" class="form-control"></div>
                 <div class="col-md-6"><label class="form-label">Note</label><input id="eNote" class="form-control"></div>
               </div>
+            </div>
+          </div>
+
+
+          <div class="card mt-3 cass-map-card">
+            <div class="card-header py-2">
+              <strong>Mappa cassetti A1-A50</strong>
+              <div class="cass-legend">
+                <span><span class="cass-dot free"></span>Liberi</span>
+                <span><span class="cass-dot occupied"></span>Occupati</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <div id="editCassMap" class="cass-grid"></div>
             </div>
           </div>
 
@@ -226,7 +264,14 @@
                   <div class="col-md-4"><label class="form-label">Data scadenza</label><input id="nScad" type="date" class="form-control"></div>
                   <div class="col-md-4"><label class="form-label">Stato</label>
                     <select id="nStato" class="form-select"><option>In attesa</option><option>In lavorazione</option><option>Completata</option></select></div>
-                  <div class="col-md-4"><label class="form-label">Cassetto</label><input id="nCassetto" class="form-control" placeholder="es. A1"></div>
+                  <div class="col-md-4">
+                  <label class="form-label">Cassetto</label>
+                  <input id="nCassetto" class="form-control" placeholder="es. A1">
+                  <div class="cass-tools">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnNewCassAuto">Primo libero</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnNewCassClear">Pulisci</button>
+                  </div>
+                </div>
                   <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="nDDT" class="form-control"></div>
                   <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="nCliente" class="form-control"></div>
                   <div class="col-md-3"><label class="form-label">Telefono</label><input id="nTel" class="form-control"></div>
@@ -246,6 +291,12 @@
                 <div class="img-preview mb-2" id="nPreview">Nessuna immagine</div>
                 <input id="nFiles" class="form-control" type="file" accept="image/*" multiple>
                 <div class="form-text">Puoi scattare la foto o scegliere dalla galleria. Puoi selezionare più immagini e poi decidere quale tenere in primo piano.</div>
+                <div class="card mt-3 cass-map-card">
+                  <div class="card-header py-2"><strong>Mappa cassetti A1-A50</strong></div>
+                  <div class="card-body">
+                    <div id="newCassMap" class="cass-grid"></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -281,6 +332,7 @@
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="cassetti-integration.js?v=1"></script>
     <script src="app.v25.js?v=26"></script>
   </body>
 </html>
