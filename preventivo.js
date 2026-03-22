@@ -82,6 +82,14 @@
     return `${String(x.getDate()).padStart(2,'0')}/${String(x.getMonth()+1).padStart(2,'0')}/${x.getFullYear()}`;
   }
 
+  function getFreeDefaultDescription(code){
+    return code === 'RIP00' ? 'LAVORAZIONE LIBERA' : 'LAVORAZIONE LIBERA';
+  }
+  function normalizeFreeDescription(code, value){
+    const txt = String(value ?? '').trim();
+    return txt || getFreeDefaultDescription(code);
+  }
+
   function computeDueInfo(q){
     const now = today0();
     let expected = null;
@@ -507,7 +515,7 @@
       id:null,
       rip_code:work.code,
       position:idx,
-      description:work.free ? '' : work.text,
+      description:work.free ? getFreeDefaultDescription(work.code) : work.text,
       qty:1,
       unit_price_ex_vat:0,
       line_total_ex_vat:0,
@@ -561,7 +569,7 @@
             <div class="rip-main">
               <div class="rip-head">
                 <span class="badge badge-rip">${esc(w.code)}</span>
-                <div class="rip-name">${w.free ? `<input data-editable="1" class="form-control free-desc" placeholder="Descrizione lavorazione libera…" value="${esc(item?.description || '')}" ${checked ? '' : 'disabled'}>` : esc(w.text)}</div>
+                <div class="rip-name">${w.free ? `<input data-editable="1" class="form-control free-desc" placeholder="Descrizione lavorazione libera…" value="${esc(item?.description || getFreeDefaultDescription(w.code))}" ${checked ? '' : 'disabled'}>` : esc(w.text)}</div>
               </div>
               <div class="mini-grid">
                 <div class="mini-box">
@@ -657,8 +665,13 @@
       if(freeDesc){
         freeDesc.addEventListener('input', ()=>{
           const it = ensureLocalItem(w, idx);
-          it.description = freeDesc.value;
+          it.description = normalizeFreeDescription(w.code, freeDesc.value);
           renderDirtyState();
+        });
+        freeDesc.addEventListener('blur', ()=>{
+          const it = ensureLocalItem(w, idx);
+          it.description = normalizeFreeDescription(w.code, freeDesc.value);
+          freeDesc.value = it.description;
         });
       }
 
@@ -726,7 +739,7 @@
       return {
         position: idx,
         rip_code: w.code,
-        description: w.free ? (it.description || '') : w.text,
+        description: w.free ? normalizeFreeDescription(w.code, it.description) : w.text,
         qty: 1,
         unit_price_ex_vat: Number(it.unit_price_ex_vat || 0),
         line_total_ex_vat: Number(it.line_total_ex_vat || 0),
@@ -1064,7 +1077,6 @@
     return true;
   }
 
-
   function firstFilled(obj, keys){
     if(!obj) return '';
     for(const key of keys){
@@ -1117,7 +1129,7 @@
     return WORKS.map((w, idx)=>{
       const it = quoteState?.items?.[w.code];
       if(!it) return null;
-      const desc = w.free ? (it.description || 'LAVORAZIONE LIBERA') : w.text;
+      const desc = w.free ? normalizeFreeDescription(w.code, it.description) : w.text;
       return {
         position:Number.isFinite(+it.position) ? +it.position : idx,
         code:w.code,
@@ -1281,7 +1293,6 @@
     doc.setTextColor(102,112,133);
     doc.text('Elip Tagliente Srl • Via Conchia 54/E, Monopoli (BA)', margin, footerY);
     doc.text('info@eliptagliente.it • +39 080 777 090 - +39 080 887 675', pageW - margin, footerY, { align:'right' });
-    
 
     const blob = doc.output('blob');
     return {
@@ -1333,7 +1344,6 @@
       showErr('Errore creazione PDF: ' + (e?.message || e));
     }
   }
-
 
   function ensureSendOverlay(){
     if($('sendOverlay')) return;
