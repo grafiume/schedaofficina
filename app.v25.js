@@ -180,20 +180,15 @@ function buildQuoteBadge(record){
   const qinfo = getQuoteInfo(record.id);
   const hasImporto = Number(record?.importoConcordato || 0) > 0;
   const hasAccepted = !!(qinfo && qinfo.accepted);
-  if (!hasImporto && !hasAccepted && !(qinfo && qinfo.sent)) {
-    const empty = document.createElement('span');
-    empty.className = 'badge-p-spacer';
-    return empty;
-  }
 
   const span = document.createElement('span');
-  let dotClass = 'p-gray';
-  if (hasImporto || hasAccepted) dotClass = 'p-red';
-  else if (qinfo && qinfo.sent) dotClass = 'p-yellow';
+  let badgeClass = 'p-gray';
+  if (hasImporto || hasAccepted) badgeClass = 'p-red';
+  else if (qinfo && qinfo.sent) badgeClass = 'p-yellow';
 
-  span.className = 'badge-p badge-p-dot ' + dotClass;
+  span.className = 'badge-p ' + badgeClass;
   span.title = hasImporto ? 'Importo pattuito' : getPTitleFromQuoteInfo(qinfo, record.statoPratica);
-  span.textContent = '';
+  span.textContent = 'P';
   span.style.cursor = 'pointer';
   span.addEventListener('click', async (ev) => {
     ev.stopPropagation();
@@ -413,6 +408,21 @@ async function createOrUpdateAutoQuoteItems(quoteId, amount){
 }
 
 
+
+async function autoCreateRip00QuoteViaRpc(recordId, amount, acceptedAt){
+  try{
+    const { data, error } = await sb.rpc('auto_create_rip00_quote', {
+      p_record_id: recordId,
+      p_amount: amount,
+      p_accepted_at: acceptedAt
+    });
+    if(error) return null;
+    return data || null;
+  }catch(e){
+    return null;
+  }
+}
+
 async function syncAutoQuoteForRecord(record, forcedAmount){
   if(!sb || !record?.id) return null;
 
@@ -420,6 +430,13 @@ async function syncAutoQuoteForRecord(record, forcedAmount){
   if(!(amount > 0)) return null;
 
   const acceptedAt = record.dataApertura || new Date().toISOString().slice(0,10);
+
+  const rpcQuoteId = await autoCreateRip00QuoteViaRpc(record.id, amount, acceptedAt);
+  if(rpcQuoteId){
+    try{ await refreshQuoteCache(); }catch(e){}
+    return rpcQuoteId;
+  }
+
   const autoNote = '[AUTO_RIP00] Creato automaticamente da importo concordato';
   const lineText = 'Riparazione come da importo concordato';
   const vatRate = 22;
