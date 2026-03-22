@@ -34,6 +34,10 @@
     return Number(q.subtotal_ex_vat||0) > 0 || !!q.notes || !!q.sent_at || !!q.accepted_at || !!q.delivery_days || !!q.delivery_date || !!q.is_urgent || ((q.status||'') !== 'BOZZA');
   }
 
+  function isClosedQuote(q){
+    return String(q?.status||'').toUpperCase()==='CHIUSO';
+  }
+
   let sb;
 
   async function load(){
@@ -91,10 +95,11 @@
 
       rows=rows.filter(isMeaningfulQuote);
       if(qTxt){ rows=rows.filter(x=>norm(`${x.cliente} ${x.descrizione} ${x.modello}`).includes(qTxt)); }
-      if(urgentFilter==='urgent') rows=rows.filter(x=>x.is_urgent);
-      if(urgentFilter==='normal') rows=rows.filter(x=>!x.is_urgent);
+      if(urgentFilter==='urgent') rows=rows.filter(x=>!isClosedQuote(x) && x.is_urgent);
+      if(urgentFilter==='normal') rows=rows.filter(x=>!isClosedQuote(x) && !x.is_urgent);
       if(dueFilter){
         rows=rows.filter(x=>{
+          if(isClosedQuote(x)) return false;
           const d=computeDue(x);
           if(dueFilter==='overdue') return d.days !== null && d.days < 0;
           if(dueFilter==='today') return d.days === 0;
@@ -105,7 +110,11 @@
       }
 
       if(order==='urgent_first'){
-        rows.sort((a,b)=> (Number(b.is_urgent)-Number(a.is_urgent)) || ((computeDue(a).days??99999)-(computeDue(b).days??99999)) || (new Date(b.created_at)-new Date(a.created_at)) );
+        rows.sort((a,b)=> {
+          const aClosed=isClosedQuote(a), bClosed=isClosedQuote(b);
+          if(aClosed!==bClosed) return aClosed?1:-1;
+          return (Number(b.is_urgent)-Number(a.is_urgent)) || ((computeDue(a).days??99999)-(computeDue(b).days??99999)) || (new Date(b.created_at)-new Date(a.created_at));
+        });
       }
 
       render(rows, viewMode);
@@ -133,7 +142,7 @@
       tr.innerHTML=`
         <td><div class="fw-semibold">${escapeHtml(q.cliente)}</div><div class="small text-muted">${escapeHtml(q.modello||'')}</div></td>
         <td><div>${escapeHtml(q.descrizione)}</div><div class="small text-muted">creato ${fmtDate(q.created_at)}${q.statoPratica?` • scheda ${escapeHtml(q.statoPratica)}`:''}</div></td>
-        <td class="nowrap"><div class="state-stack">${badge(q.status)}${q.is_urgent?'<span class="urgent-tag">URG</span>':''}</div></td>
+        <td class="nowrap"><div class="state-stack">${badge(q.status)}${(!isClosedQuote(q) && q.is_urgent)?'<span class="urgent-tag">URG</span>':''}</div></td>
         <td class="nowrap"><div class="small fw-semibold ${due.tone==='due-over'?'text-danger':due.tone==='due-today'?'text-warning':due.tone==='due-tomorrow'?'text-primary':'text-body'}">${escapeHtml(due.label)}</div><div class="small ${due.tone==='due-over'?'text-danger':due.tone==='due-today'?'text-warning':due.tone==='due-tomorrow'?'text-primary':'text-muted'}">${escapeHtml(due.sub)}</div></td>
         <td class="nowrap" style="min-width:160px;"><div class="d-flex justify-content-between small"><span>${Math.round(prog)}%</span><span class="text-muted">lavoro</span></div><div class="progbar"><div style="width:${prog}%;"></div></div></td>
         <td class="text-end nowrap"><span class="fw-semibold">€ ${money(q.subtotal_ex_vat||0)}</span></td>
@@ -145,8 +154,9 @@
   }
 
   function updateDashboard(rows){
-    const counts={overdue:0,today:0,urgent:0,accepted:0};
+    const counts={overdue:0,today:0,urgent:0,accepted:0,closed:0};
     (rows||[]).forEach(x=>{
+      if(isClosedQuote(x)){ counts.closed++; return; }
       const d=computeDue(x);
       if(d.days!==null){ if(d.days<0) counts.overdue++; else if(d.days===0) counts.today++; }
       if(x.is_urgent) counts.urgent++;
@@ -176,7 +186,8 @@
       const status=$('status');
       const urgent=$('urgentFilter');
       const due=$('dueFilter');
-      if(!status || !urgent || !due) return;
+      const view=$('viewMode');
+      if(!status || !urgent || !due || !view) return;
 
       const current = (()=>{
         const st=(status.value||'').toUpperCase();
@@ -192,6 +203,7 @@
         urgent.value='';
         due.value='';
       }else{
+        view.value='active';
         status.value='';
         urgent.value='';
         due.value='';
@@ -208,6 +220,7 @@
     $('btnHome')?.addEventListener('click', ()=>location.href='index.html');
     $('btnRefresh')?.addEventListener('click', load);
     $('btnApply')?.addEventListener('click', load);
+    $('viewMode')?.addEventListener('change', load);
     bindDashboard();
     load();
   });
