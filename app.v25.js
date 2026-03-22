@@ -180,14 +180,22 @@ function buildQuoteBadge(record){
   const qinfo = getQuoteInfo(record.id);
   const hasImporto = Number(record?.importoConcordato || 0) > 0;
   const hasAccepted = !!(qinfo && qinfo.accepted);
+  const hasSent = !!(qinfo && qinfo.sent);
 
   const span = document.createElement('span');
   let badgeClass = 'p-gray';
-  if (hasImporto || hasAccepted) badgeClass = 'p-red';
-  else if (qinfo && qinfo.sent) badgeClass = 'p-yellow';
+  let badgeTitle = 'Preventivo non creato';
+
+  if (hasImporto || hasAccepted) {
+    badgeClass = 'p-green';
+    badgeTitle = 'Preventivo accettato';
+  } else if (hasSent) {
+    badgeClass = 'p-yellow';
+    badgeTitle = 'Preventivo inviato';
+  }
 
   span.className = 'badge-p ' + badgeClass;
-  span.title = hasImporto ? 'Importo pattuito' : getPTitleFromQuoteInfo(qinfo, record.statoPratica);
+  span.title = badgeTitle;
   span.textContent = 'P';
   span.style.cursor = 'pointer';
   span.addEventListener('click', async (ev) => {
@@ -203,7 +211,7 @@ function buildQuoteBadge(record){
     if (fresh && fresh.quoteId) {
       try{ location.href = 'preventivo.html?id=' + encodeURIComponent(fresh.quoteId); }catch(e){}
     } else {
-      alert('Preventivo non inviato');
+      alert('Preventivo non creato');
     }
   });
   return span;
