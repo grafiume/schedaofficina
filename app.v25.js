@@ -178,15 +178,35 @@ function getPTitleFromQuoteInfo(qinfo, statoLavoro){
 }
 function buildQuoteBadge(record){
   const qinfo = getQuoteInfo(record.id);
+  const hasImporto = Number(record?.importoConcordato || 0) > 0;
+  const hasAccepted = !!(qinfo && qinfo.accepted);
+  if (!hasImporto && !hasAccepted && !(qinfo && qinfo.sent)) {
+    const empty = document.createElement('span');
+    empty.className = 'badge-p-spacer';
+    return empty;
+  }
+
   const span = document.createElement('span');
-  span.className = 'badge-p ' + getPClassFromQuoteInfo(qinfo, record.statoPratica);
-  span.title = getPTitleFromQuoteInfo(qinfo, record.statoPratica);
-  span.textContent = 'P';
+  let dotClass = 'p-gray';
+  if (hasImporto || hasAccepted) dotClass = 'p-red';
+  else if (qinfo && qinfo.sent) dotClass = 'p-yellow';
+
+  span.className = 'badge-p badge-p-dot ' + dotClass;
+  span.title = hasImporto ? 'Importo pattuito' : getPTitleFromQuoteInfo(qinfo, record.statoPratica);
+  span.textContent = '';
   span.style.cursor = 'pointer';
-  span.addEventListener('click', (ev) => {
+  span.addEventListener('click', async (ev) => {
     ev.stopPropagation();
-    if (qinfo && qinfo.quoteId) {
-      try{ location.href = 'preventivo.html?id=' + encodeURIComponent(qinfo.quoteId); }catch(e){}
+    const forced = record?.importoConcordato || document.getElementById('eImportoConcordato')?.value || null;
+    if (forced) {
+      try{
+        await syncAutoQuoteForRecord(Object.assign({}, record, { importoConcordato: forced }), forced);
+        await refreshQuoteCache();
+      }catch(e){}
+    }
+    const fresh = getQuoteInfo(record.id);
+    if (fresh && fresh.quoteId) {
+      try{ location.href = 'preventivo.html?id=' + encodeURIComponent(fresh.quoteId); }catch(e){}
     } else {
       alert('Preventivo non inviato');
     }
@@ -392,6 +412,7 @@ async function createOrUpdateAutoQuoteItems(quoteId, amount){
   return false;
 }
 
+
 async function syncAutoQuoteForRecord(record, forcedAmount){
   if(!sb || !record?.id) return null;
 
@@ -399,9 +420,11 @@ async function syncAutoQuoteForRecord(record, forcedAmount){
   if(!(amount > 0)) return null;
 
   const acceptedAt = record.dataApertura || new Date().toISOString().slice(0,10);
-  const acceptedAtIso = String(acceptedAt).length === 10 ? acceptedAt + 'T00:00:00' : acceptedAt;
   const autoNote = '[AUTO_RIP00] Creato automaticamente da importo concordato';
   const lineText = 'Riparazione come da importo concordato';
+  const vatRate = 22;
+  const vatTotal = +(amount * (vatRate/100)).toFixed(2);
+  const grandTotal = +(amount + vatTotal).toFixed(2);
 
   let rows = [];
   try{
@@ -421,71 +444,71 @@ async function syncAutoQuoteForRecord(record, forcedAmount){
   const manual = rows.find(x => !String(x.notes || '').includes('[AUTO_RIP00]'));
   if(manual) return manual.id || null;
 
-  let quoteId = (rows.find(x => String(x.notes || '').includes('[AUTO_RIP00]')) || {}).id || null;
+  let autoQuote = rows.find(x => String(x.notes || '').includes('[AUTO_RIP00]')) || null;
+  let quoteId = autoQuote?.id || null;
 
-  if(!quoteId){
-    const payloads = [
-      { record_id: record.id, status: 'ACCETTATO', accepted_at: acceptedAt, subtotal_ex_vat: amount, notes: autoNote },
-      { record_id: record.id, status: 'ACCETTATO', accepted_at: acceptedAtIso, subtotal_ex_vat: amount, notes: autoNote },
-      { record_id: record.id, status: 'ACCETTATO', accepted_at: acceptedAt, sent_at: acceptedAt, subtotal_ex_vat: amount, notes: autoNote },
-      { record_id: record.id, status: 'ACCETTATO', accepted_at: acceptedAt, notes: autoNote },
-      { record_id: record.id, status: 'ACCETTATO', accepted_at: acceptedAtIso, notes: autoNote }
-    ];
+  const quotePayload = {
+    record_id: record.id,
+    status: 'ACCETTATO',
+    accepted_at: acceptedAt,
+    sent_at: acceptedAt,
+    notes: autoNote,
+    subtotal_ex_vat: amount,
+    vat_rate: vatRate,
+    vat_total: vatTotal,
+    grand_total: grandTotal,
+    progress_percent: 0
+  };
 
-    for(const payload of payloads){
-      try{
-        const res = await sb.from('quotes').insert(payload).select('id').single();
-        if(!res.error && res.data?.id){
-          quoteId = res.data.id;
-          break;
-        }
-      }catch(e){}
-    }
-
-    if(!quoteId){
-      // fallback: maybe record_id relation exists but insert response shape differs
-      try{
-        const verify = await sb.from('quotes').select('id,notes').eq('record_id', record.id).order('created_at',{ascending:false}).limit(5);
-        const existing = (verify.data || []).find(x => String(x.notes || '').includes('[AUTO_RIP00]'));
-        if(existing?.id) quoteId = existing.id;
-      }catch(e){}
+  if(quoteId){
+    try{
+      const upd = await sb.from('quotes').update(quotePayload).eq('id', quoteId);
+      if(upd.error) throw upd.error;
+    }catch(e){
+      console.warn('update auto quote failed', e);
+      return null;
     }
   } else {
-    const updatePayloads = [
-      { status:'ACCETTATO', accepted_at: acceptedAt, subtotal_ex_vat: amount, notes: autoNote },
-      { status:'ACCETTATO', accepted_at: acceptedAtIso, subtotal_ex_vat: amount, notes: autoNote },
-      { status:'ACCETTATO', accepted_at: acceptedAt, notes: autoNote },
-      { status:'ACCETTATO', accepted_at: acceptedAtIso, notes: autoNote }
-    ];
-    for(const payload of updatePayloads){
-      try{
-        const res = await sb.from('quotes').update(payload).eq('id', quoteId);
-        if(!res.error) break;
-      }catch(e){}
+    try{
+      const ins = await sb.from('quotes').insert(quotePayload).select('id').single();
+      if(ins.error || !ins.data?.id){
+        console.warn('create auto quote failed', ins.error);
+        return null;
+      }
+      quoteId = ins.data.id;
+    }catch(e){
+      console.warn('create auto quote exception', e);
+      return null;
     }
   }
 
-  if(!quoteId) return null;
+  try{
+    await sb.from('quote_items').delete().eq('quote_id', quoteId);
+  }catch(e){}
 
-  // crea/aggiorna riga RIP 00
-  try { await sb.from('quote_items').delete().eq('quote_id', quoteId); } catch(e) {}
-
-  const itemPayloads = [
-    { quote_id: quoteId, code:'RIP 00', description:lineText, qty:1, unit_price:amount, line_total:amount },
-    { quote_id: quoteId, codice:'RIP 00', descrizione:lineText, quantita:1, prezzo:amount, totale:amount },
-    { quote_id: quoteId, sku:'RIP 00', description:lineText, quantity:1, unit_price:amount, total:amount },
-    { quote_id: quoteId, item_code:'RIP 00', descrizione:lineText, qta:1, prezzo_unitario:amount, totale_riga:amount },
-    { quote_id: quoteId, codice_articolo:'RIP 00', descrizione:lineText, quantita:1, prezzo_unitario:amount, totale:amount }
-  ];
-
-  for(const payload of itemPayloads){
-    try{
-      const res = await sb.from('quote_items').insert(payload);
-      if(!res.error) break;
-    }catch(e){}
+  try{
+    const itemPayload = {
+      quote_id: quoteId,
+      position: 0,
+      rip_code: 'RIP 00',
+      description: lineText,
+      qty: 1,
+      unit_price_ex_vat: amount,
+      line_total_ex_vat: amount,
+      line_progress_percent: 0,
+      work_status: 'DA_FARE'
+    };
+    const insItem = await sb.from('quote_items').insert(itemPayload);
+    if(insItem.error){
+      console.warn('create quote item failed', insItem.error);
+      return quoteId;
+    }
+  }catch(e){
+    console.warn('create quote item exception', e);
+    return quoteId;
   }
 
-  await refreshQuoteCache();
+  try{ await refreshQuoteCache(); }catch(e){}
   return quoteId;
 }
 
@@ -524,7 +547,6 @@ window.renderHome=function(rows){
 
     const tdStato=document.createElement('td');
     const closed=norm(r.statoPratica).includes('completata');
-    tdStato.appendChild(buildPriorityBadge(r));
     const statoTxt=document.createElement('span'); statoTxt.textContent=(r.statoPratica??'');
     tdStato.appendChild(statoTxt);
     if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
@@ -598,7 +620,6 @@ function doSearch(){
 
     const tdStato=document.createElement('td');
     const closed=norm(r.statoPratica).includes('completata');
-    tdStato.appendChild(buildPriorityBadge(r));
     const statoTxt=document.createElement('span'); statoTxt.textContent=(r.statoPratica??'');
     tdStato.appendChild(statoTxt);
     if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
@@ -819,7 +840,7 @@ async function saveEdit(closeAfter=true){
   const createdQuoteId = await syncAutoQuoteForRecord(Object.assign({}, data, { importoConcordato: localImportoConcordato }), localImportoConcordato);
   await refreshQuoteCache();
   Object.assign(r, data, { importoConcordato: localImportoConcordato }, enrichPriority(Object.assign({}, r, data, { importoConcordato: localImportoConcordato }), getQuoteInfo(r.id)));
-  renderHome(window.state.all);
+  await window.loadAll();
   if (closeAfter){
     // torna alla Home come richiesto
     show('page-home');
@@ -913,7 +934,7 @@ async function createNewRecord(){
   // aggiorna cache & UI
   const enrichedNew = Object.assign({}, data, { importoConcordato: localImportoConcordato }, enrichPriority(Object.assign({}, data, { importoConcordato: localImportoConcordato }), getQuoteInfo(data.id)));
   window.state.all.unshift(enrichedNew);
-  renderHome(window.state.all);
+  await window.loadAll();
 
   try{ _newModal?.hide(); }catch{}
   try{ sessionStorage.removeItem('ELIP_NEW_ID'); }catch{}
