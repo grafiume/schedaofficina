@@ -14,6 +14,7 @@
       .progbar{ height:8px; border-radius:999px; background:rgba(0,0,0,.08); overflow:hidden; }
       .progbar > div{ height:100%; background:#ff7a00; width:0%; }
       .row-urgent td{ background:#fff5f5; }
+      .row-archived td{ background:#f8f9fa; }
       .urgent-tag{ display:inline-flex; align-items:center; gap:.32rem; padding:.14rem .42rem; border-radius:999px; font-size:.70rem; font-weight:800; line-height:1; letter-spacing:.02em; background:#fff1f2; color:#b42318; border:1px solid #f4c7cc; } .urgent-tag::before{ content:''; width:8px; height:8px; background:#b42318; border-radius:2px; display:inline-block; } .state-stack{ display:flex; flex-direction:column; align-items:flex-start; gap:.3rem; }
       .due-pill{ display:inline-block; padding:.18rem .46rem; border-radius:999px; font-size:.73rem; font-weight:700; }
       .due-over{ background:#f8d7da; color:#842029; }
@@ -21,8 +22,9 @@
       .due-tomorrow{ background:#fff7df; color:#8a5a00; }
       .due-ok{ background:#e9ecef; color:#495057; }
       .dash-card{ border-radius:.9rem; }
-  .dash-card.active{ border-color:#fd7e14; box-shadow:0 0 0 .15rem rgba(253,126,20,.15); }
-</style>
+      .dash-card.active{ border-color:#fd7e14; box-shadow:0 0 0 .15rem rgba(253,126,20,.15); }
+      .segmented{ display:flex; gap:.5rem; }
+    </style>
   </head>
   <body>
     <nav class="navbar navbar-light bg-light border-bottom sticky-top">
@@ -42,7 +44,14 @@
       <div id="errBanner" class="alert alert-warning d-none my-2"></div>
 
       <div class="row g-2 align-items-end">
-        <div class="col-md-4">
+        <div class="col-md-3">
+          <label class="form-label">Vista</label>
+          <select id="viewMode" class="form-select">
+            <option value="active">Preventivi attivi</option>
+            <option value="archive">Archivio chiusi</option>
+          </select>
+        </div>
+        <div class="col-md-3">
           <label class="form-label">Cerca</label>
           <input id="q" class="form-control" placeholder="Cliente, descrizione, modello…">
         </div>
@@ -53,6 +62,7 @@
             <option value="BOZZA">Solo Bozze</option>
             <option value="INVIATO">Solo Inviati</option>
             <option value="ACCETTATO">Solo Accettati</option>
+            <option value="CHIUSO">Solo Chiusi</option>
             <option value="ANNULLATO">Solo Annullati</option>
           </select>
         </div>
@@ -90,7 +100,6 @@
         </div>
       </div>
 
-
       <div class="row g-2 mt-1 mb-2" id="dashCards">
         <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-dashboard="overdue"><div class="small text-muted">Preventivi scaduti</div><div class="fs-5 fw-bold" id="dashOverdue">0</div></button></div>
         <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100 text-start py-2 dash-card" data-dashboard="today"><div class="small text-muted">Preventivi oggi</div><div class="fs-5 fw-bold" id="dashToday">0</div></button></div>
@@ -106,7 +115,7 @@
               <th>Descrizione</th>
               <th class="nowrap">Stato</th>
               <th class="nowrap">Scadenza</th>
-                            <th class="nowrap">Avanz.</th>
+              <th class="nowrap">Avanz.</th>
               <th class="text-end nowrap">Totale (IVA escl.)</th>
               <th class="text-end nowrap">Azioni</th>
             </tr>
@@ -117,7 +126,9 @@
         </table>
       </div>
 
-      <div class="small text-muted mt-2">Le bozze vuote non vengono mostrate per evitare falsi preventivi generati da modifiche involontarie. La scadenza mostra la data e i giorni rimanenti, evidenziando automaticamente scaduto, oggi e domani.</div>
+      <div class="small text-muted mt-2">
+        I preventivi con stato <strong>CHIUSO</strong> finiscono nell’archivio. La chiusura può essere automatica quando la lavorazione collegata viene completata.
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
