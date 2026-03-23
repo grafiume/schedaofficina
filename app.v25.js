@@ -593,8 +593,9 @@ window.renderHome=function(rows){
 function getSearchFilters(){
   return {
     q: document.getElementById('q').value.trim(),
-    cassetto: document.getElementById('fCassetto')?.value.trim() || '',
+    cassetto: document.getElementById('cassettoSearch')?.value.trim() || document.getElementById('fCassetto')?.value.trim() || '',
     noteExact: document.getElementById('noteExact')?.value.trim() || '',
+    preventivo: document.getElementById('fPreventivo')?.value.trim() || '',
     batt: document.getElementById('fBatt').value.trim(),
     asse: document.getElementById('fAsse')?.value.trim() || '',
     pacco: document.getElementById('fPacco')?.value.trim() || '',
@@ -613,6 +614,12 @@ function matchRow(r,f){
   }
   if(f.cassetto && norm(r.cassetto)!==norm(f.cassetto)) return false;
   if(f.noteExact && norm(r.note)!==norm(f.noteExact)) return false;
+  if(f.preventivo){
+    const q = getQuoteInfo(r.id);
+    if(f.preventivo === 'accettato' && !q.accepted) return false;
+    if(f.preventivo === 'inviato' && (!q.sent || q.accepted)) return false;
+    if(f.preventivo === 'noninviato' && (q.sent || q.accepted)) return false;
+  }
   if(!isNumEq(f.batt,r.battCollettore)) return false;
   if(!isNumEq(f.asse,r.lunghezzaAsse)) return false;
   if(!isNumEq(f.pacco,r.lunghezzaPacco)) return false;
@@ -1011,7 +1018,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   H('btnApply', doSearch);
   H('btnDoSearch', doSearch);
   H('btnReset', ()=>{
-    ['q','fCassetto','noteExact','fBatt','fAsse','fPacco','fLarg','fPunta','fNP'].forEach(id=>{
+    ['q','cassettoSearch','fCassetto','fPreventivo','noteExact','fBatt','fAsse','fPacco','fLarg','fPunta','fNP'].forEach(id=>{
       const el=document.getElementById(id); if(!el) return;
       if(el.tagName==='SELECT') el.selectedIndex=0; else el.value='';
     });
