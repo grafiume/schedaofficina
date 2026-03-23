@@ -9,6 +9,51 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="styles.css">
+  
+    <style>
+
+.prio-badge{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:20px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;margin-right:6px}
+.prio-urgente{background:#c0392b}
+.prio-media{background:#3498db}
+            .badge-p{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  font-size:11px;
+  font-weight:700;
+  color:#fff;
+  margin-left:6px;
+}
+.p-gray{background:#9aa0a6;}
+.p-yellow{background:#f1c40f;}
+.p-blue{background:#3498db;}
+.p-orange{background:#f28c28;}
+.p-green{background:#2eaf61;}
+.p-red{background:#d94841;}
+
+
+      .cass-tools{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.35rem}
+      .cass-tools .btn{white-space:nowrap}
+      .cass-map-card .card-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem}
+      .cass-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:.5rem}
+      .cass-box{border:1px solid #ddd;border-radius:12px;padding:.55rem .35rem;text-align:center;font-weight:700;background:#fff;cursor:pointer;user-select:none}
+      .cass-box small{display:block;font-weight:500;font-size:.72rem;color:#666}
+      .cass-box.free{background:#eefaf0}
+      .cass-box.occupied{background:#fff1ec}
+      .cass-box.active{outline:2px solid #f28c28;outline-offset:1px}
+      .cass-legend{display:flex;gap:1rem;flex-wrap:wrap;font-size:.9rem;color:#666}
+      .cass-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:.35rem;vertical-align:middle}
+      .cass-dot.free{background:#cdeed4}
+      .cass-dot.occupied{background:#ffd4c7}
+
+      .importo-card{border:2px solid #f28c28;border-radius:14px;background:#fffaf5}
+      .importo-card .label{font-size:.95rem;font-weight:700;color:#8a5a1f;margin-bottom:.35rem}
+      .importo-card input{text-align:center;font-size:1.2rem;font-weight:700}
+    </style>
+
   </head>
   <body>
     <nav class="navbar navbar-light bg-light border-bottom sticky-top">
@@ -25,5 +70,163 @@
         </div>
       </div>
     </nav>
-  </body>
-</html>
+
+    <!-- HOME -->
+    <div class="container my-3" id="page-home">
+      <div class="d-flex gap-2 flex-wrap mb-3">
+        <button class="card kpi kpi-link border-top-orange text-start" type="button" id="kpiTotBtn">
+          <div class="card-body"><div class="small text-muted">Totali</div><div class="h4 mb-0" id="kpiTot">0</div></div>
+        </button>
+        <button class="card kpi kpi-link border-top-blue text-start" type="button" id="kpiAttesaBtn">
+          <div class="card-body"><div class="small text-muted">In attesa</div><div class="h4 mb-0" id="kpiAttesa">0</div></div>
+        </button>
+        <button class="card kpi kpi-link border-top-orange text-start" type="button" id="kpiLavBtn">
+          <div class="card-body"><div class="small text-muted">In lavorazione</div><div class="h4 mb-0" id="kpiLav">0</div></div>
+        </button>
+        <button class="card kpi kpi-link border-top-green text-start" type="button" id="kpiCompBtn">
+          <div class="card-body"><div class="small text-muted">Completate</div><div class="h4 mb-0" id="kpiComp">0</div></div>
+        </button>
+      </div>
+
+      <div id="errBanner" class="alert alert-warning d-none my-2"></div>
+      <div class="table-responsive">
+        <table class="table table-app align-middle" id="tblHome">
+          <thead>
+            <tr>
+              <th class="thumb-cell">Foto</th>
+              <th>Data</th>
+              <th>Cassetto</th>
+              <th>Cliente</th>
+              <th>Descrizione</th>
+              <th>Modello</th>
+              <th>Stato</th>
+              <th class="text-end">Azioni</th>
+            </tr>
+          </thead>
+          <tbody id="homeRows">
+            <tr><td colspan="8" class="text-center py-4 text-muted">Caricamento…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RICERCA -->
+    <div class="container my-3 d-none" id="page-search">
+      <h4>Ricerca</h4>
+
+      <div class="row g-2 mb-2">
+        <div class="col-md-10">
+          <input id="q" class="form-control" placeholder="Cerca per descrizione, modello, cliente, telefono, DDT (token, no accenti)…">
+        </div>
+        <div class="col-md-2 d-grid"><button id="btnDoSearch" class="btn btn-primary" type="button">Cerca</button></div>
+      </div>
+
+      <div class="row g-2 mb-3">
+        <div class="col-md-4 col-lg-3"><input id="cassettoSearch" class="form-control" placeholder="Cassetto (match esatto)"></div>
+        <div class="col-md-6 col-lg-4"><input id="noteExact" class="form-control" placeholder="Note (match esatto)"></div>
+      </div>
+
+      <div class="card mb-2">
+        <div class="card-header py-2"><strong>Filtri tecnici (singoli)</strong></div>
+        <div class="card-body">
+          <div class="row g-2">
+            <div class="col-md-6 col-lg-3"><input id="fBatt" class="form-control" placeholder="Batt. collettore"></div>
+            <div class="col-md-6 col-lg-3"><input id="fAsse" class="form-control" placeholder="Lunghezza asse"></div>
+            <div class="col-md-6 col-lg-3"><input id="fPacco" class="form-control" placeholder="Lunghezza pacco"></div>
+            <div class="col-md-6 col-lg-3"><input id="fLarg" class="form-control" placeholder="Larghezza pacco"></div>
+            <div class="col-md-6 col-lg-3">
+              <select id="fPunta" class="form-select">
+                <option value="">Punta (tutte)</option>
+                <option>Sinistra</option>
+                <option>Destra</option>
+                <option>Dritta</option>
+              </select>
+            </div>
+            <div class="col-md-6 col-lg-2"><input id="fNP" class="form-control" placeholder="N. punte"></div>
+          </div>
+          <div class="mt-3 d-flex gap-2">
+            <button class="btn btn-secondary" id="btnApply">Applica filtri</button>
+            <button class="btn btn-outline-secondary" id="btnReset">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-app align-middle" id="tblSearch">
+          <thead>
+            <tr>
+              <th class="thumb-cell">Foto</th>
+              <th>Data</th>
+              <th>Cassetto</th>
+              <th>Cliente</th>
+              <th>Descrizione</th>
+              <th>Modello</th>
+              <th>Stato</th>
+              <th class="text-end">Azioni</th>
+            </tr>
+          </thead>
+          <tbody id="searchRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MODIFICA -->
+    <div class="container my-3 d-none" id="page-edit">
+
+      <h4>Modifica scheda</h4>
+      <div id="closedBanner" class="alert alert-success d-none py-2 mb-2">Chiusa</div>
+
+      <div class="row g-3">
+        <div class="col-lg-7">
+          <div class="card">
+            <div class="card-header py-2"><strong>Dati scheda e cliente</strong></div>
+            <div class="card-body">
+              <div class="row g-2">
+                <div class="col-md-8"><label class="form-label">Descrizione</label><input id="eDescrizione" class="form-control"></div>
+                <div class="col-md-4"><label class="form-label">Modello</label><input id="eModello" class="form-control" placeholder="es. XYZ-123"></div>
+
+                <div class="col-md-4"><label class="form-label">Data apertura</label><input id="eApertura" type="date" class="form-control"></div>
+                <div class="col-md-4"><label class="form-label">Data accettazione</label><input id="eAcc" type="date" class="form-control"></div>
+                <div class="col-md-4"><label class="form-label">Data scadenza</label><input id="eScad" type="date" class="form-control"></div>
+
+                <div class="col-md-4">
+                  <label class="form-label">Stato</label>
+                  <select id="eStato" class="form-select">
+                    <option>In attesa</option>
+                    <option>In lavorazione</option>
+                    <option>Completata</option>
+                  </select>
+                  <div class="form-text" id="closedHint"></div>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Cassetto</label>
+                  <input id="eCassetto" class="form-control" placeholder="es. A1">
+                  <div class="cass-tools">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnEditCassAuto">Primo libero</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnEditCassFree">Libera</button>
+                  </div>
+                </div>
+                <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="eDDT" class="form-control" placeholder="Numero / riferimento DDT"></div>
+
+                
+                <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="eCliente" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Telefono</label><input id="eTel" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Email</label><input id="eEmail" class="form-control"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mt-3 importo-card">
+            <div class="card-body text-center">
+              <div class="label">Importo concordato (€)</div>
+              <div class="row justify-content-center">
+                <div class="col-md-6">
+                  <input id="eImportoConcordato" class="form-control" inputmode="decimal">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mt-3">
+            <div class="card-header py-2"><strong>Dati tecnici</strong></div>
+      
