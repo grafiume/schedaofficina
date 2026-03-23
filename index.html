@@ -67,7 +67,15 @@
           <button class="btn btn-outline-secondary" id="btnRicerca">Ricerca</button>
           <button class="btn btn-outline-secondary" id="btnPreventivi">Preventivi</button>
           <button class="btn btn-orange" id="btnNew">Nuova scheda</button>
-        </div>
+        
+<div class="col-md-4 col-lg-3">
+  <select id="fAttivi" class="form-select">
+    <option value="attivi">Solo attivi</option>
+    <option value="tutti">Tutti</option>
+  </select>
+</div>
+
+      </div>
       </div>
     </nav>
 
@@ -122,16 +130,8 @@
       </div>
 
       <div class="row g-2 mb-3">
-        <div class="col-md-4 col-lg-3"><input id="fCassetto" class="form-control" placeholder="Cassetto (match esatto)"></div>
-        <div class="col-md-4 col-lg-3">
-          <select id="fPreventivo" class="form-select">
-            <option value="">Preventivi (tutti)</option>
-            <option value="accettato">Accettati</option>
-            <option value="inviato">Inviati</option>
-            <option value="noninviato">Non inviati</option>
-          </select>
-        </div>
-        <div class="col-md-4 col-lg-4"><input id="noteExact" class="form-control" placeholder="Note (match esatto)"></div>
+        <div class="col-md-4 col-lg-3"><input id="cassettoSearch" class="form-control" placeholder="Cassetto (match esatto)"></div>
+        <div class="col-md-6 col-lg-4"><input id="noteExact" class="form-control" placeholder="Note (match esatto)"></div>
       </div>
 
       <div class="card mb-2">

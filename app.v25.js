@@ -57,7 +57,8 @@ function daysSince(v){
   return Math.round((now.getTime()-d.getTime())/86400000);
 }
 function emptyQuoteInfo(){
-  return { quoteId:null, status:'', accepted:false, sent:false, urgent:false, sentAt:null, acceptedAt:null };
+  return {
+    attivi: document.getElementById('fAttivi')?.value || 'attivi', quoteId:null, status:'', accepted:false, sent:false, urgent:false, sentAt:null, acceptedAt:null };
 }
 async function refreshQuoteCache(){
   window.state.quoteMap = {};
@@ -92,6 +93,7 @@ function getQuoteInfo(recordId){
   if(!row) return emptyQuoteInfo();
   const status = String(row.status || '').toUpperCase();
   return {
+    attivi: document.getElementById('fAttivi')?.value || 'attivi',
     quoteId: row.id || null,
     status,
     accepted: status === 'ACCETTATO' || !!row.accepted_at,
@@ -147,6 +149,7 @@ function enrichPriority(record, qinfo){
   if (!completed && score >= 70){ label = 'ALTA'; cls = 'prio-alta'; }
 
   return {
+    attivi: document.getElementById('fAttivi')?.value || 'attivi',
     priorita_score: completed ? -9999 : score,
     priorita_label: label,
     priorita_class: cls,
@@ -592,9 +595,9 @@ window.renderHome=function(rows){
 // ----------------- Ricerca -----------------
 function getSearchFilters(){
   return {
+    attivi: document.getElementById('fAttivi')?.value || 'attivi',
     q: document.getElementById('q').value.trim(),
     cassetto: document.getElementById('fCassetto')?.value.trim() || '',
-    preventivo: document.getElementById('fPreventivo')?.value || '',
     noteExact: document.getElementById('noteExact')?.value.trim() || '',
     batt: document.getElementById('fBatt').value.trim(),
     asse: document.getElementById('fAsse')?.value.trim() || '',
@@ -607,18 +610,18 @@ function getSearchFilters(){
 function toNum(val){ if(val==null) return null; const s=String(val).trim().replace(',', '.'); if(s==='') return null; const n=Number(s); return Number.isFinite(n)?n:null; }
 function isNumEq(fv, rv){ if(fv==null || String(fv).trim()==='') return true; const f=toNum(fv), r=toNum(rv); if(f===null||r===null) return false; return f===r; }
 function matchRow(r,f){
+
+  if(f.attivi === 'attivi'){
+    const stato = String(r.statoPratica || '').toLowerCase();
+    if(stato.includes('completata') || stato.includes('chiusa')) return false;
+  }
+
   if(f.q){
     const hay=[r.cassetto,r.descrizione,r.modello,r.cliente,r.telefono,r.docTrasporto].map(norm).join(' ');
     const tokens=norm(f.q).split(/\s+/).filter(Boolean);
     for(const t of tokens){ if(!hay.includes(t)) return false; }
   }
   if(f.cassetto && norm(r.cassetto)!==norm(f.cassetto)) return false;
-  if(f.preventivo){
-    const q = getQuoteInfo(r.id);
-    if(f.preventivo === 'accettato' && !q.accepted) return false;
-    if(f.preventivo === 'inviato' && (!q.sent || q.accepted)) return false;
-    if(f.preventivo === 'noninviato' && (q.sent || q.accepted)) return false;
-  }
   if(f.noteExact && norm(r.note)!==norm(f.noteExact)) return false;
   if(!isNumEq(f.batt,r.battCollettore)) return false;
   if(!isNumEq(f.asse,r.lunghezzaAsse)) return false;
@@ -1018,7 +1021,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   H('btnApply', doSearch);
   H('btnDoSearch', doSearch);
   H('btnReset', ()=>{
-    ['q','fCassetto','fPreventivo','noteExact','fBatt','fAsse','fPacco','fLarg','fPunta','fNP'].forEach(id=>{
+    ['q','fCassetto','noteExact','fBatt','fAsse','fPacco','fLarg','fPunta','fNP'].forEach(id=>{
       const el=document.getElementById(id); if(!el) return;
       if(el.tagName==='SELECT') el.selectedIndex=0; else el.value='';
     });
