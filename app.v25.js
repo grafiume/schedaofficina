@@ -57,8 +57,7 @@ function daysSince(v){
   return Math.round((now.getTime()-d.getTime())/86400000);
 }
 function emptyQuoteInfo(){
-  return {
-    attivi: document.getElementById('fAttivi')?.value || 'attivi', quoteId:null, status:'', accepted:false, sent:false, urgent:false, sentAt:null, acceptedAt:null };
+  return { quoteId:null, status:'', accepted:false, sent:false, urgent:false, sentAt:null, acceptedAt:null };
 }
 async function refreshQuoteCache(){
   window.state.quoteMap = {};
@@ -149,7 +148,6 @@ function enrichPriority(record, qinfo){
   if (!completed && score >= 70){ label = 'ALTA'; cls = 'prio-alta'; }
 
   return {
-    attivi: document.getElementById('fAttivi')?.value || 'attivi',
     priorita_score: completed ? -9999 : score,
     priorita_label: label,
     priorita_class: cls,
@@ -595,7 +593,6 @@ window.renderHome=function(rows){
 // ----------------- Ricerca -----------------
 function getSearchFilters(){
   return {
-    attivi: document.getElementById('fAttivi')?.value || 'attivi',
     q: document.getElementById('q').value.trim(),
     cassetto: document.getElementById('fCassetto')?.value.trim() || '',
     noteExact: document.getElementById('noteExact')?.value.trim() || '',
@@ -610,12 +607,10 @@ function getSearchFilters(){
 function toNum(val){ if(val==null) return null; const s=String(val).trim().replace(',', '.'); if(s==='') return null; const n=Number(s); return Number.isFinite(n)?n:null; }
 function isNumEq(fv, rv){ if(fv==null || String(fv).trim()==='') return true; const f=toNum(fv), r=toNum(rv); if(f===null||r===null) return false; return f===r; }
 function matchRow(r,f){
-
   if(f.attivi === 'attivi'){
     const stato = String(r.statoPratica || '').toLowerCase();
     if(stato.includes('completata') || stato.includes('chiusa')) return false;
   }
-
   if(f.q){
     const hay=[r.cassetto,r.descrizione,r.modello,r.cliente,r.telefono,r.docTrasporto].map(norm).join(' ');
     const tokens=norm(f.q).split(/\s+/).filter(Boolean);
