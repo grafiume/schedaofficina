@@ -155,6 +155,24 @@
     };
   }
 
+
+  function syncStatusFromDates(){
+    if(!quoteState) return;
+    const sentVal = String(quoteState.sent_at || '').trim();
+    const acceptedVal = String(quoteState.accepted_at || '').trim();
+    const statusEl = $('status');
+
+    if(acceptedVal){
+      quoteState.status = 'ACCETTATO';
+    }else if(sentVal){
+      quoteState.status = 'INVIATO';
+    }else if(['INVIATO','ACCETTATO'].includes(String(quoteState.status || '').toUpperCase())){
+      quoteState.status = 'BOZZA';
+    }
+
+    if(statusEl) statusEl.value = quoteState.status || 'BOZZA';
+  }
+
   function isDirty(){
     return JSON.stringify(quoteState) !== JSON.stringify(originalState);
   }
@@ -208,6 +226,7 @@
       ensureDictationBox();
       bindUI();
       bindDictationButtons();
+      syncStatusFromDates();
       recalcTotals();
       renderAll();
 
@@ -356,13 +375,26 @@
     $('btnPdf')?.addEventListener('click', downloadQuotePdf);
     $('btnInvia')?.addEventListener('click', sendQuoteUnified);
 
-    ['status','sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{
+    ['status','delivery_days','delivery_date','notes'].forEach(id=>{
       $(id)?.addEventListener('input', ()=>{
         quoteState[id] = $(id).value || '';
         touch();
       });
       $(id)?.addEventListener('change', ()=>{
         quoteState[id] = $(id).value || '';
+        touch();
+      });
+    });
+
+    ['sent_at','accepted_at'].forEach(id=>{
+      $(id)?.addEventListener('input', ()=>{
+        quoteState[id] = $(id).value || '';
+        syncStatusFromDates();
+        touch();
+      });
+      $(id)?.addEventListener('change', ()=>{
+        quoteState[id] = $(id).value || '';
+        syncStatusFromDates();
         touch();
       });
     });
@@ -1183,9 +1215,14 @@
     });
   }
 
-  
+
   async function openPdfPreviewPopupMode(){
-    const blob = await generateQuotePdfBlob();
+    const pdf = await generateQuotePdfBlob();
+    const blob = (pdf && pdf.blob instanceof Blob) ? pdf.blob : (pdf instanceof Blob ? pdf : null);
+    if(!blob){
+      throw new Error('PDF non disponibile.');
+    }
+
     const blobUrl = URL.createObjectURL(blob);
     const safeTitle = 'Anteprima PDF preventivo';
 
@@ -1211,7 +1248,7 @@
     }, { once:true });
   }
 
-async function generateQuotePdfBlob(){
+  async function generateQuotePdfBlob(){
     recalcTotals();
 
     const jspdfNs = window.jspdf;
