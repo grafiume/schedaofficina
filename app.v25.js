@@ -195,7 +195,7 @@ function buildQuoteBadge(record){
   }
 
   span.className = 'badge-p ' + badgeClass;
-  span.title = badgeTitle;
+  span.title = badgeTitle + ' • clic per anteprima PDF';
   span.setAttribute('aria-label', badgeTitle);
   span.textContent = 'P';
   span.style.cursor = 'pointer';
@@ -211,9 +211,8 @@ function buildQuoteBadge(record){
     const fresh = getQuoteInfo(record.id);
     if (fresh && fresh.quoteId) {
       try{
-        const url = 'preventivo.html?id=' + encodeURIComponent(fresh.quoteId) + '&preview_image=1';
-        const popup = window.open(url, 'previewPreventivoJpg', 'popup=yes,width=1100,height=900,resizable=yes,scrollbars=yes');
-        if (popup) popup.focus();
+        const url = 'preventivo.html?id=' + encodeURIComponent(fresh.quoteId) + '&popup_pdf=1';
+        window.open(url, 'elipPreventivoPreview', 'popup=yes,width=1200,height=900,resizable=yes,scrollbars=yes');
       }catch(e){}
     } else {
       alert('Preventivo non disponibile');

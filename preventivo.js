@@ -211,8 +211,8 @@
       recalcTotals();
       renderAll();
 
-      if(qs().get('preview_image') === '1'){
-        await renderStandalonePreviewImage();
+      if(qs().get('popup_pdf') === '1'){
+        await renderPdfPopupPreview();
         return;
       }
     }catch(e){
@@ -1160,192 +1160,6 @@
     return `preventivo_${cliente || 'cliente'}_${id}.pdf`;
   }
 
-  
-  async function generateQuotePreviewJpgDataUrl(){
-    recalcTotals();
-
-    const canvas = document.createElement('canvas');
-    canvas.width = 1240;
-    canvas.height = 1754;
-    const ctx = canvas.getContext('2d');
-
-    ctx.fillStyle = '#eef1f5';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const pageX = 70;
-    const pageY = 40;
-    const pageW = 1100;
-    const pageH = 1650;
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(pageX, pageY, pageW, pageH);
-    ctx.strokeStyle = '#d9dee7';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(pageX, pageY, pageW, pageH);
-
-    ctx.fillStyle = '#ff7a00';
-    ctx.fillRect(pageX, pageY, pageW, 26);
-
-    const logo = await getLogoDataUrl();
-    if(logo){
-      try{
-        const img = new Image();
-        await new Promise((resolve, reject)=>{
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = logo;
-        });
-        ctx.drawImage(img, pageX + 34, pageY + 42, 300, 72);
-      }catch(_e){}
-    }
-
-    ctx.fillStyle = '#1f2937';
-    ctx.font = 'bold 40px Arial';
-    ctx.textAlign = 'right';
-    ctx.fillText('PREVENTIVO', pageX + pageW - 34, pageY + 72);
-    ctx.font = 'bold 24px Arial';
-    ctx.fillText('Elip Tagliente Srl', pageX + pageW - 34, pageY + 108);
-    ctx.font = '18px Arial';
-    ctx.fillStyle = '#667085';
-    ctx.fillText('Via Conchia 54/E, Monopoli (BA)', pageX + pageW - 34, pageY + 138);
-    ctx.fillText('Email: info@eliptagliente.it', pageX + pageW - 34, pageY + 166);
-    ctx.fillText('TEL: +39 080 777 090 - +39 080 887 675', pageX + pageW - 34, pageY + 194);
-
-    ctx.textAlign = 'left';
-    const boxY = pageY + 240;
-    const leftX = pageX + 34;
-    const rightX = pageX + pageW - 34;
-    const midX = pageX + pageW / 2;
-
-    ctx.fillStyle = '#f7f8fa';
-    ctx.fillRect(leftX, boxY, midX - leftX - 12, 150);
-    ctx.fillRect(midX + 12, boxY, rightX - (midX + 12), 150);
-    ctx.strokeStyle = '#e6e9ee';
-    ctx.strokeRect(leftX, boxY, midX - leftX - 12, 150);
-    ctx.strokeRect(midX + 12, boxY, rightX - (midX + 12), 150);
-
-    ctx.fillStyle = '#1f2937';
-    ctx.font = 'bold 20px Arial';
-    ctx.fillText('Cliente', leftX + 18, boxY + 30);
-    ctx.fillText('Dati preventivo', midX + 30, boxY + 30);
-
-    ctx.font = '18px Arial';
-    let yy = boxY + 62;
-    ctx.fillText(`Ragione sociale: ${record?.cliente || '-'}`, leftX + 18, yy); yy += 28;
-    ctx.fillText(`Telefono: ${record?.telefono || '-'}`, leftX + 18, yy); yy += 28;
-    ctx.fillText(`Email: ${record?.email || '-'}`, leftX + 18, yy); yy += 28;
-    ctx.fillText(`Modello: ${record?.modello || '-'}`, leftX + 18, yy);
-
-    yy = boxY + 62;
-    ctx.fillText(`Stato: ${quoteState?.status || 'BOZZA'}`, midX + 30, yy); yy += 28;
-    ctx.fillText(`Data invio: ${quoteState?.sent_at || '-'}`, midX + 30, yy); yy += 28;
-    ctx.fillText(`Accettazione: ${quoteState?.accepted_at || '-'}`, midX + 30, yy); yy += 28;
-    ctx.fillText(`Consegna: ${quoteState?.delivery_days || '-'} gg`, midX + 30, yy);
-
-    const tableX = leftX;
-    const tableY = boxY + 190;
-    const tableW = pageW - 68;
-    const col1 = 60, col2 = 150, col3 = tableW - col1 - col2;
-
-    ctx.fillStyle = '#ff7a00';
-    ctx.fillRect(tableX, tableY, tableW, 38);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 18px Arial';
-    ctx.fillText('#', tableX + 16, tableY + 25);
-    ctx.fillText('Codice', tableX + col1 + 16, tableY + 25);
-    ctx.fillText('Descrizione lavorazione', tableX + col1 + col2 + 16, tableY + 25);
-
-    const items = getSelectedItems();
-    let rowY = tableY + 38;
-
-    ctx.font = '16px Arial';
-    items.forEach((item, idx)=>{
-      const rowH = 34;
-      ctx.fillStyle = idx % 2 === 0 ? '#ffffff' : '#fbfbfc';
-      ctx.fillRect(tableX, rowY, tableW, rowH);
-      ctx.strokeStyle = '#e6e9ee';
-      ctx.strokeRect(tableX, rowY, tableW, rowH);
-      ctx.fillStyle = '#1f2937';
-      ctx.fillText(String(idx + 1), tableX + 16, rowY + 22);
-      ctx.fillText(item.rip_code || '', tableX + col1 + 16, rowY + 22);
-      ctx.fillText(item.description || item.rip_code || '', tableX + col1 + col2 + 16, rowY + 22);
-      rowY += rowH;
-    });
-
-    if(!items.length){
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(tableX, rowY, tableW, 40);
-      ctx.strokeStyle = '#e6e9ee';
-      ctx.strokeRect(tableX, rowY, tableW, 40);
-      ctx.fillStyle = '#667085';
-      ctx.font = 'italic 16px Arial';
-      ctx.fillText('Nessuna lavorazione selezionata', tableX + 16, rowY + 24);
-      rowY += 40;
-    }
-
-    const summaryW = 340;
-    const summaryX = tableX + tableW - summaryW;
-    const summaryY = rowY + 34;
-    ctx.fillStyle = '#fafbfc';
-    ctx.fillRect(summaryX, summaryY, summaryW, 130);
-    ctx.strokeStyle = '#e6e9ee';
-    ctx.strokeRect(summaryX, summaryY, summaryW, 130);
-
-    const lines = [
-      ['Totale imponibile', `€ ${fmtMoney(quoteState?.subtotal_ex_vat || 0)}`],
-      [`IVA ${VAT_RATE}%`, `€ ${fmtMoney(quoteState?.vat_total || 0)}`],
-      ['Totale complessivo', `€ ${fmtMoney(quoteState?.grand_total || 0)}`]
-    ];
-
-    let sy = summaryY + 34;
-    lines.forEach((line, idx)=>{
-      ctx.fillStyle = '#1f2937';
-      ctx.font = idx === 2 ? 'bold 20px Arial' : '18px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(line[0], summaryX + 18, sy);
-      ctx.textAlign = 'right';
-      ctx.fillText(line[1], summaryX + summaryW - 18, sy);
-      sy += 34;
-    });
-    ctx.textAlign = 'left';
-
-    const notes = String(quoteState?.notes || '').trim();
-    if(notes){
-      const notesY = summaryY + 180;
-      ctx.fillStyle = '#f7f8fa';
-      ctx.fillRect(tableX, notesY, tableW, 150);
-      ctx.strokeStyle = '#e6e9ee';
-      ctx.strokeRect(tableX, notesY, tableW, 150);
-      ctx.fillStyle = '#1f2937';
-      ctx.font = 'bold 20px Arial';
-      ctx.fillText('Note', tableX + 18, notesY + 30);
-      ctx.font = '17px Arial';
-      ctx.fillStyle = '#344054';
-      const noteText = notes.length > 320 ? notes.slice(0, 317) + '...' : notes;
-      const noteLines = noteText.match(/.{1,95}(\s|$)/g) || [noteText];
-      noteLines.slice(0,4).forEach((line, idx)=>ctx.fillText(line.trim(), tableX + 18, notesY + 62 + idx * 24));
-    }
-
-    ctx.fillStyle = '#98a2b3';
-    ctx.font = '16px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('Anteprima JPG del preventivo', pageX + pageW / 2, pageY + pageH - 30);
-
-    return canvas.toDataURL('image/jpeg', 0.94);
-  }
-
-  async function renderStandalonePreviewImage(){
-    const dataUrl = await generateQuotePreviewJpgDataUrl();
-    const safeName = buildQuoteFilename().replace(/\.pdf$/i, '.jpg');
-    document.documentElement.style.background = '#111827';
-    document.body.innerHTML = `
-      <div style="min-height:100vh;background:#111827;display:flex;align-items:center;justify-content:center;padding:24px;">
-        <img src="${dataUrl}" alt="Anteprima preventivo JPG" style="max-width:min(96vw,980px);max-height:96vh;box-shadow:0 20px 60px rgba(0,0,0,.45);border-radius:12px;background:#fff;">
-      </div>`;
-    document.title = safeName;
-  }
-
-
   async function getLogoDataUrl(){
     const img = document.querySelector('.brand-logo');
     if(!img || !img.src) return '';
@@ -1515,6 +1329,32 @@
     a.remove();
     setTimeout(()=>URL.revokeObjectURL(url), 2000);
   }
+  async function renderPdfPopupPreview(){
+    try{
+      clearErr();
+      await saveIfNeededForSharing();
+      const pdf = await generateQuotePdfBlob();
+      const url = URL.createObjectURL(pdf.blob);
+
+      document.title = pdf.filename.replace(/\.pdf$/i, '') + ' • Anteprima PDF';
+      document.documentElement.style.height = '100%';
+      document.body.style.margin = '0';
+      document.body.style.height = '100%';
+      document.body.style.background = '#111827';
+      document.body.innerHTML = `
+        <div style="position:fixed;inset:0;background:#111827;">
+          <iframe
+            src="${url}#zoom=200"
+            style="width:100%;height:100%;border:0;background:#111827;"
+            title="Anteprima PDF preventivo">
+          </iframe>
+        </div>
+      `;
+    }catch(e){
+      showErr('Errore anteprima PDF: ' + (e?.message || e));
+    }
+  }
+
 
   function buildShareText(){
     return [
