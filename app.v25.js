@@ -37,6 +37,52 @@ let _newMainName=null;
 })();
 
 
+const WORKSHOP_PIN_MAP = Object.freeze({
+  '1111': 'Midio',
+  '0000': 'Officina',
+  '2222': 'Commerciale',
+  '3333': 'Graziano'
+});
+
+function getWorkshopTurnDeadline(){
+  const now = new Date();
+  const end = new Date(now);
+  end.setHours(18, 0, 0, 0);
+  return end.getTime();
+}
+
+function isWorkshopTurnValid(){
+  try{
+    const role = sessionStorage.getItem('elip_turn_role') || '';
+    const until = Number(sessionStorage.getItem('elip_turn_until') || '0');
+    return !!role && Number.isFinite(until) && Date.now() < until;
+  }catch(_e){
+    return false;
+  }
+}
+
+async function ensureWorkshopTurnAccess(actionLabel){
+  if(isWorkshopTurnValid()) return true;
+
+  const reason = Date.now() >= getWorkshopTurnDeadline() ? 'Turno scaduto. Reinserisci il PIN operatore.' : 'Inserisci il PIN operatore per continuare.';
+  const pin = prompt('Accesso turno officina\n\n' + reason);
+  if(pin === null) return false;
+
+  const role = WORKSHOP_PIN_MAP[String(pin).trim()];
+  if(!role){
+    alert('PIN non valido.');
+    return false;
+  }
+
+  try{
+    sessionStorage.setItem('elip_turn_role', role);
+    sessionStorage.setItem('elip_turn_until', String(getWorkshopTurnDeadline()));
+  }catch(_e){}
+
+  return true;
+}
+
+
 function parseDateLoose(v){
   if(!v) return null;
   const d = new Date(v);
@@ -240,100 +286,6 @@ function show(id){
   window.state.currentView=id.replace('page-','');
 }
 if (typeof window.state !== 'object'){ window.state={ all:[], currentView:'home', editing:null }; }
-
-
-// ----------------- PIN turno officina -----------------
-const ELIP_TURN_KEY = 'elip_turn_access_v1';
-const ELIP_OPERATOR_PINS = {
-  '1111': 'Midio',
-  '0000': 'Officina',
-  '2222': 'Commerciale',
-  '3333': 'Graziano'
-};
-
-function elipTurnCutoffTs(now = new Date()){
-  const cutoff = new Date(now);
-  cutoff.setHours(18, 0, 0, 0);
-  if(now.getTime() >= cutoff.getTime()){
-    cutoff.setDate(cutoff.getDate() + 1);
-  }
-  return cutoff.getTime();
-}
-function getElipTurnAccess(){
-  try{
-    const raw = localStorage.getItem(ELIP_TURN_KEY);
-    if(!raw) return null;
-    const data = JSON.parse(raw);
-    if(!data || !data.operator || !data.untilTs) return null;
-    if(Date.now() > Number(data.untilTs)){
-      localStorage.removeItem(ELIP_TURN_KEY);
-      return null;
-    }
-    return data;
-  }catch(_e){
-    return null;
-  }
-}
-function setElipTurnAccess(operator){
-  const data = {
-    operator,
-    sinceTs: Date.now(),
-    untilTs: elipTurnCutoffTs(new Date())
-  };
-  try{ localStorage.setItem(ELIP_TURN_KEY, JSON.stringify(data)); }catch(_e){}
-  return data;
-}
-function clearElipTurnAccess(){
-  try{ localStorage.removeItem(ELIP_TURN_KEY); }catch(_e){}
-}
-function fmtElipTurnUntil(ts){
-  try{
-    const d = new Date(Number(ts));
-    return d.toLocaleString('it-IT', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
-  }catch(_e){
-    return '';
-  }
-}
-function elipTurnPromptMessage(reason){
-  return [
-    'Accesso turno officina',
-    reason ? ('Motivo: ' + reason) : '',
-    'PIN validi fino alle 18:00:',
-    '1111 = Midio',
-    '0000 = Officina',
-    '2222 = Commerciale',
-    '3333 = Graziano',
-    '',
-    'Inserisci il PIN operatore'
-  ].filter(Boolean).join('\n');
-}
-async function ensureElipTurnAccess(reason, options){
-  const opts = Object.assign({ promptIfMissing:true, silentCancel:false }, options || {});
-  const current = getElipTurnAccess();
-  if(current) return current;
-  if(!opts.promptIfMissing) return null;
-
-  const pin = window.prompt(elipTurnPromptMessage(reason || ''));
-  if(pin === null){
-    if(!opts.silentCancel){
-      alert('Accesso turno annullato.');
-    }
-    return null;
-  }
-
-  const operator = ELIP_OPERATOR_PINS[String(pin).trim()];
-  if(!operator){
-    alert('PIN non valido.');
-    return null;
-  }
-
-  const data = setElipTurnAccess(operator);
-  if(!opts.silentCancel){
-    alert('Turno sbloccato per ' + operator + ' fino al ' + fmtElipTurnUntil(data.untilTs));
-  }
-  return data;
-}
-
 
 // ----------------- Supabase -----------------
 if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){
@@ -932,8 +884,6 @@ function openEdit(id){
   const upBtn=document.getElementById('btnUpload');
   if(upBtn){
     upBtn.onclick=async ()=>{
-      const access = await ensureElipTurnAccess('upload foto / salvataggio scheda');
-      if(!access) return;
       await saveEdit(false); // false = non chiudere
       const files=document.getElementById('eFiles').files;
       if(files?.length){
@@ -946,8 +896,7 @@ function openEdit(id){
 
 // Salva + chiudi richiesta: dopo salvataggio torniamo in Home
 async function saveEdit(closeAfter=true){
-  const access = await ensureElipTurnAccess('salvataggio scheda');
-  if(!access) return;
+  if(!(await ensureWorkshopTurnAccess('salvataggio scheda'))) return;
   const r=window.state.editing; if(!r) return;
   const localImportoConcordato = val('eImportoConcordato');
   const payload={
@@ -1011,8 +960,7 @@ function previewNewFiles(){
 }
 
 async function createNewRecord(){
-  const access = await ensureElipTurnAccess('creazione nuova scheda');
-  if(!access) return;
+  if(!(await ensureWorkshopTurnAccess('nuova scheda'))) return;
   const dtAper=getV('nApertura')||todayISO();
   const localImportoConcordato = getV('nImportoConcordato');
   const payload={
@@ -1107,8 +1055,7 @@ window.loadAll=async function(){
   }catch(e){ showError('Eccezione loadAll: '+(e?.message||e)); renderHome([]); }
 };
 
-document.addEventListener('DOMContentLoaded', async ()=>{
-  try{ await ensureElipTurnAccess('inizio turno', { promptIfMissing:true, silentCancel:true }); }catch(_e){}
+document.addEventListener('DOMContentLoaded', ()=>{
   const H=(id,fn)=>{ const el=document.getElementById(id); if(el) el.addEventListener('click',fn); };
 
   H('btnHome', ()=>show('page-home'));

@@ -135,6 +135,57 @@
   let dictationMode = 'rips';
   let lastAutoApplied = '';
 
+
+  const WORKSHOP_PIN_MAP = Object.freeze({
+    '1111': 'Midio',
+    '0000': 'Officina',
+    '2222': 'Commerciale',
+    '3333': 'Graziano'
+  });
+
+  function getWorkshopTurnDeadline(){
+    const now = new Date();
+    const end = new Date(now);
+    end.setHours(18, 0, 0, 0);
+    return end.getTime();
+  }
+
+  function isWorkshopTurnValid(){
+    try{
+      const role = sessionStorage.getItem('elip_turn_role') || '';
+      const until = Number(sessionStorage.getItem('elip_turn_until') || '0');
+      return !!role && Number.isFinite(until) && Date.now() < until;
+    }catch(_e){
+      return false;
+    }
+  }
+
+  async function ensureWorkshopTurnAccess(actionLabel){
+    if(isWorkshopTurnValid()) return true;
+
+    const reason = Date.now() >= getWorkshopTurnDeadline()
+      ? 'Turno scaduto. Reinserisci il PIN operatore.'
+      : 'Inserisci il PIN operatore per continuare.';
+
+    const pin = prompt('Accesso turno officina\\n\\n' + reason);
+    if(pin === null) return false;
+
+    const role = WORKSHOP_PIN_MAP[String(pin).trim()];
+    if(!role){
+      showErr('PIN non valido.');
+      return false;
+    }
+
+    try{
+      sessionStorage.setItem('elip_turn_role', role);
+      sessionStorage.setItem('elip_turn_until', String(getWorkshopTurnDeadline()));
+    }catch(_e){}
+
+    return true;
+  }
+
+
+
   function emptyQuoteState(recordId){
     return {
       id:null,
@@ -420,6 +471,7 @@
   }
 
   async function unlockEdit(){
+    if(!(await ensureWorkshopTurnAccess('sblocco modifiche'))) return;
     clearErr();
 
     const p = prompt('Inserisci password per modificare il preventivo');
@@ -778,6 +830,7 @@
   }
 
   async function deleteQuote(){
+    if(!(await ensureWorkshopTurnAccess('cancellazione preventivo'))) return;
     if(!currentQuoteId){
       showErr('Questo preventivo non è ancora salvato.');
       return;
@@ -822,6 +875,7 @@
   }
 
   async function saveAll(){
+    if(!(await ensureWorkshopTurnAccess('salvataggio preventivo'))) return;
     if(!isEditUnlocked || !editPassword){
       showErr('Prima sblocca le modifiche con la password.');
       return;
@@ -1529,6 +1583,7 @@ async function generateQuotePdfBlob(){
   }
 
   async function sendQuoteUnified(){
+    if(!(await ensureWorkshopTurnAccess('invio preventivo'))) return;
     try{
       clearErr();
       const pdf = await generateQuotePdfBlob();
