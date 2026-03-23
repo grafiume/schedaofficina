@@ -1107,7 +1107,18 @@
   }
 
   function getClientDdt(){
-    return firstFilled(record, ['ddt','numero_ddt','n_ddt','ddt_numero','ddt_cliente','rif_ddt','riferimento_ddt']);
+    return firstFilled(record, [
+      'docTrasporto',
+      'doc_trasporto',
+      'documento_trasporto',
+      'ddt',
+      'numero_ddt',
+      'n_ddt',
+      'ddt_numero',
+      'ddt_cliente',
+      'rif_ddt',
+      'riferimento_ddt'
+    ]);
   }
 
   function getQuoteDateLabel(){
