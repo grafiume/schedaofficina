@@ -37,52 +37,6 @@ let _newMainName=null;
 })();
 
 
-const WORKSHOP_PIN_MAP = Object.freeze({
-  '1111': 'Midio',
-  '0000': 'Officina',
-  '2222': 'Commerciale',
-  '3333': 'Graziano'
-});
-
-function getWorkshopTurnDeadline(){
-  const now = new Date();
-  const end = new Date(now);
-  end.setHours(18, 0, 0, 0);
-  return end.getTime();
-}
-
-function isWorkshopTurnValid(){
-  try{
-    const role = sessionStorage.getItem('elip_turn_role') || '';
-    const until = Number(sessionStorage.getItem('elip_turn_until') || '0');
-    return !!role && Number.isFinite(until) && Date.now() < until;
-  }catch(_e){
-    return false;
-  }
-}
-
-async function ensureWorkshopTurnAccess(actionLabel){
-  if(isWorkshopTurnValid()) return true;
-
-  const reason = Date.now() >= getWorkshopTurnDeadline() ? 'Turno scaduto. Reinserisci il PIN operatore.' : 'Inserisci il PIN operatore per continuare.';
-  const pin = prompt('Accesso turno officina\n\n' + reason);
-  if(pin === null) return false;
-
-  const role = WORKSHOP_PIN_MAP[String(pin).trim()];
-  if(!role){
-    alert('PIN non valido.');
-    return false;
-  }
-
-  try{
-    sessionStorage.setItem('elip_turn_role', role);
-    sessionStorage.setItem('elip_turn_until', String(getWorkshopTurnDeadline()));
-  }catch(_e){}
-
-  return true;
-}
-
-
 function parseDateLoose(v){
   if(!v) return null;
   const d = new Date(v);
@@ -286,6 +240,103 @@ function show(id){
   window.state.currentView=id.replace('page-','');
 }
 if (typeof window.state !== 'object'){ window.state={ all:[], currentView:'home', editing:null }; }
+
+
+// ----------------- Auth UI / sessione -----------------
+let _authModal = null;
+let _authReadyPromise = null;
+
+function getLoginReturnUrl(){
+  try{
+    const u = new URL(location.href);
+    u.searchParams.delete('returnTo');
+    return u.pathname + u.search;
+  }catch(_e){
+    return 'index.html';
+  }
+}
+function getStoredEmail(){ try{ return localStorage.getItem('elip_last_email') || ''; }catch(_e){ return ''; } }
+function setStoredEmail(v){ try{ if(v) localStorage.setItem('elip_last_email', v); }catch(_e){} }
+
+async function getCurrentSessionSafe(){
+  if(!sb || !sb.auth) return null;
+  try{
+    const { data } = await sb.auth.getSession();
+    return data?.session || null;
+  }catch(_e){
+    return null;
+  }
+}
+
+function updateAuthButtons(session){
+  const btnOpen = document.getElementById('btnAuthOpen');
+  const btnLogout = document.getElementById('btnLogout');
+  const hint = document.getElementById('authUserHint');
+  const email = session?.user?.email || '';
+  if(btnOpen) btnOpen.textContent = email ? ('Utente: ' + email) : 'Accedi';
+  if(btnLogout) btnLogout.classList.toggle('d-none', !email);
+  if(hint) hint.textContent = email ? ('Sessione attiva: ' + email) : 'Nessuna sessione attiva';
+}
+
+function getAuthModal(){
+  const el = document.getElementById('authModal');
+  if(!el || typeof bootstrap === 'undefined') return null;
+  if(!_authModal) _authModal = new bootstrap.Modal(el, { backdrop:'static', keyboard:false });
+  return _authModal;
+}
+
+function showAuthError(msg){
+  const el = document.getElementById('authErr');
+  if(!el) return;
+  if(msg){
+    el.textContent = msg;
+    el.classList.remove('d-none');
+  }else{
+    el.textContent = '';
+    el.classList.add('d-none');
+  }
+}
+
+async function openAuthModal(forceOpen=false){
+  const modal = getAuthModal();
+  if(!modal) return;
+  const emailEl = document.getElementById('authEmail');
+  const passEl = document.getElementById('authPassword');
+  if(emailEl && !emailEl.value) emailEl.value = getStoredEmail();
+  if(passEl) passEl.value = '';
+  showAuthError('');
+  if(forceOpen) modal.show();
+  else modal.show();
+}
+
+async function doAuthLogin(){
+  const email = (document.getElementById('authEmail')?.value || '').trim();
+  const password = document.getElementById('authPassword')?.value || '';
+  if(!email || !password){
+    showAuthError('Inserisci email e password.');
+    return false;
+  }
+  try{
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if(error) throw error;
+    setStoredEmail(email);
+    updateAuthButtons(data?.session || null);
+    getAuthModal()?.hide();
+    await window.loadAll();
+    return true;
+  }catch(e){
+    showAuthError('Login non riuscito: ' + (e?.message || e));
+    return false;
+  }
+}
+
+async function requireAuthenticatedSession(){
+  const session = await getCurrentSessionSafe();
+  updateAuthButtons(session);
+  if(session) return session;
+  await openAuthModal(true);
+  return null;
+}
 
 // ----------------- Supabase -----------------
 if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){
@@ -896,7 +947,6 @@ function openEdit(id){
 
 // Salva + chiudi richiesta: dopo salvataggio torniamo in Home
 async function saveEdit(closeAfter=true){
-  if(!(await ensureWorkshopTurnAccess('salvataggio scheda'))) return;
   const r=window.state.editing; if(!r) return;
   const localImportoConcordato = val('eImportoConcordato');
   const payload={
@@ -960,7 +1010,6 @@ function previewNewFiles(){
 }
 
 async function createNewRecord(){
-  if(!(await ensureWorkshopTurnAccess('nuova scheda'))) return;
   const dtAper=getV('nApertura')||todayISO();
   const localImportoConcordato = getV('nImportoConcordato');
   const payload={
@@ -1027,6 +1076,12 @@ function showError(msg){ try{ const el=document.getElementById('errBanner'); if(
 
 window.loadAll=async function(){
   try{
+    const session = await getCurrentSessionSafe();
+    updateAuthButtons(session);
+    if(!session){
+      const tb=document.getElementById('homeRows'); if(tb) tb.innerHTML='<tr><td colspan="8" class="text-center py-4 text-muted">Accesso richiesto</td></tr>';
+      return;
+    }
     if(!sb){ showError('Supabase non inizializzato'); return; }
     let { data, error } = await sb
       .from('records')
@@ -1059,6 +1114,14 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const H=(id,fn)=>{ const el=document.getElementById(id); if(el) el.addEventListener('click',fn); };
 
   H('btnHome', ()=>show('page-home'));
+  H('btnAuthOpen', ()=>openAuthModal(true));
+  H('btnAuthLogin', ()=>doAuthLogin());
+  H('btnLogout', async ()=>{
+    try{ await sb.auth.signOut(); }catch(_e){}
+    updateAuthButtons(null);
+    openAuthModal(true);
+    const tb=document.getElementById('homeRows'); if(tb) tb.innerHTML='<tr><td colspan="8" class="text-center py-4 text-muted">Accesso richiesto</td></tr>';
+  });
   H('btnRicerca', ()=>show('page-search'));
   H('btnPreventivi', ()=>{ try{ location.href='preventivi.html'; }catch(e){} });
   H('btnPrioritaReport', ()=>{ alert('Report priorità in preparazione'); });
@@ -1104,7 +1167,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // Preview live per "Nuova scheda"
   const nFiles=document.getElementById('nFiles'); if(nFiles) nFiles.addEventListener('change', previewNewFiles);
 
-  try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
+  try{
+    sb?.auth?.onAuthStateChange?.((_event, session)=>{
+      updateAuthButtons(session || null);
+      if(session) window.loadAll();
+    });
+    requireAuthenticatedSession().then(session=>{ if(session) window.loadAll(); });
+  }catch(e){ showError(e.message||String(e)); }
 });
 // ===== PREVENTIVO BADGE =====
 

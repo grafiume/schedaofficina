@@ -66,6 +66,8 @@
           <button class="btn btn-outline-secondary" id="btnHome">Home</button>
           <button class="btn btn-outline-secondary" id="btnRicerca">Ricerca</button>
           <button class="btn btn-outline-secondary" id="btnPreventivi">Preventivi</button>
+          <button class="btn btn-outline-secondary" id="btnAuthOpen">Accedi</button>
+          <button class="btn btn-outline-danger d-none" id="btnLogout">Esci</button>
           <button class="btn btn-orange" id="btnNew">Nuova scheda</button>
         </div>
       </div>
@@ -354,6 +356,36 @@
           <div class="modal-footer d-flex justify-content-between">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button>
             <button type="button" class="btn btn-orange" id="btnNewSave">Salva</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- AUTH MODAL -->
+    <div class="modal fade" id="authModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Accesso officina</h5>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-warning py-2 mb-3" id="authInfo">
+              Inserisci email e password Supabase dell'operatore. La sessione resta salvata sul dispositivo.
+            </div>
+            <div id="authErr" class="alert alert-danger d-none py-2"></div>
+            <div class="mb-3">
+              <label class="form-label">Email</label>
+              <input id="authEmail" type="email" class="form-control" autocomplete="username">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Password</label>
+              <input id="authPassword" type="password" class="form-control" autocomplete="current-password">
+            </div>
+          </div>
+          <div class="modal-footer d-flex justify-content-between">
+            <div class="small text-muted" id="authUserHint">Nessuna sessione attiva</div>
+            <button type="button" class="btn btn-orange" id="btnAuthLogin">Entra</button>
           </div>
         </div>
       </div>
