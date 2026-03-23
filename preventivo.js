@@ -1160,55 +1160,7 @@
     return `preventivo_${cliente || 'cliente'}_${id}.pdf`;
   }
 
-  async function getLogoDataUrl(){
-    const img = document.querySelector('.brand-logo');
-    if(!img || !img.src) return '';
-    return await new Promise(resolve=>{
-      const tmp = new Image();
-      tmp.crossOrigin = 'anonymous';
-      tmp.onload = ()=>{
-        try{
-          const canvas = document.createElement('canvas');
-          canvas.width = tmp.naturalWidth || tmp.width;
-          canvas.height = tmp.naturalHeight || tmp.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(tmp, 0, 0);
-          resolve(canvas.toDataURL('image/jpeg', 0.92));
-        }catch(_e){
-          resolve('');
-        }
-      };
-      tmp.onerror = ()=>resolve('');
-      tmp.src = img.src;
-    });
-  }
-
   
-  function escapeHtml(value){
-    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-  }
-
-  function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines){
-    const words = String(text || '').split(/\s+/).filter(Boolean);
-    const lines = [];
-    let current = '';
-
-    for(const word of words){
-      const test = current ? (current + ' ' + word) : word;
-      if(ctx.measureText(test).width <= maxWidth){
-        current = test;
-      }else{
-        if(current) lines.push(current);
-        current = word;
-      }
-    }
-    if(current) lines.push(current);
-
-    const finalLines = typeof maxLines === 'number' ? lines.slice(0, maxLines) : lines;
-    finalLines.forEach((line, idx)=>ctx.fillText(line, x, y + idx * lineHeight));
-    return y + finalLines.length * lineHeight;
-  }
-
   async function generateQuotePreviewJpgDataUrl(){
     recalcTotals();
 
@@ -1227,7 +1179,6 @@
 
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(pageX, pageY, pageW, pageH);
-
     ctx.strokeStyle = '#d9dee7';
     ctx.lineWidth = 2;
     ctx.strokeRect(pageX, pageY, pageW, pageH);
@@ -1252,10 +1203,8 @@
     ctx.font = 'bold 40px Arial';
     ctx.textAlign = 'right';
     ctx.fillText('PREVENTIVO', pageX + pageW - 34, pageY + 72);
-
     ctx.font = 'bold 24px Arial';
     ctx.fillText('Elip Tagliente Srl', pageX + pageW - 34, pageY + 108);
-
     ctx.font = '18px Arial';
     ctx.fillStyle = '#667085';
     ctx.fillText('Via Conchia 54/E, Monopoli (BA)', pageX + pageW - 34, pageY + 138);
@@ -1263,8 +1212,6 @@
     ctx.fillText('TEL: +39 080 777 090 - +39 080 887 675', pageX + pageW - 34, pageY + 194);
 
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#1f2937';
-
     const boxY = pageY + 240;
     const leftX = pageX + 34;
     const rightX = pageX + pageW - 34;
@@ -1273,7 +1220,6 @@
     ctx.fillStyle = '#f7f8fa';
     ctx.fillRect(leftX, boxY, midX - leftX - 12, 150);
     ctx.fillRect(midX + 12, boxY, rightX - (midX + 12), 150);
-
     ctx.strokeStyle = '#e6e9ee';
     ctx.strokeRect(leftX, boxY, midX - leftX - 12, 150);
     ctx.strokeRect(midX + 12, boxY, rightX - (midX + 12), 150);
@@ -1285,21 +1231,15 @@
 
     ctx.font = '18px Arial';
     let yy = boxY + 62;
-    ctx.fillText(`Ragione sociale: ${record?.cliente || '-'}`, leftX + 18, yy);
-    yy += 28;
-    ctx.fillText(`Telefono: ${record?.telefono || '-'}`, leftX + 18, yy);
-    yy += 28;
-    ctx.fillText(`Email: ${record?.email || '-'}`, leftX + 18, yy);
-    yy += 28;
+    ctx.fillText(`Ragione sociale: ${record?.cliente || '-'}`, leftX + 18, yy); yy += 28;
+    ctx.fillText(`Telefono: ${record?.telefono || '-'}`, leftX + 18, yy); yy += 28;
+    ctx.fillText(`Email: ${record?.email || '-'}`, leftX + 18, yy); yy += 28;
     ctx.fillText(`Modello: ${record?.modello || '-'}`, leftX + 18, yy);
 
     yy = boxY + 62;
-    ctx.fillText(`Stato: ${quoteState?.status || 'BOZZA'}`, midX + 30, yy);
-    yy += 28;
-    ctx.fillText(`Data invio: ${quoteState?.sent_at || '-'}`, midX + 30, yy);
-    yy += 28;
-    ctx.fillText(`Accettazione: ${quoteState?.accepted_at || '-'}`, midX + 30, yy);
-    yy += 28;
+    ctx.fillText(`Stato: ${quoteState?.status || 'BOZZA'}`, midX + 30, yy); yy += 28;
+    ctx.fillText(`Data invio: ${quoteState?.sent_at || '-'}`, midX + 30, yy); yy += 28;
+    ctx.fillText(`Accettazione: ${quoteState?.accepted_at || '-'}`, midX + 30, yy); yy += 28;
     ctx.fillText(`Consegna: ${quoteState?.delivery_days || '-'} gg`, midX + 30, yy);
 
     const tableX = leftX;
@@ -1325,13 +1265,10 @@
       ctx.fillRect(tableX, rowY, tableW, rowH);
       ctx.strokeStyle = '#e6e9ee';
       ctx.strokeRect(tableX, rowY, tableW, rowH);
-
       ctx.fillStyle = '#1f2937';
       ctx.fillText(String(idx + 1), tableX + 16, rowY + 22);
       ctx.fillText(item.rip_code || '', tableX + col1 + 16, rowY + 22);
-      const desc = item.description || item.rip_code || '';
-      wrapCanvasText(ctx, desc, tableX + col1 + col2 + 16, rowY + 22, col3 - 24, 18, 1);
-
+      ctx.fillText(item.description || item.rip_code || '', tableX + col1 + col2 + 16, rowY + 22);
       rowY += rowH;
     });
 
@@ -1379,14 +1316,14 @@
       ctx.fillRect(tableX, notesY, tableW, 150);
       ctx.strokeStyle = '#e6e9ee';
       ctx.strokeRect(tableX, notesY, tableW, 150);
-
       ctx.fillStyle = '#1f2937';
       ctx.font = 'bold 20px Arial';
       ctx.fillText('Note', tableX + 18, notesY + 30);
-
       ctx.font = '17px Arial';
       ctx.fillStyle = '#344054';
-      wrapCanvasText(ctx, notes, tableX + 18, notesY + 62, tableW - 36, 24, 4);
+      const noteText = notes.length > 320 ? notes.slice(0, 317) + '...' : notes;
+      const noteLines = noteText.match(/.{1,95}(\s|$)/g) || [noteText];
+      noteLines.slice(0,4).forEach((line, idx)=>ctx.fillText(line.trim(), tableX + 18, notesY + 62 + idx * 24));
     }
 
     ctx.fillStyle = '#98a2b3';
@@ -1399,14 +1336,38 @@
 
   async function renderStandalonePreviewImage(){
     const dataUrl = await generateQuotePreviewJpgDataUrl();
+    const safeName = buildQuoteFilename().replace(/\.pdf$/i, '.jpg');
     document.documentElement.style.background = '#111827';
     document.body.innerHTML = `
       <div style="min-height:100vh;background:#111827;display:flex;align-items:center;justify-content:center;padding:24px;">
         <img src="${dataUrl}" alt="Anteprima preventivo JPG" style="max-width:min(96vw,980px);max-height:96vh;box-shadow:0 20px 60px rgba(0,0,0,.45);border-radius:12px;background:#fff;">
       </div>`;
-    document.title = getPdfFilename().replace(/\.pdf$/i, '') + ' JPG';
+    document.title = safeName;
   }
 
+
+  async function getLogoDataUrl(){
+    const img = document.querySelector('.brand-logo');
+    if(!img || !img.src) return '';
+    return await new Promise(resolve=>{
+      const tmp = new Image();
+      tmp.crossOrigin = 'anonymous';
+      tmp.onload = ()=>{
+        try{
+          const canvas = document.createElement('canvas');
+          canvas.width = tmp.naturalWidth || tmp.width;
+          canvas.height = tmp.naturalHeight || tmp.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(tmp, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg', 0.92));
+        }catch(_e){
+          resolve('');
+        }
+      };
+      tmp.onerror = ()=>resolve('');
+      tmp.src = img.src;
+    });
+  }
 
   async function generateQuotePdfBlob(){
     recalcTotals();
