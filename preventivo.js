@@ -211,8 +211,8 @@
       recalcTotals();
       renderAll();
 
-      if(qs().get('popup_pdf') === '1'){
-        await renderPdfPopupPreview();
+      if(qs().get('preview_pdf') === '1'){
+        await openPdfPreviewPopupMode();
         return;
       }
     }catch(e){
@@ -1183,7 +1183,35 @@
     });
   }
 
-  async function generateQuotePdfBlob(){
+  
+  async function openPdfPreviewPopupMode(){
+    const blob = await generateQuotePdfBlob();
+    const blobUrl = URL.createObjectURL(blob);
+    const safeTitle = 'Anteprima PDF preventivo';
+
+    document.title = safeTitle;
+    document.body.innerHTML = `
+      <div style="position:fixed;inset:0;background:#1f2937;display:flex;flex-direction:column;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#111827;color:#fff;font:600 14px Arial,sans-serif;">
+          <div>${safeTitle}</div>
+          <div style="display:flex;gap:8px;">
+            <button id="btnOpenPdfTab" style="border:0;border-radius:8px;padding:8px 12px;background:#ff7a00;color:#fff;cursor:pointer;font-weight:600;">Apri PDF</button>
+            <button id="btnClosePdfPreview" style="border:0;border-radius:8px;padding:8px 12px;background:#374151;color:#fff;cursor:pointer;font-weight:600;">Chiudi</button>
+          </div>
+        </div>
+        <iframe id="pdfPreviewFrame" src="${blobUrl}#zoom=200" style="flex:1;width:100%;border:0;background:#52525b;"></iframe>
+      </div>
+    `;
+
+    document.getElementById('btnOpenPdfTab')?.addEventListener('click', ()=>window.open(blobUrl, '_blank'));
+    document.getElementById('btnClosePdfPreview')?.addEventListener('click', ()=>window.close());
+
+    window.addEventListener('beforeunload', ()=>{
+      try{ URL.revokeObjectURL(blobUrl); }catch(_e){}
+    }, { once:true });
+  }
+
+async function generateQuotePdfBlob(){
     recalcTotals();
 
     const jspdfNs = window.jspdf;
@@ -1329,32 +1357,6 @@
     a.remove();
     setTimeout(()=>URL.revokeObjectURL(url), 2000);
   }
-  async function renderPdfPopupPreview(){
-    try{
-      clearErr();
-      await saveIfNeededForSharing();
-      const pdf = await generateQuotePdfBlob();
-      const url = URL.createObjectURL(pdf.blob);
-
-      document.title = pdf.filename.replace(/\.pdf$/i, '') + ' • Anteprima PDF';
-      document.documentElement.style.height = '100%';
-      document.body.style.margin = '0';
-      document.body.style.height = '100%';
-      document.body.style.background = '#111827';
-      document.body.innerHTML = `
-        <div style="position:fixed;inset:0;background:#111827;">
-          <iframe
-            src="${url}#zoom=200"
-            style="width:100%;height:100%;border:0;background:#111827;"
-            title="Anteprima PDF preventivo">
-          </iframe>
-        </div>
-      `;
-    }catch(e){
-      showErr('Errore anteprima PDF: ' + (e?.message || e));
-    }
-  }
-
 
   function buildShareText(){
     return [
