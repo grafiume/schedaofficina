@@ -1215,18 +1215,8 @@
     const safeTitle = 'Anteprima PDF preventivo';
 
     document.title = safeTitle;
-    document.body.innerHTML = `
-      <div style="position:fixed;inset:0;background:#1f2937;display:flex;flex-direction:column;">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#111827;color:#fff;font:600 14px Arial,sans-serif;">
-          <div>${safeTitle}</div>
-          <div style="display:flex;gap:8px;">
-            <button id="btnOpenPdfTab" style="border:0;border-radius:8px;padding:8px 12px;background:#ff7a00;color:#fff;cursor:pointer;font-weight:600;">Apri PDF</button>
-            <button id="btnClosePdfPreview" style="border:0;border-radius:8px;padding:8px 12px;background:#374151;color:#fff;cursor:pointer;font-weight:600;">Chiudi</button>
-          </div>
-        </div>
-        <iframe id="pdfPreviewFrame" src="${blobUrl}#zoom=200" style="flex:1;width:100%;border:0;background:#52525b;"></iframe>
-      </div>
-    `;
+    document.body.style.margin = '0';
+    document.body.innerHTML = `<iframe id="pdfPreviewFrame" src="${blobUrl}#zoom=100" style="position:fixed;inset:0;width:100%;height:100%;border:0;background:#52525b;"></iframe>`;
 
     document.getElementById('btnOpenPdfTab')?.addEventListener('click', ()=>window.open(blobUrl, '_blank'));
     document.getElementById('btnClosePdfPreview')?.addEventListener('click', ()=>window.close());
