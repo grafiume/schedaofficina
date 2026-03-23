@@ -66,6 +66,7 @@
           <button class="btn btn-outline-secondary" id="btnHome">Home</button>
           <button class="btn btn-outline-secondary" id="btnRicerca">Ricerca</button>
           <button class="btn btn-outline-secondary" id="btnPreventivi">Preventivi</button>
+          <button class="btn btn-outline-secondary" id="btnPrioritaReport">Priorità</button>
           <button class="btn btn-orange" id="btnNew">Nuova scheda</button>
         </div>
       </div>
@@ -229,4 +230,161 @@
 
           <div class="card mt-3">
             <div class="card-header py-2"><strong>Dati tecnici</strong></div>
-      
+            <div class="card-body">
+              <div class="row g-2">
+                <div class="col-md-3"><label class="form-label">Batt. collettore</label><input id="eBatt" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Lunghezza asse</label><input id="eAsse" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Lunghezza pacco</label><input id="ePacco" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Larghezza pacco</label><input id="eLarg" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Punta</label>
+                  <select id="ePunta" class="form-select">
+                    <option></option><option>Sinistra</option><option>Destra</option><option>Dritta</option>
+                  </select>
+                </div>
+                <div class="col-md-3"><label class="form-label">N. punte</label><input id="eNP" class="form-control"></div>
+                <div class="col-md-6"><label class="form-label">Note</label><input id="eNote" class="form-control"></div>
+              </div>
+            </div>
+          </div>
+
+
+          <div class="d-grid my-3 gap-2">
+            <button class="btn btn-orange btn-lg" id="btnSave">Salva scheda</button>
+            <button class="btn btn-outline-primary" id="btnQuoteOpen">Preventivo</button>
+            <button class="btn btn-outline-secondary" id="btnCancel">Annulla</button>
+          </div>
+
+          <div class="card mt-3 cass-map-card">
+            <div class="card-header py-2">
+              <strong>Mappa cassetti A1-A50</strong>
+              <div class="cass-legend">
+                <span><span class="cass-dot free"></span>Liberi</span>
+                <span><span class="cass-dot occupied"></span>Occupati</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <div id="editCassMap" class="cass-grid"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-5">
+          <div class="card">
+            <div class="card-header py-2"><strong>Anteprima immagine</strong> <small class="text-muted">4:3 • adattata</small></div>
+            <div class="card-body">
+              <div class="img-preview text-muted">Nessuna immagine disponibile</div>
+              <div class="small text-muted mt-2">Suggerimento: puoi scattare o scegliere più immagini. La prima caricata viene mostrata qui sopra e puoi sempre scegliere quale tenere in primo piano.</div>
+              <div class="mt-3">
+                <label class="form-label">Aggiungi foto (multiplo)</label>
+                <input id="eFiles" class="form-control" type="file" multiple accept="image/*" />
+                <div class="d-grid mt-2"><button class="btn btn-outline-primary" id="btnUpload">Aggiungi foto</button></div>
+                <div class="row g-2 mt-2" id="gallery"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODALE: NUOVA SCHEDA -->
+    <div class="modal fade" id="newRecordModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Nuova scheda</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-lg-7">
+                <div class="row g-2">
+                  <div class="col-md-8"><label class="form-label">Descrizione</label><input id="nDescrizione" class="form-control"></div>
+                  <div class="col-md-4"><label class="form-label">Modello</label><input id="nModello" class="form-control"></div>
+                  <div class="col-md-4"><label class="form-label">Data apertura</label><input id="nApertura" type="date" class="form-control"></div>
+                  <div class="col-md-4"><label class="form-label">Data accettazione</label><input id="nAcc" type="date" class="form-control"></div>
+                  <div class="col-md-4"><label class="form-label">Data scadenza</label><input id="nScad" type="date" class="form-control"></div>
+                  <div class="col-md-4"><label class="form-label">Stato</label>
+                    <select id="nStato" class="form-select"><option>In attesa</option><option>In lavorazione</option><option>Completata</option></select></div>
+                  <div class="col-md-4">
+                  <label class="form-label">Cassetto</label>
+                  <input id="nCassetto" class="form-control" placeholder="es. A1">
+                  <div class="cass-tools">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnNewCassAuto">Primo libero</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnNewCassClear">Pulisci</button>
+                  </div>
+                </div>
+                  <div class="col-md-4"><label class="form-label">Documento Trasporto</label><input id="nDDT" class="form-control"></div>
+                                    <div class="col-md-6"><label class="form-label">Nome / Ragione sociale</label><input id="nCliente" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Telefono</label><input id="nTel" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Email</label><input id="nEmail" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Batt. collettore</label><input id="nBatt" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Lunghezza asse</label><input id="nAsse" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Lunghezza pacco</label><input id="nPacco" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Larghezza pacco</label><input id="nLarg" class="form-control"></div>
+                  <div class="col-md-3"><label class="form-label">Punta</label>
+                    <select id="nPunta" class="form-select"><option></option><option>Sinistra</option><option>Destra</option><option>Dritta</option></select></div>
+                  <div class="col-md-3"><label class="form-label">N. punte</label><input id="nNP" class="form-control"></div>
+                  <div class="col-md-6"><label class="form-label">Note</label><input id="nNote" class="form-control"></div>
+                </div>
+
+                <div class="card mt-3 importo-card">
+                  <div class="card-body text-center">
+                    <div class="label">Importo concordato (€)</div>
+                    <div class="row justify-content-center">
+                      <div class="col-md-8">
+                        <input id="nImportoConcordato" class="form-control" inputmode="decimal">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-5">
+                <label class="form-label">Immagini</label>
+                <div class="img-preview mb-2" id="nPreview">Nessuna immagine</div>
+                <input id="nFiles" class="form-control" type="file" accept="image/*" multiple>
+                <div class="form-text">Puoi scattare la foto o scegliere dalla galleria. Puoi selezionare più immagini e poi decidere quale tenere in primo piano.</div>
+                <div class="card mt-3 cass-map-card">
+                  <div class="card-header py-2"><strong>Mappa cassetti A1-A50</strong></div>
+                  <div class="card-body">
+                    <div id="newCassMap" class="cass-grid"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer d-flex justify-content-between">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button>
+            <button type="button" class="btn btn-orange" id="btnNewSave">Salva</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OVERLAY -->
+    <div id="imgOverlay" aria-hidden="true">
+      <div class="frame">
+        <button class="closeBtn" aria-label="Chiudi" title="Chiudi">&times;</button>
+        <img id="imgOverlayImg" alt="Anteprima immagine">
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script>
+      (function addSupabasePreconnect(){
+        try{
+          if(!window.SUPABASE_URL) return;
+          var a=document.createElement("a"); a.href=window.SUPABASE_URL;
+          var origin=a.origin;
+          var link1=document.createElement("link"); link1.rel="preconnect"; link1.href=origin; link1.crossOrigin="anonymous"; document.head.appendChild(link1);
+          var link2=document.createElement("link"); link2.rel="dns-prefetch"; link2.href=origin; document.head.appendChild(link2);
+        }catch(e){}
+      })();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="cassetti-integration.js?v=1"></script>
+    <script src="app.v25.js?v=26"></script>
+  </body>
+</html>
