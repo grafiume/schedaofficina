@@ -92,7 +92,6 @@ function getQuoteInfo(recordId){
   if(!row) return emptyQuoteInfo();
   const status = String(row.status || '').toUpperCase();
   return {
-    attivi: document.getElementById('fAttivi')?.value || 'attivi',
     quoteId: row.id || null,
     status,
     accepted: status === 'ACCETTATO' || !!row.accepted_at,
@@ -185,7 +184,7 @@ function buildQuoteBadge(record){
 
   const span = document.createElement('span');
   let badgeClass = 'p-gray';
-  let badgeTitle = 'Preventivo non creato';
+  let badgeTitle = 'Preventivo non inviato';
 
   if (hasImporto || hasAccepted) {
     badgeClass = 'p-green';
@@ -196,7 +195,8 @@ function buildQuoteBadge(record){
   }
 
   span.className = 'badge-p ' + badgeClass;
-  span.title = badgeTitle;
+  span.title = badgeTitle + ' • clic per anteprima JPG';
+  span.setAttribute('aria-label', badgeTitle);
   span.textContent = 'P';
   span.style.cursor = 'pointer';
   span.addEventListener('click', async (ev) => {
@@ -210,9 +210,12 @@ function buildQuoteBadge(record){
     }
     const fresh = getQuoteInfo(record.id);
     if (fresh && fresh.quoteId) {
-      try{ location.href = 'preventivo.html?id=' + encodeURIComponent(fresh.quoteId); }catch(e){}
+      try{
+        const url = 'preventivo.html?id=' + encodeURIComponent(fresh.quoteId) + '&preview_image=1';
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }catch(e){}
     } else {
-      alert('Preventivo non creato');
+      alert('Preventivo non disponibile');
     }
   });
   return span;
@@ -607,10 +610,6 @@ function getSearchFilters(){
 function toNum(val){ if(val==null) return null; const s=String(val).trim().replace(',', '.'); if(s==='') return null; const n=Number(s); return Number.isFinite(n)?n:null; }
 function isNumEq(fv, rv){ if(fv==null || String(fv).trim()==='') return true; const f=toNum(fv), r=toNum(rv); if(f===null||r===null) return false; return f===r; }
 function matchRow(r,f){
-  if(f.attivi === 'attivi'){
-    const stato = String(r.statoPratica || '').toLowerCase();
-    if(stato.includes('completata') || stato.includes('chiusa')) return false;
-  }
   if(f.q){
     const hay=[r.cassetto,r.descrizione,r.modello,r.cliente,r.telefono,r.docTrasporto].map(norm).join(' ');
     const tokens=norm(f.q).split(/\s+/).filter(Boolean);
