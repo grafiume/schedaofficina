@@ -272,10 +272,11 @@ function updateAuthButtons(session){
   const btnOpen = document.getElementById('btnAuthOpen');
   const btnLogout = document.getElementById('btnLogout');
   const hint = document.getElementById('authUserHint');
-  const email = session?.user?.email || '';
-  if(btnOpen) btnOpen.textContent = email ? ('Utente: ' + email) : 'Accedi';
-  if(btnLogout) btnLogout.classList.toggle('d-none', !email);
-  if(hint) hint.textContent = email ? ('Sessione attiva: ' + email) : 'Nessuna sessione attiva';
+  const isLogged = !!(session?.user?.email);
+
+  if(btnOpen) btnOpen.classList.toggle('d-none', isLogged);
+  if(btnLogout) btnLogout.classList.toggle('d-none', !isLogged);
+  if(hint) hint.textContent = isLogged ? 'Sessione attiva' : 'Nessuna sessione attiva';
 }
 
 function getAuthModal(){
