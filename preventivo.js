@@ -247,6 +247,36 @@
     }
   }
 
+
+  async function fetchQuoteRowById(id, notFoundMsg){
+    let lastError = null;
+    for(let i=0;i<3;i++){
+      const { data, error } = await sb
+        .from('quotes')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if(!error && data) return data;
+      if(error) lastError = error;
+      if(i < 2) await new Promise(r => setTimeout(r, 180));
+    }
+    if(lastError) throw lastError;
+    throw new Error(notFoundMsg || 'Preventivo non trovato.');
+  }
+
+  async function fetchRecordRowById(id, notFoundMsg){
+    const { data, error } = await sb
+      .from('records')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if(error) throw error;
+    if(!data) throw new Error(notFoundMsg || 'Scheda collegata non trovata.');
+    return data;
+  }
+
   async function buildStateFromQuoteRow(data){
     const state = emptyQuoteState(data.record_id);
 
@@ -298,14 +328,7 @@
   }
 
   async function loadQuoteById(id){
-    const { data, error } = await sb
-      .from('quotes')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if(error) throw error;
-
+    const data = await fetchQuoteRowById(id, 'Preventivo non trovato.');
     currentQuoteId = data.id;
     await loadRecordData(data.record_id);
     quoteState = await buildStateFromQuoteRow(data);
@@ -357,14 +380,7 @@
   }
 
   async function loadRecordData(recordId){
-    const { data, error } = await sb
-      .from('records')
-      .select('*')
-      .eq('id', recordId)
-      .single();
-
-    if(error) throw error;
-    record = data;
+    record = await fetchRecordRowById(recordId, 'Scheda collegata non trovata.');
   }
 
   function bindUI(){
@@ -886,13 +902,7 @@
         history.replaceState({}, '', u.toString());
       }catch{}
 
-      const { data: savedRow, error: savedErr } = await sb
-        .from('quotes')
-        .select('*')
-        .eq('id', currentQuoteId)
-        .single();
-
-      if(savedErr) throw savedErr;
+      const savedRow = await fetchQuoteRowById(currentQuoteId, 'Preventivo salvato ma non trovato al ricaricamento.');
 
       quoteState = await buildStateFromQuoteRow(savedRow);
       originalState = clone(quoteState);
