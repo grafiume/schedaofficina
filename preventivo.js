@@ -82,6 +82,10 @@
     return `${String(x.getDate()).padStart(2,'0')}/${String(x.getMonth()+1).padStart(2,'0')}/${x.getFullYear()}`;
   }
 
+  const PREVENTIVI_LIST_URL = 'https://grafiume.github.io/schedaofficina/preventivi.html';
+  const MAIN_INDEX_URL = 'https://grafiume.github.io/schedaofficina/index.html';
+
+
   function getFreeDefaultDescription(code){
     return code === 'RIP00' ? 'LAVORAZIONE LIBERA' : 'LAVORAZIONE LIBERA';
   }
@@ -247,36 +251,6 @@
     }
   }
 
-
-  async function fetchQuoteRowById(id, notFoundMsg){
-    let lastError = null;
-    for(let i=0;i<3;i++){
-      const { data, error } = await sb
-        .from('quotes')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if(!error && data) return data;
-      if(error) lastError = error;
-      if(i < 2) await new Promise(r => setTimeout(r, 180));
-    }
-    if(lastError) throw lastError;
-    throw new Error(notFoundMsg || 'Preventivo non trovato.');
-  }
-
-  async function fetchRecordRowById(id, notFoundMsg){
-    const { data, error } = await sb
-      .from('records')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-
-    if(error) throw error;
-    if(!data) throw new Error(notFoundMsg || 'Scheda collegata non trovata.');
-    return data;
-  }
-
   async function buildStateFromQuoteRow(data){
     const state = emptyQuoteState(data.record_id);
 
@@ -328,7 +302,14 @@
   }
 
   async function loadQuoteById(id){
-    const data = await fetchQuoteRowById(id, 'Preventivo non trovato.');
+    const { data, error } = await sb
+      .from('quotes')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if(error) throw error;
+
     currentQuoteId = data.id;
     await loadRecordData(data.record_id);
     quoteState = await buildStateFromQuoteRow(data);
@@ -380,11 +361,24 @@
   }
 
   async function loadRecordData(recordId){
-    record = await fetchRecordRowById(recordId, 'Scheda collegata non trovata.');
+    const { data, error } = await sb
+      .from('records')
+      .select('*')
+      .eq('id', recordId)
+      .single();
+
+    if(error) throw error;
+    record = data;
   }
 
   function bindUI(){
-    $('btnBack')?.addEventListener('click', ()=>history.back());
+    $('btnBack')?.addEventListener('click', ()=>{
+      location.href = PREVENTIVI_LIST_URL;
+    });
+
+    $('btnMainIndex')?.addEventListener('click', ()=>{
+      location.href = MAIN_INDEX_URL;
+    });
 
     $('btnOpenRecord')?.addEventListener('click', ()=>{
       if(record?.id){
@@ -902,7 +896,13 @@
         history.replaceState({}, '', u.toString());
       }catch{}
 
-      const savedRow = await fetchQuoteRowById(currentQuoteId, 'Preventivo salvato ma non trovato al ricaricamento.');
+      const { data: savedRow, error: savedErr } = await sb
+        .from('quotes')
+        .select('*')
+        .eq('id', currentQuoteId)
+        .single();
+
+      if(savedErr) throw savedErr;
 
       quoteState = await buildStateFromQuoteRow(savedRow);
       originalState = clone(quoteState);
