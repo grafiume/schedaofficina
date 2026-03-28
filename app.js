@@ -262,7 +262,12 @@ function matchRow(r,f){
     for(const t of tokens){ if(!hay.includes(t)) return false; }
   }
   if(f.cassetto && norm(r.cassetto)!==norm(f.cassetto)) return false;
-  if(f.noteExact && norm(r.note)!==norm(f.noteExact)) return false;
+  if(f.noteExact){
+    const noteWords = new Set(norm(r.note).split(/[^a-z0-9]+/).filter(Boolean));
+    const noteTokens = norm(f.noteExact).split(/[^a-z0-9]+/).filter(Boolean);
+    if(!noteTokens.length) return false;
+    for(const t of noteTokens){ if(!noteWords.has(t)) return false; }
+  }
   if(!isNumEq(f.batt,r.battCollettore)) return false;
   if(!isNumEq(f.asse,r.lunghezzaAsse)) return false;
   if(!isNumEq(f.pacco,r.lunghezzaPacco)) return false;
