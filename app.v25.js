@@ -76,12 +76,24 @@ async function refreshQuoteCache(){
       if (st === 'BOZZA') return 2;
       return 1;
     }
+    function createdTs(row){
+      const t = Date.parse(row?.created_at || '');
+      return Number.isFinite(t) ? t : 0;
+    }
 
     for(const row of (data || [])){
       const key = row.record_id;
       if(!key) continue;
       const prev = window.state.quoteMap[key];
-      if(!prev || rank(row) > rank(prev)) window.state.quoteMap[key] = row;
+      if(!prev){
+        window.state.quoteMap[key] = row;
+        continue;
+      }
+      const rowRank = rank(row);
+      const prevRank = rank(prev);
+      if (rowRank > prevRank || (rowRank === prevRank && createdTs(row) > createdTs(prev))) {
+        window.state.quoteMap[key] = row;
+      }
     }
   }catch(e){
     console.warn('refreshQuoteCache failed', e);
@@ -202,19 +214,21 @@ function buildQuoteBadge(record){
   span.addEventListener('click', async (ev) => {
     ev.stopPropagation();
     const forced = record?.importoConcordato || document.getElementById('eImportoConcordato')?.value || null;
+    let createdQuoteId = null;
     if (forced) {
       try{
-        await syncAutoQuoteForRecord(Object.assign({}, record, { importoConcordato: forced }), forced);
+        createdQuoteId = await syncAutoQuoteForRecord(Object.assign({}, record, { importoConcordato: forced }), forced);
         await refreshQuoteCache();
       }catch(e){}
     }
     const fresh = getQuoteInfo(record.id);
-    if (fresh && fresh.quoteId) {
+    const targetQuoteId = createdQuoteId || (fresh && fresh.quoteId) || null;
+    if (targetQuoteId) {
       try{
-        const url = 'preventivo.html?id=' + encodeURIComponent(fresh.quoteId) + '&preview_pdf=1';
+        const url = 'preventivo.html?id=' + encodeURIComponent(targetQuoteId) + '&preview_pdf=1';
         window.open(url, 'previewPreventivoPdf', 'popup=yes,width=1500,height=980,resizable=yes,scrollbars=yes');
       }catch(e){
-        location.href = 'preventivo.html?id=' + encodeURIComponent(fresh.quoteId);
+        location.href = 'preventivo.html?id=' + encodeURIComponent(targetQuoteId);
       }
     } else {
       alert('Preventivo non disponibile');
@@ -927,10 +941,11 @@ function openEdit(id){
     qBtn.onclick=async ()=>{
       try{
         const forced = document.getElementById('eImportoConcordato')?.value || r.importoConcordato || null;
-        await syncAutoQuoteForRecord(Object.assign({}, r, { importoConcordato: forced }), forced);
+        const createdQuoteId = await syncAutoQuoteForRecord(Object.assign({}, r, { importoConcordato: forced }), forced);
         await refreshQuoteCache();
         const q = getQuoteInfo(r.id);
-        if (q && q.quoteId) location.href = 'preventivo.html?id=' + encodeURIComponent(q.quoteId);
+        const targetQuoteId = createdQuoteId || (q && q.quoteId) || null;
+        if (targetQuoteId) location.href = 'preventivo.html?id=' + encodeURIComponent(targetQuoteId);
         else location.href = 'preventivo.html?record_id=' + encodeURIComponent(r.id);
       }
       catch(e){}

@@ -328,27 +328,40 @@
 
     if(error) throw error;
 
-    const meaningful = (data || []).find(q =>
-      Number(q.subtotal_ex_vat || 0) > 0 ||
-      !!q.notes ||
-      !!q.sent_at ||
-      !!q.accepted_at ||
-      !!q.delivery_days ||
-      !!q.delivery_date ||
-      !!q.is_urgent ||
-      ((q.status || 'BOZZA') !== 'BOZZA') ||
-      (Array.isArray(q.quote_items) && q.quote_items.length > 0)
+    const rows = data || [];
+    const isMeaningful = (q) => (
+      Number(q?.subtotal_ex_vat || 0) > 0 ||
+      !!q?.notes ||
+      !!q?.sent_at ||
+      !!q?.accepted_at ||
+      !!q?.delivery_days ||
+      !!q?.delivery_date ||
+      !!q?.is_urgent ||
+      ((q?.status || 'BOZZA') !== 'BOZZA') ||
+      (Array.isArray(q?.quote_items) && q.quote_items.length > 0)
     );
+    const isAccepted = (q) => {
+      const st = String(q?.status || '').toUpperCase();
+      return st === 'ACCETTATO' || !!q?.accepted_at;
+    };
+    const isSent = (q) => {
+      const st = String(q?.status || '').toUpperCase();
+      return st === 'INVIATO' || !!q?.sent_at;
+    };
 
-    if(meaningful){
-      currentQuoteId = meaningful.id;
-      quoteState = await buildStateFromQuoteRow(meaningful);
+    const acceptedOrSent = rows.find(q => isMeaningful(q) && (isAccepted(q) || isSent(q)));
+    const bozza = rows.find(q => isMeaningful(q));
+    const chosen = acceptedOrSent || bozza || null;
+
+    if(chosen){
+      currentQuoteId = chosen.id;
+      quoteState = await buildStateFromQuoteRow(chosen);
       originalState = clone(quoteState);
 
       try{
         const u = new URL(location.href);
         u.searchParams.delete('record_id');
-        u.searchParams.set('id', meaningful.id);
+        u.searchParams.set('id', chosen.id);
         history.replaceState({}, '', u.toString());
       }catch{}
 
