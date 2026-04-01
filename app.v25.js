@@ -76,24 +76,12 @@ async function refreshQuoteCache(){
       if (st === 'BOZZA') return 2;
       return 1;
     }
-    function createdTs(row){
-      const t = Date.parse(row?.created_at || '');
-      return Number.isFinite(t) ? t : 0;
-    }
 
     for(const row of (data || [])){
       const key = row.record_id;
       if(!key) continue;
       const prev = window.state.quoteMap[key];
-      if(!prev){
-        window.state.quoteMap[key] = row;
-        continue;
-      }
-      const rowRank = rank(row);
-      const prevRank = rank(prev);
-      if (rowRank > prevRank || (rowRank === prevRank && createdTs(row) > createdTs(prev))) {
-        window.state.quoteMap[key] = row;
-      }
+      if(!prev || rank(row) > rank(prev)) window.state.quoteMap[key] = row;
     }
   }catch(e){
     console.warn('refreshQuoteCache failed', e);
@@ -214,21 +202,19 @@ function buildQuoteBadge(record){
   span.addEventListener('click', async (ev) => {
     ev.stopPropagation();
     const forced = record?.importoConcordato || document.getElementById('eImportoConcordato')?.value || null;
-    let createdQuoteId = null;
     if (forced) {
       try{
-        createdQuoteId = await syncAutoQuoteForRecord(Object.assign({}, record, { importoConcordato: forced }), forced);
+        await syncAutoQuoteForRecord(Object.assign({}, record, { importoConcordato: forced }), forced);
         await refreshQuoteCache();
       }catch(e){}
     }
     const fresh = getQuoteInfo(record.id);
-    const targetQuoteId = createdQuoteId || (fresh && fresh.quoteId) || null;
-    if (targetQuoteId) {
+    if (fresh && fresh.quoteId) {
       try{
-        const url = 'preventivo.html?id=' + encodeURIComponent(targetQuoteId) + '&preview_pdf=1';
+        const url = 'preventivo.html?id=' + encodeURIComponent(fresh.quoteId) + '&preview_pdf=1';
         window.open(url, 'previewPreventivoPdf', 'popup=yes,width=1500,height=980,resizable=yes,scrollbars=yes');
       }catch(e){
-        location.href = 'preventivo.html?id=' + encodeURIComponent(targetQuoteId);
+        location.href = 'preventivo.html?id=' + encodeURIComponent(fresh.quoteId);
       }
     } else {
       alert('Preventivo non disponibile');
@@ -518,10 +504,11 @@ async function createOrUpdateAutoQuoteItems(quoteId, amount){
   try { await sb.from('quote_items').delete().eq('quote_id', quoteId); } catch(e) {}
 
   const candidates = [
-    { quote_id: quoteId, code:'RIP 00', description:noteText, qty:1, unit_price:amount, line_total:amount },
-    { quote_id: quoteId, codice:'RIP 00', descrizione:noteText, quantita:1, prezzo:amount, totale:amount },
-    { quote_id: quoteId, sku:'RIP 00', description:noteText, quantity:1, unit_price:amount, total:amount },
-    { quote_id: quoteId, item_code:'RIP 00', descrizione:noteText, qta:1, prezzo_unitario:amount, totale_riga:amount }
+    { quote_id: quoteId, position:0, rip_code:'RIP00', description:noteText, qty:1, unit_price_ex_vat:amount, line_total_ex_vat:amount, line_progress_percent:0, work_status:'DA_FARE' },
+    { quote_id: quoteId, code:'RIP00', description:noteText, qty:1, unit_price:amount, line_total:amount },
+    { quote_id: quoteId, codice:'RIP00', descrizione:noteText, quantita:1, prezzo:amount, totale:amount },
+    { quote_id: quoteId, sku:'RIP00', description:noteText, quantity:1, unit_price:amount, total:amount },
+    { quote_id: quoteId, item_code:'RIP00', descrizione:noteText, qta:1, prezzo_unitario:amount, totale_riga:amount }
   ];
 
   for(const payload of candidates){
@@ -584,11 +571,37 @@ async function syncAutoQuoteForRecord(record, forcedAmount){
     return null;
   }
 
-  const manual = rows.find(x => !String(x.notes || '').includes('[AUTO_RIP00]'));
-  if(manual) return manual.id || null;
-
   let autoQuote = rows.find(x => String(x.notes || '').includes('[AUTO_RIP00]')) || null;
   let quoteId = autoQuote?.id || null;
+
+  const manual = rows.find(x => !String(x.notes || '').includes('[AUTO_RIP00]'));
+  if(manual){
+    let manualItems = [];
+    try{
+      const itemsRes = await sb
+        .from('quote_items')
+        .select('id,rip_code,description,unit_price_ex_vat,line_total_ex_vat,qty')
+        .eq('quote_id', manual.id)
+        .limit(20);
+      manualItems = itemsRes.data || [];
+    }catch(e){}
+
+    const hasManualItems = manualItems.some(it =>
+      Number(it?.line_total_ex_vat || 0) > 0 ||
+      Number(it?.unit_price_ex_vat || 0) > 0 ||
+      Number(it?.qty || 0) > 1 ||
+      !!String(it?.description || '').trim() ||
+      !!String(it?.rip_code || '').trim()
+    );
+    const hasManualHeader =
+      Number(manual?.subtotal_ex_vat || 0) > 0 ||
+      !!String(manual?.accepted_at || '').trim() ||
+      !!String(manual?.notes || '').trim();
+
+    if(hasManualItems || hasManualHeader) return manual.id || null;
+
+    quoteId = manual.id;
+  }
 
   const quotePayload = {
     record_id: record.id,
@@ -633,7 +646,7 @@ async function syncAutoQuoteForRecord(record, forcedAmount){
     const itemPayload = {
       quote_id: quoteId,
       position: 0,
-      rip_code: 'RIP 00',
+      rip_code: 'RIP00',
       description: lineText,
       qty: 1,
       unit_price_ex_vat: amount,
@@ -941,11 +954,10 @@ function openEdit(id){
     qBtn.onclick=async ()=>{
       try{
         const forced = document.getElementById('eImportoConcordato')?.value || r.importoConcordato || null;
-        const createdQuoteId = await syncAutoQuoteForRecord(Object.assign({}, r, { importoConcordato: forced }), forced);
+        await syncAutoQuoteForRecord(Object.assign({}, r, { importoConcordato: forced }), forced);
         await refreshQuoteCache();
         const q = getQuoteInfo(r.id);
-        const targetQuoteId = createdQuoteId || (q && q.quoteId) || null;
-        if (targetQuoteId) location.href = 'preventivo.html?id=' + encodeURIComponent(targetQuoteId);
+        if (q && q.quoteId) location.href = 'preventivo.html?id=' + encodeURIComponent(q.quoteId);
         else location.href = 'preventivo.html?record_id=' + encodeURIComponent(r.id);
       }
       catch(e){}

@@ -251,6 +251,10 @@
     }
   }
 
+  function normalizeRipCode(value){
+    return String(value || '').toUpperCase().replace(/\s+/g, '');
+  }
+
   async function buildStateFromQuoteRow(data){
     const state = emptyQuoteState(data.record_id);
 
@@ -279,8 +283,9 @@
     if(error) throw error;
 
     (items || []).forEach((x, idx)=>{
-      const code = x.rip_code || WORKS[idx]?.code || '';
-      if(!code) return;
+      const rawCode = x.rip_code || x.code || x.codice || x.item_code || x.sku || WORKS[idx]?.code || '';
+      const code = normalizeRipCode(rawCode) || WORKS[idx]?.code || '';
+      if(!code || !WORKS.some(w => w.code === code)) return;
 
       state.items[code] = {
         id:x.id,
@@ -328,40 +333,27 @@
 
     if(error) throw error;
 
-    const rows = data || [];
-    const isMeaningful = (q) => (
-      Number(q?.subtotal_ex_vat || 0) > 0 ||
-      !!q?.notes ||
-      !!q?.sent_at ||
-      !!q?.accepted_at ||
-      !!q?.delivery_days ||
-      !!q?.delivery_date ||
-      !!q?.is_urgent ||
-      ((q?.status || 'BOZZA') !== 'BOZZA') ||
-      (Array.isArray(q?.quote_items) && q.quote_items.length > 0)
+    const meaningful = (data || []).find(q =>
+      Number(q.subtotal_ex_vat || 0) > 0 ||
+      !!q.notes ||
+      !!q.sent_at ||
+      !!q.accepted_at ||
+      !!q.delivery_days ||
+      !!q.delivery_date ||
+      !!q.is_urgent ||
+      ((q.status || 'BOZZA') !== 'BOZZA') ||
+      (Array.isArray(q.quote_items) && q.quote_items.length > 0)
     );
-    const isAccepted = (q) => {
-      const st = String(q?.status || '').toUpperCase();
-      return st === 'ACCETTATO' || !!q?.accepted_at;
-    };
-    const isSent = (q) => {
-      const st = String(q?.status || '').toUpperCase();
-      return st === 'INVIATO' || !!q?.sent_at;
-    };
 
-    const acceptedOrSent = rows.find(q => isMeaningful(q) && (isAccepted(q) || isSent(q)));
-    const bozza = rows.find(q => isMeaningful(q));
-    const chosen = acceptedOrSent || bozza || null;
-
-    if(chosen){
-      currentQuoteId = chosen.id;
-      quoteState = await buildStateFromQuoteRow(chosen);
+    if(meaningful){
+      currentQuoteId = meaningful.id;
+      quoteState = await buildStateFromQuoteRow(meaningful);
       originalState = clone(quoteState);
 
       try{
         const u = new URL(location.href);
         u.searchParams.delete('record_id');
-        u.searchParams.set('id', chosen.id);
+        u.searchParams.set('id', meaningful.id);
         history.replaceState({}, '', u.toString());
       }catch{}
 
