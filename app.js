@@ -243,7 +243,7 @@ window.renderHome=function(rows){
 function getSearchFilters(){
   return {
     q: document.getElementById('q').value.trim(),
-    cassetto: document.getElementById('fCassetto')?.value.trim() || '',
+    cassetto: (document.getElementById('cassettoSearch')?.value || document.getElementById('fCassetto')?.value || '').trim(),
     noteExact: document.getElementById('noteExact')?.value.trim() || '',
     batt: document.getElementById('fBatt').value.trim(),
     asse: document.getElementById('fAsse')?.value.trim() || '',
@@ -619,7 +619,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   H('btnApply', doSearch);
   H('btnDoSearch', doSearch);
   H('btnReset', ()=>{
-    ['q','fCassetto','noteExact','fBatt','fAsse','fPacco','fLarg','fPunta','fNP'].forEach(id=>{
+    ['q','cassettoSearch','fCassetto','noteExact','fBatt','fAsse','fPacco','fLarg','fPunta','fNP'].forEach(id=>{
       const el=document.getElementById(id); if(!el) return;
       if(el.tagName==='SELECT') el.selectedIndex=0; else el.value='';
     });
