@@ -141,7 +141,35 @@
 
   let ocrFileObjectUrl = '';
   let ocrBusy = false;
+  let ocrLastAnalysis = null;
 
+  const OCR_FORM_TEMPLATE = {
+    checkboxBox: { x1:0.534, x2:0.567 },
+    checkboxInnerInsetX:0.0045,
+    checkboxInnerInsetY:0.0065,
+    priceBox: { x1:0.862, x2:0.985 },
+    totalBox: { x1:0.145, x2:0.355, y1:0.910, y2:0.955 },
+    rowH: 0.0428,
+    rows: [
+      { formCode:'05', ripCode:'RIP05', y1:0.1890 },
+      { formCode:'29', ripCode:'RIP29', y1:0.2322 },
+      { formCode:'06', ripCode:'RIP06', y1:0.2754 },
+      { formCode:'07', ripCode:'RIP07', y1:0.3186 },
+      { formCode:'22', ripCode:'RIP22', y1:0.3618 },
+      { formCode:'01', ripCode:'RIP01C', y1:0.4050 },
+      { formCode:'08', ripCode:'RIP08', y1:0.4482 },
+      { formCode:'02', ripCode:'RIP02', y1:0.4914 },
+      { formCode:'31', ripCode:'RIP31', y1:0.5346 },
+      { formCode:'32', ripCode:'RIP32', y1:0.5778 },
+      { formCode:'19', ripCode:'RIP19', y1:0.6210 },
+      { formCode:'20', ripCode:'RIP20', y1:0.6642 },
+      { formCode:'21', ripCode:'RIP21', y1:0.7074 },
+      { formCode:'23', ripCode:'RIP23', y1:0.7506 },
+      { formCode:'26', ripCode:'RIP26', y1:0.7938 },
+      { formCode:'30', ripCode:'RIP30', y1:0.8370 },
+      { formCode:'16', ripCode:'RIP16', y1:0.8802 },
+    ]
+  };
 
   async function getCurrentSessionSafe(){
     if(!sb || !sb.auth) return null;
@@ -1181,7 +1209,7 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
           <div>
             <div style="font-size:1.1rem;font-weight:800;">Importa foto OCR</div>
-            <div style="font-size:.92rem;color:#667085;margin-top:4px;">Carica la foto del preventivo, controlla il testo letto dall'OCR e conferma solo dopo aver corretto eventuali errori.</div>
+            <div style="font-size:.92rem;color:#667085;margin-top:4px;">Carica la foto del modulo riparazione: verranno importate solo le righe RIP flaggate, con possibilità di correggere gli importi prima della conferma.</div>
           </div>
           <button type="button" id="ocrClose" style="border:1px solid #d0d5dd;background:#fff;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer;">Chiudi</button>
         </div>
@@ -1204,17 +1232,17 @@
 
           <div style="border:1px solid #e6e9ee;border-radius:16px;padding:12px;background:#fafbfc;">
             <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
-              <div style="font-size:.88rem;font-weight:800;color:#475467;">Testo OCR correggibile</div>
+              <div style="font-size:.88rem;font-weight:800;color:#475467;">RIGHE RIP riconosciute e correggibili</div>
               <div style="font-size:.8rem;color:#667085;">Puoi correggere prima della conferma</div>
             </div>
             <textarea id="ocrTextInput" rows="12" style="width:100%;border:1px solid #d0d5dd;border-radius:12px;padding:12px;font-size:15px;resize:vertical;background:#fff;"></textarea>
-            <div style="margin-top:10px;font-size:.86rem;color:#667085;">Suggerimento: scrivi una riga per voce, ad esempio <b>RIP21 45</b> oppure <b>RIP00 revisione completa 250</b>.</div>
+            <div style="margin-top:10px;font-size:.86rem;color:#667085;">Suggerimento: lascia una riga per ogni voce, ad esempio <b>RIP21 45</b>. In questa modalità vengono considerate solo le voci RIP del modulo flaggate.</div>
           </div>
         </div>
 
         <div style="margin-top:16px;border:1px solid #e6e9ee;border-radius:16px;padding:12px;background:#fafbfc;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
-            <div style="font-size:.88rem;font-weight:800;color:#475467;">Anteprima voci riconosciute</div>
+            <div style="font-size:.88rem;font-weight:800;color:#475467;">Anteprima voci RIP flaggate</div>
             <div id="ocrPreviewCount" style="font-size:.82rem;color:#667085;">0 voci</div>
           </div>
           <div id="ocrPreviewBox" style="background:#fff;border:1px solid #e6e9ee;border-radius:12px;padding:12px;min-height:110px;color:#667085;">Nessuna voce ancora rilevata.</div>
@@ -1243,6 +1271,7 @@
       try{ URL.revokeObjectURL(ocrFileObjectUrl); }catch{}
       ocrFileObjectUrl = '';
     }
+    ocrLastAnalysis = null;
     const fileInput = $('ocrFileInput');
     if(fileInput) fileInput.value = '';
     const img = $('ocrImagePreview');
@@ -1301,14 +1330,17 @@
     }
 
     ocrBusy = true;
+    ocrLastAnalysis = null;
     const run = $('ocrRunBtn');
     const apply = $('ocrApplyBtn');
     const status = $('ocrStatus');
     if(run) run.disabled = true;
     if(apply) apply.disabled = true;
 
+    let imageInfo = null;
     try{
-      if(status) status.textContent = 'OCR in elaborazione…';
+      if(status) status.textContent = 'Analisi modulo in corso…';
+      imageInfo = await loadImageInfoFromFile(file);
       const result = await window.Tesseract.recognize(file, 'ita+eng', {
         logger: (m)=>{
           if(!status) return;
@@ -1321,15 +1353,19 @@
         }
       });
 
-      const raw = String(result?.data?.text || '').trim();
+      ocrLastAnalysis = analyzeOcrResult(result, imageInfo);
       const textArea = $('ocrTextInput');
-      if(textArea) textArea.value = cleanupOcrText(raw);
+      if(textArea) textArea.value = getTextLinesFromAnalysis(ocrLastAnalysis);
       renderOcrPreviewFromText();
-      if(status) status.textContent = 'OCR completato. Controlla e correggi il testo prima di confermare.';
+      const selectedCount = (ocrLastAnalysis?.entries || []).length;
+      if(status) status.textContent = selectedCount
+        ? `OCR completato. Rilevate ${selectedCount} voci flaggate: puoi correggere importi e poi confermare.`
+        : 'OCR completato, ma non sono state rilevate spunte valide nelle caselle RIP.';
     }catch(e){
       showErr('Errore OCR: ' + (e?.message || e));
       if(status) status.textContent = 'Errore durante la lettura OCR.';
     }finally{
+      if(imageInfo?.url){ try{ URL.revokeObjectURL(imageInfo.url); }catch{} }
       ocrBusy = false;
       if(run) run.disabled = false;
       if(apply) apply.disabled = false;
@@ -1353,9 +1389,156 @@
       .trim();
   }
 
+  async function loadImageInfoFromFile(file){
+    return await new Promise((resolve, reject)=>{
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = ()=>{
+        try{
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width;
+          canvas.height = img.naturalHeight || img.height;
+          const ctx = canvas.getContext('2d', { willReadFrequently:true });
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve({ url, img, canvas, ctx, width:canvas.width, height:canvas.height });
+        }catch(err){
+          try{ URL.revokeObjectURL(url); }catch{}
+          reject(err);
+        }
+      };
+      img.onerror = ()=>{
+        try{ URL.revokeObjectURL(url); }catch{}
+        reject(new Error('Impossibile leggere l\'immagine selezionata.'));
+      };
+      img.src = url;
+    });
+  }
+
+  function toPxBox(box, width, height){
+    return {
+      x1: Math.max(0, Math.floor(box.x1 * width)),
+      x2: Math.min(width, Math.ceil(box.x2 * width)),
+      y1: Math.max(0, Math.floor(box.y1 * height)),
+      y2: Math.min(height, Math.ceil(box.y2 * height)),
+    };
+  }
+
+  function getGrayStats(ctx, box){
+    const w = Math.max(1, box.x2 - box.x1);
+    const h = Math.max(1, box.y2 - box.y1);
+    const data = ctx.getImageData(box.x1, box.y1, w, h).data;
+    let dark = 0;
+    let total = 0;
+    let sum = 0;
+    for(let i=0; i<data.length; i+=4){
+      const gray = (data[i] * 0.299) + (data[i+1] * 0.587) + (data[i+2] * 0.114);
+      sum += gray;
+      total++;
+      if(gray < 150) dark++;
+    }
+    return {
+      darkRatio: total ? (dark / total) : 0,
+      meanGray: total ? (sum / total) : 255
+    };
+  }
+
+  function detectCheckedRipRows(imageInfo){
+    const tpl = OCR_FORM_TEMPLATE;
+    const { ctx, width, height } = imageInfo;
+    return tpl.rows.map((row)=>{
+      const y2 = row.y1 + tpl.rowH;
+      const outer = toPxBox({
+        x1: tpl.checkboxBox.x1,
+        x2: tpl.checkboxBox.x2,
+        y1: row.y1,
+        y2
+      }, width, height);
+      const inner = toPxBox({
+        x1: tpl.checkboxBox.x1 + tpl.checkboxInnerInsetX,
+        x2: tpl.checkboxBox.x2 - tpl.checkboxInnerInsetX,
+        y1: row.y1 + tpl.checkboxInnerInsetY,
+        y2: y2 - tpl.checkboxInnerInsetY
+      }, width, height);
+      const outerStats = getGrayStats(ctx, outer);
+      const innerStats = getGrayStats(ctx, inner);
+      const signal = Math.max(0, innerStats.darkRatio - outerStats.darkRatio * 0.45);
+      const checked = signal >= 0.035 || innerStats.darkRatio >= 0.075;
+      return {
+        ...row,
+        checked,
+        signal,
+        y2,
+        outer,
+        inner
+      };
+    });
+  }
+
+  function extractAmountCandidatesFromWords(words, box){
+    const nums = [];
+    (words || []).forEach((word)=>{
+      const bbox = word?.bbox || word?.bbox0 || null;
+      if(!bbox) return;
+      const x0 = Number(bbox.x0 ?? bbox.x1 ?? 0);
+      const x1 = Number(bbox.x1 ?? bbox.x2 ?? 0);
+      const y0 = Number(bbox.y0 ?? bbox.y1 ?? 0);
+      const y1 = Number(bbox.y1 ?? bbox.y2 ?? 0);
+      const cx = (x0 + x1) / 2;
+      const cy = (y0 + y1) / 2;
+      if(cx < box.x1 || cx > box.x2 || cy < box.y1 || cy > box.y2) return;
+      const txt = String(word.text || '').replace(/€/g, '').replace(/\s+/g, '');
+      const matches = txt.match(/\d+[\.,]?\d{0,2}/g) || [];
+      matches.forEach((m)=>{
+        const n = parseNum(m);
+        if(isFinite(n) && n >= 0) nums.push(n);
+      });
+    });
+    return nums;
+  }
+
+  function getTextLinesFromAnalysis(analysis){
+    const lines = [];
+    (analysis?.rows || []).forEach((row)=>{
+      if(!row.checked) return;
+      const amountTxt = row.amount > 0 ? fmtMoney(row.amount) : '0,00';
+      lines.push(`${row.ripCode} ${amountTxt}`);
+    });
+    if(analysis?.recognizedTotal > 0){
+      lines.push(`TOTALE ${fmtMoney(analysis.recognizedTotal)}`);
+    }
+    return lines.join('\n');
+  }
+
+  function analyzeOcrResult(result, imageInfo){
+    const tpl = OCR_FORM_TEMPLATE;
+    const words = result?.data?.words || [];
+    const detectedRows = detectCheckedRipRows(imageInfo).map((row)=>{
+      const box = toPxBox({
+        x1: tpl.priceBox.x1,
+        x2: tpl.priceBox.x2,
+        y1: row.y1,
+        y2: row.y2
+      }, imageInfo.width, imageInfo.height);
+      const nums = extractAmountCandidatesFromWords(words, box);
+      const amount = nums.length ? nums[nums.length - 1] : 0;
+      return { ...row, priceCandidates: nums, amount };
+    });
+
+    const totalNums = extractAmountCandidatesFromWords(words, toPxBox(tpl.totalBox, imageInfo.width, imageInfo.height));
+    const recognizedTotal = totalNums.length ? totalNums[totalNums.length - 1] : 0;
+    const selected = detectedRows.filter(r => r.checked);
+    return {
+      rows: detectedRows,
+      entries: selected.map(r => ({ code:r.ripCode, amount:r.amount, description:'', raw:`${r.ripCode} ${r.amount}` })),
+      recognizedTotal,
+      rawText: cleanupOcrText(String(result?.data?.text || ''))
+    };
+  }
+
   function parseOcrTextToEntries(text){
     const lines = String(text || '').split(/\n+/).map(x => x.trim()).filter(Boolean);
     const entries = [];
+    let recognizedTotal = 0;
     const validCodes = new Set(WORKS.map(w => w.code));
 
     lines.forEach((line)=>{
@@ -1364,28 +1547,24 @@
         .replace(/\bRIPO0\b/g, 'RIP00')
         .replace(/\bRIP0([1-9])\b/g, 'RIP0$1');
 
+      if(/\bTOTALE\b/.test(normalized)){
+        const totalCandidates = [...normalized.matchAll(/(\d+[\.,]\d{1,2}|\d{1,5})/g)].map(m => parseNum(m[1])).filter(n => isFinite(n) && n >= 0);
+        if(totalCandidates.length) recognizedTotal = totalCandidates[totalCandidates.length - 1];
+        return;
+      }
+
       const ripMatch = normalized.match(/\b(RIP\d{1,2}[A-Z]?)\b/);
       if(!ripMatch) return;
-
-      const code = ripMatch[1];
+      const code = ripMatch[1] === 'RIP01' ? 'RIP01C' : ripMatch[1];
       if(!validCodes.has(code)) return;
 
-      let amount = 0;
-      const amountCandidates = [...normalized.matchAll(/(\d+[\.,]\d{2}|\d+[\.,]\d{1}|\d{1,5})/g)].map(m => parseNum(m[1]));
-      if(amountCandidates.length){
-        amount = Math.max(...amountCandidates.filter(n => isFinite(n) && n >= 0));
-      }
-
-      let description = '';
-      if(code === 'RIP00'){
-        description = normalized.replace(code, '').replace(/\b\d+[\.,]?\d*\b/g, ' ').replace(/EURO/g, ' ').replace(/\s+/g, ' ').trim();
-        description = normalizeFreeDescription(code, description || 'LAVORAZIONE LIBERA');
-      }
-
-      entries.push({ code, amount, description, raw: line });
+      const amountCandidates = [...normalized.matchAll(/(\d+[\.,]\d{1,2}|\d{1,5})/g)].map(m => parseNum(m[1])).filter(n => isFinite(n) && n >= 0);
+      const amount = amountCandidates.length ? amountCandidates[amountCandidates.length - 1] : 0;
+      entries.push({ code, amount, description:'', raw:line });
     });
 
-    return mergeOcrEntries(entries);
+    const merged = mergeOcrEntries(entries);
+    return { entries: merged, recognizedTotal };
   }
 
   function mergeOcrEntries(entries){
@@ -1395,7 +1574,6 @@
       const prev = map.get(entry.code);
       if(prev){
         prev.amount = entry.amount > 0 ? entry.amount : prev.amount;
-        if(entry.code === 'RIP00' && entry.description) prev.description = entry.description;
         prev.raw += ' | ' + entry.raw;
       }else{
         map.set(entry.code, { ...entry });
@@ -1405,17 +1583,19 @@
   }
 
   function renderOcrPreviewFromText(){
-    const text = $('ocrTextInput')?.value || '';
-    const entries = parseOcrTextToEntries(text);
+    const parsed = parseOcrTextToEntries($('ocrTextInput')?.value || '');
+    const entries = parsed.entries || [];
+    const recognizedTotal = parsed.recognizedTotal || 0;
+    const computedTotal = entries.reduce((sum, entry)=> sum + Number(entry.amount || 0), 0);
     const box = $('ocrPreviewBox');
     const count = $('ocrPreviewCount');
     if(count) count.textContent = `${entries.length} ${entries.length === 1 ? 'voce' : 'voci'}`;
-    if(!box) return entries;
+    if(!box) return { entries, recognizedTotal, computedTotal };
 
     if(!entries.length){
       box.style.color = '#667085';
-      box.innerHTML = 'Nessuna voce RIP riconosciuta. Correggi il testo inserendo codici tipo <b>RIP21 45</b> oppure <b>RIP00 revisione completa 250</b>.';
-      return entries;
+      box.innerHTML = 'Nessuna voce RIP selezionata riconosciuta. In questa modalità vengono importate solo le righe flaggate del modulo fotografato.';
+      return { entries, recognizedTotal, computedTotal };
     }
 
     box.style.color = '#101828';
@@ -1423,23 +1603,28 @@
       <div style="display:grid;gap:8px;">
         ${entries.map(entry => {
           const work = WORKS.find(w => w.code === entry.code);
-          const label = entry.code === 'RIP00'
-            ? esc(entry.description || work?.text || '')
-            : esc(work?.text || entry.code);
           return `<div style="display:flex;justify-content:space-between;gap:14px;border:1px solid #e6e9ee;border-radius:10px;padding:10px 12px;align-items:flex-start;">
             <div>
               <div style="font-weight:800;">${esc(entry.code)}</div>
-              <div style="font-size:.9rem;color:#475467;margin-top:2px;">${label}</div>
+              <div style="font-size:.9rem;color:#475467;margin-top:2px;">${esc(work?.text || entry.code)}</div>
             </div>
             <div style="font-weight:800;white-space:nowrap;">${entry.amount > 0 ? '€ ' + esc(fmtMoney(entry.amount)) : '€ 0,00'}</div>
           </div>`;
         }).join('')}
+        <div style="display:flex;justify-content:space-between;gap:14px;border-top:1px dashed #d0d5dd;padding-top:10px;margin-top:2px;align-items:flex-start;">
+          <div>
+            <div style="font-weight:800;">Totale calcolato dai RIP selezionati</div>
+            ${recognizedTotal > 0 ? `<div style="font-size:.88rem;color:#667085;margin-top:3px;">Totale letto dal modulo: € ${esc(fmtMoney(recognizedTotal))}</div>` : ''}
+          </div>
+          <div style="font-weight:900;white-space:nowrap;">€ ${esc(fmtMoney(computedTotal))}</div>
+        </div>
       </div>`;
-    return entries;
+    return { entries, recognizedTotal, computedTotal };
   }
 
   function applyOcrPreviewToQuote(){
-    const entries = renderOcrPreviewFromText();
+    const parsed = renderOcrPreviewFromText();
+    const entries = parsed.entries || [];
     if(!entries.length){
       showErr('Nessuna voce RIP valida da importare.');
       return;
@@ -1458,7 +1643,6 @@
       if(!work || idx < 0) return;
       const it = ensureLocalItem(work, idx);
       if(entry.amount > 0) it.unit_price_ex_vat = entry.amount;
-      if(entry.code === 'RIP00') it.description = normalizeFreeDescription(entry.code, entry.description || it.description);
       if(!it.work_status) it.work_status = 'DA_FARE';
     });
 
