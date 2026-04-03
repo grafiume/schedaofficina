@@ -238,6 +238,7 @@
       ensureDictationBox();
       bindUI();
       bindDictationButtons();
+      bindOcrUi();
       recalcTotals();
       renderAll();
 
@@ -1655,48 +1656,116 @@ async function generateQuotePdfBlob(){
 
 
 
+
   // ===== OCR IMPORT MODULO RIPARAZIONE =====
   const OCR_ROW_ORDER = WORKS.filter(w => !w.free).map(w => ({ code:w.code, text:w.text }));
   let ocrModal = null;
   let ocrImageBitmap = null;
   let ocrResults = [];
+  let ocrObjectUrl = '';
+
+  function ocrEl(){
+    return {
+      modal: $('ocrModal') || $('ocrImportModal'),
+      openBtn: $('btnOcrPhoto') || $('btnOcrImport'),
+      pickLibBtn: $('btnChooseOcrFromLibrary') || $('btnOcrPickLib'),
+      pickCamBtn: $('btnChooseOcrFromCamera') || $('btnOcrPickCam'),
+      fileLib: $('ocrPhotoInput') || $('ocrFileLib'),
+      fileCam: $('ocrPhotoCameraInput') || $('ocrFileCam'),
+      preview: $('ocrPreview') || $('ocrPreviewImg'),
+      busy: $('ocrBusy') || $('ocrPreviewEmpty') || $('ocrStatus'),
+      summary: $('ocrSummary') || $('ocrStatus'),
+      rows: $('ocrRows') || $('ocrRowsBody'),
+      total: $('ocrDetectedTotal') || $('ocrTotalInput'),
+      confirm: $('btnConfirmOcrImport') || $('btnOcrApply'),
+    };
+  }
+
+  function ensureOcrCanvas(){
+    let canvas = $('ocrWorkCanvas');
+    if(!canvas){
+      canvas = document.createElement('canvas');
+      canvas.id = 'ocrWorkCanvas';
+      canvas.style.display = 'none';
+      document.body.appendChild(canvas);
+    }
+    return canvas;
+  }
 
   function ensureOcrModal(){
-    if(!window.bootstrap || !$('ocrImportModal')) return null;
-    if(!ocrModal) ocrModal = new bootstrap.Modal($('ocrImportModal'));
+    const refs = ocrEl();
+    if(!window.bootstrap || !refs.modal) return null;
+    if(!ocrModal) ocrModal = new bootstrap.Modal(refs.modal);
     return ocrModal;
   }
 
   function bindOcrUi(){
-    $('btnOcrImport')?.addEventListener('click', ()=>{ clearErr(); ensureOcrModal()?.show(); });
-    $('btnOcrPickLib')?.addEventListener('click', ()=> $('ocrFileLib')?.click());
-    $('btnOcrPickCam')?.addEventListener('click', ()=> $('ocrFileCam')?.click());
-    $('ocrFileLib')?.addEventListener('change', ev => handleOcrFile(ev.target.files?.[0] || null));
-    $('ocrFileCam')?.addEventListener('change', ev => handleOcrFile(ev.target.files?.[0] || null));
-    $('btnOcrAnalyze')?.addEventListener('click', runOcrImport);
-    $('btnOcrApply')?.addEventListener('click', applyOcrResults);
+    const refs = ocrEl();
+    refs.openBtn?.addEventListener('click', ()=>{
+      clearErr();
+      resetOcrUi();
+      ensureOcrModal()?.show();
+    });
+    refs.pickLibBtn?.addEventListener('click', ()=> refs.fileLib?.click());
+    refs.pickCamBtn?.addEventListener('click', ()=> refs.fileCam?.click());
+    refs.fileLib?.addEventListener('change', ev => handleOcrFile(ev.target.files?.[0] || null, ev.target));
+    refs.fileCam?.addEventListener('change', ev => handleOcrFile(ev.target.files?.[0] || null, ev.target));
+    refs.confirm?.addEventListener('click', applyOcrResults);
   }
 
-  async function handleOcrFile(file){
+  function resetOcrUi(){
+    const refs = ocrEl();
+    if(ocrObjectUrl){ try{ URL.revokeObjectURL(ocrObjectUrl); }catch{} }
+    ocrObjectUrl = '';
+    ocrImageBitmap = null;
+    ocrResults = [];
+    if(refs.preview){ refs.preview.src=''; refs.preview.classList.add('d-none'); refs.preview.style.display='none'; }
+    if(refs.busy){ refs.busy.textContent='Carica una foto del modulo.'; refs.busy.style.display=''; }
+    if(refs.summary) refs.summary.textContent = 'Nessuna analisi eseguita.';
+    if(refs.rows) refs.rows.innerHTML = '';
+    if(refs.total){
+      if('value' in refs.total) refs.total.value = '';
+      refs.total.textContent = '€ 0,00';
+    }
+    if(refs.confirm) refs.confirm.disabled = true;
+  }
+
+  async function handleOcrFile(file, inputEl){
+    const refs = ocrEl();
     if(!file) return;
-    const url = URL.createObjectURL(file);
-    const img = $('ocrPreviewImg');
-    const empty = $('ocrPreviewEmpty');
-    if(img){ img.src = url; img.style.display = 'block'; }
-    if(empty) empty.style.display = 'none';
-    setOcrStatus('Foto caricata. Premi “Analizza”.');
-    $('btnOcrAnalyze').disabled = false;
-    $('btnOcrApply').disabled = true;
-    $('ocrRowsBody').innerHTML = '<tr><td colspan="4" class="text-muted">Nessun risultato.</td></tr>';
-    $('ocrTotalInput').value = '';
+    if(ocrObjectUrl){ try{ URL.revokeObjectURL(ocrObjectUrl); }catch{} }
+    ocrObjectUrl = URL.createObjectURL(file);
+    if(refs.preview){
+      refs.preview.src = ocrObjectUrl;
+      refs.preview.classList.remove('d-none');
+      refs.preview.style.display = 'block';
+    }
+    if(refs.busy){ refs.busy.textContent='Analisi OCR in corso…'; refs.busy.style.display=''; }
+    if(refs.summary) refs.summary.textContent = 'Analisi immagine in corso…';
+    if(refs.rows) refs.rows.innerHTML = '';
+    if(refs.total){
+      if('value' in refs.total) refs.total.value = '';
+      refs.total.textContent = '€ 0,00';
+    }
+    if(refs.confirm) refs.confirm.disabled = true;
     ocrResults = [];
     ocrImageBitmap = await createImageBitmap(file);
+    try{
+      await runOcrImport();
+    } finally {
+      if(inputEl) inputEl.value = '';
+    }
   }
 
-  function setOcrStatus(msg){ const el = $('ocrStatus'); if(el) el.textContent = msg; }
-  function getCanvasCtx(){ const canvas = $('ocrWorkCanvas'); return canvas ? canvas.getContext('2d', { willReadFrequently:true }) : null; }
+  function setOcrStatus(msg){
+    const refs = ocrEl();
+    if(refs.summary) refs.summary.textContent = msg;
+    if(refs.busy) refs.busy.textContent = msg;
+  }
+
+  function getCanvasCtx(){ const canvas = ensureOcrCanvas(); return canvas.getContext('2d', { willReadFrequently:true }); }
   function drawBitmapToCanvas(bitmap, maxW = 1600){
-    const canvas = $('ocrWorkCanvas'); const ctx = getCanvasCtx(); if(!canvas || !ctx || !bitmap) return null;
+    const canvas = ensureOcrCanvas(); const ctx = getCanvasCtx(); if(!canvas || !ctx || !bitmap) return null;
     const scale = bitmap.width > maxW ? (maxW / bitmap.width) : 1;
     canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
     ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
@@ -1714,39 +1783,97 @@ async function generateQuotePdfBlob(){
   function detectVerticalLines(gray,width,height){ const xProj=new Array(width).fill(0); const y0=Math.floor(height*0.15), y1=Math.floor(height*0.82); for(let x=0;x<width;x++){ let dark=0; for(let y=y0;y<y1;y++){ if(gray[y*width+x] < 160) dark++; } xProj[x]=dark; } const sm=smoothArray(xProj,11); return findPeaks(sm, Math.max(18, Math.floor(width*0.02)), Math.max(20,(y1-y0)*0.12)); }
   function chooseGridFromLines(lines,width){ const candidates=[...lines].sort((a,b)=>a-b); const rightEdge=candidates.filter(x=>x>width*0.78).slice(-1)[0] || Math.round(width*0.96); const priceLeft=candidates.filter(x=>x>width*0.62&&x<width*0.88).slice(-1)[0] || Math.round(width*0.83); const xRight=candidates.filter(x=>x>width*0.48&&x<priceLeft-30)[0] || Math.round(width*0.58); const xLeft=candidates.filter(x=>x<xRight&&x>width*0.36).slice(-1)[0] || Math.round(width*0.52); const tableLeft=candidates.filter(x=>x<xLeft).slice(-1)[0] || Math.round(width*0.04); return { tableLeft,xLeft,xRight,priceLeft:Math.max(priceLeft,xRight+30),priceRight:Math.max(rightEdge, priceLeft+40) }; }
   function detectRowBands(gray,width,height){ const x0=Math.floor(width*0.02), x1=Math.floor(width*0.94); const yProj=new Array(height).fill(0); for(let y=0;y<height;y++){ let dark=0; for(let x=x0;x<x1;x++){ if(gray[y*width+x] < 160) dark++; } yProj[y]=dark; } const sm=smoothArray(yProj,9); return findPeaks(sm, Math.max(22, Math.floor(height*0.018)), Math.max(40, (x1-x0)*0.12)); }
-  function chooseRowGrid(lineYs,height){ const filtered=lineYs.filter(y=>y>height*0.03&&y<height*0.83); let top=filtered[0] || Math.round(height*0.05); let bottom=filtered[Math.min(filtered.length-1, OCR_ROW_ORDER.length)] || Math.round(height*0.72); const rowH=(bottom-top)/OCR_ROW_ORDER.length; return OCR_ROW_ORDER.map((row,idx)=>({ code:row.code, text:row.text, y0:Math.round(top+idx*rowH), y1:Math.round(top+(idx+1)*rowH) })); }
+  function chooseRowGrid(lineYs,height){ const filtered=lineYs.filter(y=>y>height*0.03&&y<height*0.83); let top=filtered[0] || Math.round(height*0.05); let bottom=filtered[Math.min(filtered.length-1, OCR_ROW_ORDER.length)] || Math.round(height*0.72); if(bottom <= top) bottom = Math.round(height*0.72); const rowH=(bottom-top)/OCR_ROW_ORDER.length; return OCR_ROW_ORDER.map((row,idx)=>({ code:row.code, text:row.text, y0:Math.round(top+idx*rowH), y1:Math.round(top+(idx+1)*rowH) })); }
   function boxScore(gray,width,height){ const x0=Math.floor(width*0.18),x1=Math.ceil(width*0.82),y0=Math.floor(height*0.18),y1=Math.ceil(height*0.82); let dark=0; for(let y=y0;y<y1;y++){ for(let x=x0;x<x1;x++){ if(gray[y*width+x] < 170) dark++; } } return dark/Math.max(1,(x1-x0)*(y1-y0)); }
   async function ocrNumericCanvas(canvas, whitelist='0123456789,.€'){ if(!window.Tesseract) throw new Error('Libreria OCR non caricata'); const result = await Tesseract.recognize(canvas,'eng',{ logger:()=>{}, tessedit_char_whitelist: whitelist }); return result?.data?.text || ''; }
   function normalizeMoneyText(text){ let s=String(text||'').replace(/[^0-9,.]/g,' ').trim(); const matches=s.match(/\d[\d.,]*/g) || []; if(!matches.length) return ''; matches.sort((a,b)=>b.length-a.length); let tok=matches[0].replace(/\.(?=\d{3}\b)/g,''); tok=tok.replace(/,/g,'.'); const num=Number(tok); return isFinite(num)?fmtMoney(num):''; }
   function moneyToNumber(text){ return parseNum(String(text||'').replace(/\./g,'').replace(',','.')); }
+
   async function runOcrImport(){
+    const refs = ocrEl();
     try{
-      if(!ocrImageBitmap) return; clearErr(); setOcrStatus('Preparazione immagine…'); $('btnOcrAnalyze').disabled=true; $('btnOcrApply').disabled=true;
+      if(!ocrImageBitmap) return;
+      clearErr();
+      setOcrStatus('Preparazione immagine…');
+      if(refs.confirm) refs.confirm.disabled = true;
       const base=drawBitmapToCanvas(ocrImageBitmap); if(!base) throw new Error('Canvas OCR non disponibile');
       const deskewed=autoDeskew(base.canvas); const dctx=deskewed.getContext('2d',{willReadFrequently:true}); const fullGray=toGray(dctx.getImageData(0,0,deskewed.width,deskewed.height));
       const page=projectionBounds(fullGray, deskewed.width, deskewed.height);
       const cropCanvas=document.createElement('canvas'); cropCanvas.width=page.right-page.left+1; cropCanvas.height=page.bottom-page.top+1; cropCanvas.getContext('2d',{willReadFrequently:true}).drawImage(deskewed,page.left,page.top,cropCanvas.width,cropCanvas.height,0,0,cropCanvas.width,cropCanvas.height);
       const cctx=cropCanvas.getContext('2d',{willReadFrequently:true}); const cropGray=toGray(cctx.getImageData(0,0,cropCanvas.width,cropCanvas.height));
       const grid=chooseGridFromLines(detectVerticalLines(cropGray,cropCanvas.width,cropCanvas.height), cropCanvas.width);
-      let rows=chooseRowGrid(detectRowBands(cropGray,cropCanvas.width,cropCanvas.height), cropCanvas.height).map(r=>({ ...r, y0:Math.max(Math.round(cropCanvas.height*0.03), r.y0), y1:Math.min(Math.round(cropCanvas.height*0.78), r.y1) }));
+      const rows=chooseRowGrid(detectRowBands(cropGray,cropCanvas.width,cropCanvas.height), cropCanvas.height).map(r=>({ ...r, y0:Math.max(Math.round(cropCanvas.height*0.03), r.y0), y1:Math.min(Math.round(cropCanvas.height*0.78), r.y1) }));
       const results=[]; const xScores=[];
-      for(const row of rows){ const xCrop=readImageData(cctx, grid.xLeft+4, row.y0+4, Math.max(10,grid.xRight-grid.xLeft-8), Math.max(10,row.y1-row.y0-8)); const xGray=toGray(xCrop); const xScore=boxScore(xGray,xCrop.width,xCrop.height); xScores.push(xScore); results.push({ code:row.code, text:row.text, xScore, checked:false, amount:0, amountText:'', y0:row.y0, y1:row.y1 }); }
+      for(const row of rows){
+        const xCrop=readImageData(cctx, grid.xLeft+4, row.y0+4, Math.max(10,grid.xRight-grid.xLeft-8), Math.max(10,row.y1-row.y0-8));
+        const xGray=toGray(xCrop); const xScore=boxScore(xGray,xCrop.width,xCrop.height); xScores.push(xScore);
+        results.push({ code:row.code, text:row.text, xScore, checked:false, amount:0, amountText:'', y0:row.y0, y1:row.y1 });
+      }
       const avg=xScores.reduce((a,b)=>a+b,0)/Math.max(1,xScores.length); const max=Math.max(...xScores,0); const checkedThreshold=Math.max(0.025, avg*1.8, max*0.35);
       for(const row of results){ row.checked = row.xScore >= checkedThreshold && row.xScore >= 0.02; }
-      for(const row of results.filter(r=>r.checked)){ const regionCanvas=document.createElement('canvas'); const rw=Math.max(30,grid.priceRight-grid.priceLeft-8), rh=Math.max(18,row.y1-row.y0-8); regionCanvas.width=rw*2; regionCanvas.height=rh*2; const rctx=regionCanvas.getContext('2d',{willReadFrequently:true}); rctx.fillStyle='#fff'; rctx.fillRect(0,0,regionCanvas.width,regionCanvas.height); rctx.drawImage(cropCanvas, grid.priceLeft+4,row.y0+4,rw,rh,0,0,regionCanvas.width,regionCanvas.height); const txt=normalizeMoneyText(await ocrNumericCanvas(regionCanvas)); row.amountText=txt; row.amount=moneyToNumber(txt); }
-      const totalCanvas=document.createElement('canvas'); const totalY=Math.round(cropCanvas.height*0.78), totalH=Math.round(cropCanvas.height*0.16), totalX=Math.round(cropCanvas.width*0.56), totalW=Math.round(cropCanvas.width*0.38); totalCanvas.width=totalW*2; totalCanvas.height=totalH*2; const tctx=totalCanvas.getContext('2d',{willReadFrequently:true}); tctx.fillStyle='#fff'; tctx.fillRect(0,0,totalCanvas.width,totalCanvas.height); tctx.drawImage(cropCanvas,totalX,totalY,totalW,totalH,0,0,totalCanvas.width,totalCanvas.height); let totalText=normalizeMoneyText(await ocrNumericCanvas(totalCanvas)); let totalNum=moneyToNumber(totalText);
+      for(const row of results.filter(r=>r.checked)){
+        const regionCanvas=document.createElement('canvas'); const rw=Math.max(30,grid.priceRight-grid.priceLeft-8), rh=Math.max(18,row.y1-row.y0-8); regionCanvas.width=rw*2; regionCanvas.height=rh*2;
+        const rctx=regionCanvas.getContext('2d',{willReadFrequently:true}); rctx.fillStyle='#fff'; rctx.fillRect(0,0,regionCanvas.width,regionCanvas.height); rctx.drawImage(cropCanvas, grid.priceLeft+4,row.y0+4,rw,rh,0,0,regionCanvas.width,regionCanvas.height);
+        const txt=normalizeMoneyText(await ocrNumericCanvas(regionCanvas)); row.amountText=txt; row.amount=moneyToNumber(txt);
+      }
+      const totalCanvas=document.createElement('canvas'); const totalY=Math.round(cropCanvas.height*0.78), totalH=Math.round(cropCanvas.height*0.16), totalX=Math.round(cropCanvas.width*0.56), totalW=Math.round(cropCanvas.width*0.38);
+      totalCanvas.width=totalW*2; totalCanvas.height=totalH*2; const tctx=totalCanvas.getContext('2d',{willReadFrequently:true}); tctx.fillStyle='#fff'; tctx.fillRect(0,0,totalCanvas.width,totalCanvas.height); tctx.drawImage(cropCanvas,totalX,totalY,totalW,totalH,0,0,totalCanvas.width,totalCanvas.height);
+      let totalText=normalizeMoneyText(await ocrNumericCanvas(totalCanvas)); let totalNum=moneyToNumber(totalText);
       let checked=results.filter(r=>r.checked);
       if(checked.length===1 && totalNum>0 && checked[0].amount<=0){ checked[0].amount=totalNum; checked[0].amountText=fmtMoney(totalNum); }
       if(!checked.length && max>=0.025){ const best=results.slice().sort((a,b)=>b.xScore-a.xScore)[0]; if(best&&best.xScore>=avg*1.7){ best.checked=true; if(totalNum>0){ best.amount=totalNum; best.amountText=fmtMoney(totalNum); } } }
       checked=results.filter(r=>r.checked);
       if(checked.length>1){ const withAmounts=checked.filter(r=>r.amount>0); if(withAmounts.length){ results.forEach(r=>r.checked=withAmounts.includes(r)); } else { const strongest=checked.slice().sort((a,b)=>b.xScore-a.xScore)[0]; results.forEach(r=>r.checked=r.code===strongest.code); if(totalNum>0){ strongest.amount=totalNum; strongest.amountText=fmtMoney(totalNum); } } }
       checked=results.filter(r=>r.checked); const sum=checked.reduce((a,r)=>a+(r.amount||0),0); if(totalNum<=0&&sum>0){ totalNum=sum; totalText=fmtMoney(sum); }
-      ocrResults=results.filter(r=>r.checked||r.amount>0); if(!ocrResults.length){ setOcrStatus('Nessuna riga riconosciuta con sufficiente affidabilità.'); $('ocrRowsBody').innerHTML='<tr><td colspan="4" class="text-danger">Nessuna riga affidabile riconosciuta.</td></tr>'; $('ocrTotalInput').value=totalText; return; }
-      $('ocrTotalInput').value=totalText; renderOcrResultsTable(); $('btnOcrApply').disabled=false; setOcrStatus(`Lettura completata: ${ocrResults.length} riga/righe riconosciute.`);
-    }catch(e){ console.error(e); showErr('Errore OCR: ' + (e?.message || e)); setOcrStatus('Errore durante la lettura.'); } finally { $('btnOcrAnalyze').disabled=false; }
+      ocrResults=results.filter(r=>r.checked||r.amount>0);
+      if(refs.total){ if('value' in refs.total) refs.total.value = totalText; refs.total.textContent = totalText ? `€ ${totalText}`.replace('€ €','€ ') : '€ 0,00'; }
+      if(!ocrResults.length){
+        if(refs.rows) refs.rows.innerHTML='<div class="text-danger">Nessuna riga affidabile riconosciuta.</div>';
+        setOcrStatus('Nessuna riga riconosciuta con sufficiente affidabilità.');
+        return;
+      }
+      renderOcrResultsTable();
+      if(refs.confirm) refs.confirm.disabled=false;
+      setOcrStatus(`Lettura completata: ${ocrResults.length} riga/righe riconosciute.`);
+      if(refs.busy) refs.busy.style.display='none';
+    }catch(e){
+      console.error(e);
+      showErr('Errore OCR: ' + (e?.message || e));
+      setOcrStatus('Errore durante la lettura.');
+    }
   }
-  function renderOcrResultsTable(){ const body=$('ocrRowsBody'); if(!body) return; if(!ocrResults.length){ body.innerHTML='<tr><td colspan="4" class="text-muted">Nessun risultato.</td></tr>'; return; } body.innerHTML=ocrResults.map((r,idx)=>`<tr><td class="smallmono fw-bold">${esc(r.code)}</td><td>${esc(r.text)}</td><td><input class="form-control form-control-sm text-end ocr-row-amount" data-idx="${idx}" value="${esc(r.amountText || '')}"></td><td class="text-center"><input type="checkbox" class="form-check-input ocr-row-use" data-idx="${idx}" ${r.checked ? 'checked' : ''}></td></tr>`).join(''); body.querySelectorAll('.ocr-row-amount').forEach(input=>input.addEventListener('input',()=>{ const idx=Number(input.dataset.idx); ocrResults[idx].amountText=input.value; ocrResults[idx].amount=moneyToNumber(input.value); })); body.querySelectorAll('.ocr-row-use').forEach(input=>input.addEventListener('change',()=>{ const idx=Number(input.dataset.idx); ocrResults[idx].checked=!!input.checked; })); }
-  function applyOcrResults(){ try{ const totalManual=moneyToNumber($('ocrTotalInput')?.value || ''); const used=ocrResults.filter(r=>r.checked && r.amount>0); if(!used.length){ showErr('Nessuna riga OCR selezionata con importo valido.'); return; } used.forEach((r,idx)=>{ const work=WORKS.find(w=>w.code===r.code); if(!work) return; const it=ensureLocalItem(work, idx); it.unit_price_ex_vat=r.amount; }); recalcTotals(); if(totalManual>0 && Math.abs(totalManual-quoteState.subtotal_ex_vat)>0.01){ showErr(`Importato. Attenzione: somma righe € ${fmtMoney(quoteState.subtotal_ex_vat)} diversa dal totale letto € ${fmtMoney(totalManual)}.`); } else { showOk('Importazione OCR applicata'); } renderAll(); ensureOcrModal()?.hide(); }catch(e){ showErr('Errore applicazione OCR: ' + (e?.message || e)); } }
+
+  function renderOcrResultsTable(){
+    const refs = ocrEl();
+    const body = refs.rows;
+    if(!body) return;
+    if(!ocrResults.length){ body.innerHTML='<div class="text-muted">Nessun risultato.</div>'; return; }
+    body.innerHTML = ocrResults.map((r,idx)=>`<div class="ocr-row"><input type="checkbox" class="ocr-row-use" data-idx="${idx}" ${r.checked ? 'checked' : ''}><span class="badge badge-rip">${esc(r.code)}</span><div class="ocr-desc">${esc(r.text)}</div><div class="ocr-price"><input class="form-control form-control-sm text-end ocr-row-amount" data-idx="${idx}" value="${esc(r.amountText || '')}" placeholder="0,00"></div></div>`).join('');
+    body.querySelectorAll('.ocr-row-amount').forEach(input=>input.addEventListener('input',()=>{ const idx=Number(input.dataset.idx); ocrResults[idx].amountText=input.value; ocrResults[idx].amount=moneyToNumber(input.value); updateOcrDetectedTotal(); }));
+    body.querySelectorAll('.ocr-row-use').forEach(input=>input.addEventListener('change',()=>{ const idx=Number(input.dataset.idx); ocrResults[idx].checked=!!input.checked; updateOcrDetectedTotal(); }));
+    updateOcrDetectedTotal();
+  }
+
+  function updateOcrDetectedTotal(){
+    const refs = ocrEl();
+    const sum = ocrResults.filter(r=>r.checked).reduce((a,r)=>a+(r.amount||0),0);
+    const txt = `€ ${fmtMoney(sum)}`;
+    if(refs.total){ if('value' in refs.total) refs.total.value = fmtMoney(sum); refs.total.textContent = txt; }
+  }
+
+  function applyOcrResults(){
+    try{
+      const refs = ocrEl();
+      const totalManual = refs.total ? moneyToNumber('value' in refs.total ? refs.total.value : refs.total.textContent) : 0;
+      const used = ocrResults.filter(r=>r.checked && r.amount>0);
+      if(!used.length){ showErr('Nessuna riga OCR selezionata con importo valido.'); return; }
+      used.forEach(r=>{ const work=WORKS.find(w=>w.code===r.code); if(!work) return; const idx = WORKS.findIndex(w=>w.code===r.code); const it=ensureLocalItem(work, idx); it.unit_price_ex_vat=r.amount; });
+      recalcTotals();
+      if(totalManual>0 && Math.abs(totalManual-quoteState.subtotal_ex_vat)>0.01){ showErr(`Importato. Attenzione: somma righe € ${fmtMoney(quoteState.subtotal_ex_vat)} diversa dal totale letto € ${fmtMoney(totalManual)}.`); } else { showOk('Importazione OCR applicata'); }
+      renderAll();
+      ensureOcrModal()?.hide();
+    }catch(e){ showErr('Errore applicazione OCR: ' + (e?.message || e)); }
+  }
 
 
   document.addEventListener('DOMContentLoaded', init);
