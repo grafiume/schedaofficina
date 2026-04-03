@@ -197,6 +197,19 @@
         .status-stack,.price-wrap,.progress-stack{ grid-column:auto; }
         .totals-box{ width:100%; }
       }
+
+      .ocr-layout{ display:grid; grid-template-columns:minmax(320px, 1fr) minmax(320px, 1fr); gap:18px; align-items:start; }
+      .ocr-preview-wrap,.ocr-results-wrap{ border:1px solid var(--elip-line); border-radius:18px; background:#fff; padding:14px; }
+      .ocr-preview-img{ width:100%; height:auto; border-radius:12px; border:1px solid #d7dde5; }
+      .ocr-summary{ margin-bottom:12px; color:#475467; font-weight:700; }
+      .ocr-row{ display:grid; grid-template-columns:34px 92px minmax(0,1fr) 140px; gap:10px; align-items:center; padding:10px 0; border-top:1px solid #eef2f6; }
+      .ocr-row:first-child{ border-top:none; }
+      .ocr-row input[type="checkbox"]{ width:18px; height:18px; }
+      .ocr-row .badge{ justify-self:start; }
+      .ocr-row .ocr-desc{ font-weight:700; color:#344054; }
+      .ocr-row .ocr-price{ text-align:right; }
+      .ocr-total-line{ margin-top:14px; padding-top:12px; border-top:1px solid #eef2f6; font-size:1.18rem; text-align:right; }
+      .ocr-source-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
     </style>
   </head>
   <body>
@@ -212,6 +225,7 @@
           <button class="btn btn-outline-secondary" id="btnOpenRecord">Scheda</button>
           <button class="btn btn-outline-secondary" id="btnUnlock">🔒 Sblocca modifiche</button>
           <button class="btn btn-outline-secondary" id="btnPdf">📄 PDF</button>
+          <button class="btn btn-outline-secondary" id="btnOcrPhoto">📷 Importa foto OCR</button>
           <button class="btn btn-outline-secondary" id="btnInvia">📤 Invia</button>
           <button class="btn btn-sm btn-quiet" id="btnDelete" title="Cancella preventivo">🗑</button>
           <button class="btn btn-orange" id="btnSave">Salva</button>
@@ -250,7 +264,6 @@
             <div class="voice-row">
               <button class="btn btn-outline-secondary" id="btnDictateRips2">🎤 Detta codici RIP</button>
               <button class="btn btn-outline-secondary" id="btnDictateTotal2">🎤 Detta totale riparazione</button>
-              <button class="btn btn-outline-secondary" id="btnOcrImport">📷 Importa foto</button>
             </div>
             <div id="dictationState">Dopo lo sblocco puoi dettare voci tipo “RIP01 250 RIP02 90” oppure “450 euro” in modalità totale.</div>
 
@@ -321,65 +334,50 @@
       </div>
     </div>
 
-    <div class="modal fade" id="ocrImportModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+
+
+    <input type="file" id="ocrPhotoInput" accept="image/*" hidden>
+    <input type="file" id="ocrPhotoCameraInput" accept="image/*" capture="environment" hidden>
+
+    <div class="modal fade" id="ocrModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Importa foto lavorazioni</h5>
+            <div>
+              <h5 class="modal-title">Importa foto OCR</h5>
+              <div class="text-muted small">Considera solo la colonna centrale X e la colonna PREZZO. Prima della conferma puoi correggere tutto.</div>
+            </div>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
           </div>
           <div class="modal-body">
-            <div class="d-flex gap-2 flex-wrap mb-3">
-              <button class="btn btn-outline-secondary" id="btnOcrPickLib" type="button">🖼️ Scegli da libreria</button>
-              <button class="btn btn-outline-secondary" id="btnOcrPickCam" type="button">📷 Scatta foto</button>
-              <button class="btn btn-orange" id="btnOcrAnalyze" type="button" disabled>Analizza</button>
-            </div>
-            <input id="ocrFileLib" type="file" accept="image/*" class="d-none">
-            <input id="ocrFileCam" type="file" accept="image/*" capture="environment" class="d-none">
-            <div class="row g-3">
-              <div class="col-lg-6">
-                <div class="border rounded-4 p-2 bg-light">
-                  <img id="ocrPreviewImg" alt="Anteprima foto" style="width:100%;height:auto;display:none;border-radius:12px;">
-                  <div id="ocrPreviewEmpty" class="text-muted p-4 text-center">Seleziona una foto del modulo.</div>
-                </div>
+            <div class="ocr-layout">
+              <div class="ocr-preview-wrap">
+                <img id="ocrPreview" alt="Anteprima OCR" class="ocr-preview-img d-none">
+                <div id="ocrBusy" class="text-muted">Carica una foto del modulo.</div>
               </div>
-              <div class="col-lg-6">
-                <div class="border rounded-4 p-3 bg-light h-100">
-                  <div id="ocrStatus" class="small text-muted mb-3">Nessuna analisi eseguita.</div>
-                  <div class="table-responsive">
-                    <table class="table table-sm align-middle">
-                      <thead>
-                        <tr><th>RIP</th><th>Descrizione</th><th>Prezzo</th><th>Usa</th></tr>
-                      </thead>
-                      <tbody id="ocrRowsBody">
-                        <tr><td colspan="4" class="text-muted">Nessun risultato.</td></tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <div class="mt-3">
-                    <label class="form-label fw-bold">Totale letto</label>
-                    <input id="ocrTotalInput" class="form-control text-end" value="">
-                  </div>
-                  <div class="mt-3 small text-muted">
-                    Il sistema legge solo la colonna X, la colonna PREZZO e il totale PREVENTIVO. Prima della conferma puoi correggere i valori.
-                  </div>
+              <div class="ocr-results-wrap">
+                <div class="ocr-source-actions">
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="btnChooseOcrFromLibrary">🖼️ Scegli da libreria</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="btnChooseOcrFromCamera">📷 Scatta foto</button>
                 </div>
+                <div class="ocr-summary" id="ocrSummary">Nessuna analisi eseguita.</div>
+                <div id="ocrRows"></div>
+                <div class="ocr-total-line">Totale OCR: <strong id="ocrDetectedTotal">€ 0,00</strong></div>
               </div>
             </div>
-            <canvas id="ocrWorkCanvas" class="d-none"></canvas>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button>
-            <button type="button" class="btn btn-orange" id="btnOcrApply" disabled>Applica al preventivo</button>
+            <button type="button" class="btn btn-primary" id="btnConfirmOcrImport">Conferma importazione</button>
           </div>
         </div>
       </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
     <script src="preventivo.js"></script>

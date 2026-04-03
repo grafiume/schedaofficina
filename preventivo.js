@@ -1655,16 +1655,15 @@ async function generateQuotePdfBlob(){
 
 
 
-  
-  // ===== OCR IMPORT ASSISTITO DA FOTO (AFFIDABILE CON CONFERMA UTENTE) =====
+  // ===== IMPORTAZIONE ASSISTITA DA FOTO =====
   const OCR_ROW_ORDER = WORKS.filter(w => !w.free).map(w => ({ code:w.code, text:w.text }));
   let ocrModal = null;
-  let ocrObjectUrl = '';
   let ocrResults = [];
+  let ocrPreviewUrl = '';
 
-  function ocrEl(){
+  function getOcrRefs(){
     return {
-      modal: $('ocrModal'),
+      modalEl: $('ocrModal'),
       openBtn: $('btnOcrPhoto'),
       pickLibBtn: $('btnChooseOcrFromLibrary'),
       pickCamBtn: $('btnChooseOcrFromCamera'),
@@ -1675,170 +1674,154 @@ async function generateQuotePdfBlob(){
       summary: $('ocrSummary'),
       rows: $('ocrRows'),
       total: $('ocrDetectedTotal'),
-      confirm: $('btnConfirmOcrImport'),
+      confirm: $('btnConfirmOcrImport')
     };
   }
 
   function ensureOcrModal(){
-    const refs = ocrEl();
-    if(!window.bootstrap || !refs.modal) return null;
-    if(!ocrModal) ocrModal = new bootstrap.Modal(refs.modal);
+    const refs = getOcrRefs();
+    if(!window.bootstrap || !refs.modalEl) return null;
+    if(!ocrModal) ocrModal = new bootstrap.Modal(refs.modalEl);
     return ocrModal;
   }
 
+  function defaultOcrRows(){
+    return OCR_ROW_ORDER.map(r => ({ code:r.code, text:r.text, checked:false, amountText:'', amount:0 }));
+  }
+
+  function resetOcrState(){
+    ocrResults = defaultOcrRows();
+    renderOcrResultsTable();
+    renderOcrSummary('Seleziona manualmente le righe corrette e inserisci i prezzi.');
+    renderOcrTotal();
+  }
+
+  function revokeOcrPreview(){
+    if(ocrPreviewUrl){
+      try{ URL.revokeObjectURL(ocrPreviewUrl); }catch(_e){}
+      ocrPreviewUrl = '';
+    }
+  }
+
   function bindOcrUi(){
-    const refs = ocrEl();
-    refs.openBtn?.addEventListener('click', ()=>{
+    const refs = getOcrRefs();
+    if(!refs.openBtn || !refs.modalEl) return;
+
+    refs.openBtn.addEventListener('click', ()=>{
       clearErr();
-      resetOcrUi();
+      resetOcrState();
       ensureOcrModal()?.show();
     });
+
     refs.pickLibBtn?.addEventListener('click', ()=> refs.fileLib?.click());
     refs.pickCamBtn?.addEventListener('click', ()=> refs.fileCam?.click());
-    refs.fileLib?.addEventListener('change', ev => handleOcrFile(ev.target.files?.[0] || null, ev.target));
-    refs.fileCam?.addEventListener('change', ev => handleOcrFile(ev.target.files?.[0] || null, ev.target));
+
+    refs.fileLib?.addEventListener('change', ev => handleOcrFile(ev.target.files?.[0] || null, 'libreria'));
+    refs.fileCam?.addEventListener('change', ev => handleOcrFile(ev.target.files?.[0] || null, 'fotocamera'));
+
     refs.confirm?.addEventListener('click', applyOcrResults);
+
+    refs.modalEl.addEventListener('hidden.bs.modal', ()=>{
+      if(refs.fileLib) refs.fileLib.value = '';
+      if(refs.fileCam) refs.fileCam.value = '';
+    });
   }
 
-  function resetOcrUi(){
-    const refs = ocrEl();
-    if(ocrObjectUrl){ try{ URL.revokeObjectURL(ocrObjectUrl); }catch{} }
-    ocrObjectUrl = '';
-    ocrResults = OCR_ROW_ORDER.map(row => ({
-      code: row.code,
-      text: row.text,
-      checked: false,
-      amountText: '',
-      amount: 0
-    }));
+  async function handleOcrFile(file, sourceLabel='foto'){
+    const refs = getOcrRefs();
+    if(!file) return;
+    revokeOcrPreview();
+    ocrPreviewUrl = URL.createObjectURL(file);
     if(refs.preview){
-      refs.preview.src = '';
-      refs.preview.classList.add('d-none');
-      refs.preview.style.display = 'none';
+      refs.preview.src = ocrPreviewUrl;
+      refs.preview.classList.remove('d-none');
     }
     if(refs.busy){
-      refs.busy.textContent = 'Carica una foto del modulo.';
-      refs.busy.style.display = '';
+      refs.busy.textContent = `Foto caricata da ${sourceLabel}. Per affidabilità totale, seleziona le righe corrette e inserisci i prezzi.`;
     }
-    if(refs.summary){
-      refs.summary.textContent = 'Modalità assistita: il sistema non importerà nulla da solo. Seleziona tu le RIP corrette e correggi gli importi prima della conferma.';
-    }
-    renderOcrResultsTable();
-    updateOcrDetectedTotal();
-    if(refs.confirm) refs.confirm.disabled = true;
+    renderOcrSummary('Modalità assistita attiva: nessuna riga viene importata automaticamente.');
+    resetOcrState();
   }
 
-  async function handleOcrFile(file, inputEl){
-    const refs = ocrEl();
-    if(!file) return;
-    if(ocrObjectUrl){ try{ URL.revokeObjectURL(ocrObjectUrl); }catch{} }
-    ocrObjectUrl = URL.createObjectURL(file);
-    if(refs.preview){
-      refs.preview.src = ocrObjectUrl;
-      refs.preview.classList.remove('d-none');
-      refs.preview.style.display = 'block';
-    }
-    if(refs.busy) refs.busy.style.display = 'none';
-    if(refs.summary){
-      refs.summary.textContent = 'Foto caricata. Modalità 100% affidabile: seleziona manualmente le righe corrette e inserisci o correggi i prezzi prima della conferma.';
-    }
-    ocrResults = OCR_ROW_ORDER.map(row => ({
-      code: row.code,
-      text: row.text,
-      checked: false,
-      amountText: '',
-      amount: 0
-    }));
-    renderOcrResultsTable();
-    updateOcrDetectedTotal();
-    if(refs.confirm) refs.confirm.disabled = false;
-    if(inputEl) inputEl.value = '';
+  function renderOcrSummary(msg){
+    const el = getOcrRefs().summary;
+    if(el) el.textContent = msg || 'Nessuna analisi eseguita.';
+  }
+
+  function renderOcrTotal(){
+    const total = ocrResults.filter(r => r.checked).reduce((a,r)=>a+(Number(r.amount)||0),0);
+    const el = getOcrRefs().total;
+    if(el) el.textContent = `€ ${fmtMoney(total)}`;
   }
 
   function renderOcrResultsTable(){
-    const refs = ocrEl();
-    if(!refs.rows) return;
-    refs.rows.innerHTML = '';
-    const header = document.createElement('div');
-    header.className = 'ocr-row';
-    header.style.fontWeight = '800';
-    header.style.color = '#667085';
-    header.innerHTML = '<div>Usa</div><div>RIP</div><div>Descrizione</div><div class="text-end">Prezzo</div>';
-    refs.rows.appendChild(header);
+    const box = getOcrRefs().rows;
+    if(!box) return;
+    box.innerHTML = '';
 
-    ocrResults.forEach((r, idx)=>{
-      const row = document.createElement('div');
-      row.className = 'ocr-row';
-      row.innerHTML = `
-        <div><input type="checkbox" class="form-check-input ocr-row-use" data-idx="${idx}" ${r.checked ? 'checked' : ''}></div>
-        <div><span class="badge rounded-pill text-bg-light border">${esc(r.code)}</span></div>
-        <div class="ocr-desc">${esc(r.text)}</div>
-        <div class="ocr-price">
-          <input type="text" inputmode="decimal" class="form-control form-control-sm text-end ocr-row-amount" data-idx="${idx}" value="${esc(r.amountText || '')}" placeholder="0,00">
-        </div>
+    ocrResults.forEach((row, idx)=>{
+      const wrap = document.createElement('div');
+      wrap.className = 'ocr-row';
+      wrap.innerHTML = `
+        <div><input type="checkbox" class="form-check-input ocr-row-check" data-idx="${idx}" ${row.checked ? 'checked' : ''}></div>
+        <div><span class="badge text-bg-secondary">${esc(row.code)}</span></div>
+        <div class="ocr-desc">${esc(row.text)}</div>
+        <div class="ocr-price"><input type="text" inputmode="decimal" class="form-control form-control-sm text-end ocr-row-price" data-idx="${idx}" value="${esc(row.amountText || '')}" placeholder="0,00"></div>
       `;
-      refs.rows.appendChild(row);
+      box.appendChild(wrap);
     });
 
-    refs.rows.querySelectorAll('.ocr-row-use').forEach(input=>{
+    box.querySelectorAll('.ocr-row-check').forEach(input=>{
       input.addEventListener('change', ()=>{
         const idx = Number(input.dataset.idx);
+        if(!Number.isInteger(idx) || !ocrResults[idx]) return;
         ocrResults[idx].checked = !!input.checked;
-        updateOcrDetectedTotal();
+        renderOcrTotal();
       });
     });
 
-    refs.rows.querySelectorAll('.ocr-row-amount').forEach(input=>{
+    box.querySelectorAll('.ocr-row-price').forEach(input=>{
       input.addEventListener('input', ()=>{
         const idx = Number(input.dataset.idx);
+        if(!Number.isInteger(idx) || !ocrResults[idx]) return;
         ocrResults[idx].amountText = input.value;
-        ocrResults[idx].amount = moneyToNumber(input.value);
-        updateOcrDetectedTotal();
+        ocrResults[idx].amount = parseNum(input.value);
+        renderOcrTotal();
       });
       input.addEventListener('blur', ()=>{
         const idx = Number(input.dataset.idx);
-        if(ocrResults[idx].amount > 0){
-          ocrResults[idx].amountText = fmtMoney(ocrResults[idx].amount);
-          input.value = ocrResults[idx].amountText;
-        }
+        if(!Number.isInteger(idx) || !ocrResults[idx]) return;
+        const val = parseNum(input.value);
+        ocrResults[idx].amount = val;
+        ocrResults[idx].amountText = val > 0 ? fmtMoney(val) : '';
+        input.value = ocrResults[idx].amountText;
+        renderOcrTotal();
       });
     });
-  }
-
-  function updateOcrDetectedTotal(){
-    const refs = ocrEl();
-    const sum = ocrResults.filter(r => r.checked && r.amount > 0).reduce((acc, r) => acc + (r.amount || 0), 0);
-    if(refs.total) refs.total.textContent = `€ ${fmtMoney(sum)}`;
   }
 
   function applyOcrResults(){
     try{
-      clearErr();
-      const used = ocrResults.filter(r => r.checked);
-      if(!used.length){
-        showErr('Seleziona almeno una riga prima di confermare.');
-        return;
-      }
-      const invalid = used.filter(r => !(r.amount > 0));
-      if(invalid.length){
-        showErr('Inserisci un importo valido per ogni riga selezionata prima di confermare.');
+      const selected = ocrResults.filter(r => r.checked && Number(r.amount) > 0);
+      if(!selected.length){
+        showErr('Seleziona almeno una RIP e inserisci un prezzo valido prima di confermare.');
         return;
       }
 
-      used.forEach(r=>{
-        const work = WORKS.find(w => w.code === r.code);
+      selected.forEach(sel=>{
+        const work = WORKS.find(w => w.code === sel.code);
         if(!work) return;
-        const idx = WORKS.findIndex(w => w.code === r.code);
+        const idx = WORKS.findIndex(w => w.code === sel.code);
         const it = ensureLocalItem(work, idx);
-        it.unit_price_ex_vat = r.amount;
+        it.unit_price_ex_vat = Number(sel.amount || 0);
       });
 
       recalcTotals();
       renderAll();
-      showOk('Importazione assistita applicata');
       ensureOcrModal()?.hide();
+      showOk('Importazione da foto applicata.');
     }catch(e){
-      showErr('Errore applicazione importazione assistita: ' + (e?.message || e));
+      showErr('Errore importazione da foto: ' + (e?.message || e));
     }
   }
 
