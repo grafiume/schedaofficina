@@ -1792,141 +1792,320 @@ async function generateQuotePdfBlob(){
       ['RIP30','MONTAGGIO, COLLAUDO E VERNICIATURA'],
       ['RIP16','RICAMBI VARI']
     ];
+
     const img = await loadImage(dataUrl);
     const formCanvas = extractFormCanvas(img);
     if($('ocrPreview')){ $('ocrPreview').src = formCanvas.toDataURL('image/jpeg', 0.95); $('ocrPreview').classList.remove('d-none'); }
-    const w = formCanvas.width;
-    const h = formCanvas.height;
 
-    // Layout fissato sul modulo ELIP, in ordine reale delle righe del foglio.
-    const layout = {
-      // Coordinate normalizzate sul modulo gia' ritagliato.
-      // Tarate sul modello reale ELIP per evitare slittamenti di riga.
-      rowTop: h * 0.078,
-      rowH: h * 0.0495,
-      checkX1: w * 0.486,
-      checkX2: w * 0.535,
-      priceX1: w * 0.868,
-      priceX2: w * 0.985,
-      totalX1: w * 0.105,
-      totalX2: w * 0.315,
-      totalY1: h * 0.944,
-      totalY2: h * 0.995
-    };
-
-    const rows = rowsMeta.map(([code, text], i) => {
-      const top = Math.round(layout.rowTop + (i * layout.rowH));
-      const bottom = Math.round(layout.rowTop + ((i + 1) * layout.rowH));
-      const rowPadY = Math.max(1, Math.round((bottom - top) * 0.12));
-      const checkPadX = Math.max(1, Math.round((layout.checkX2 - layout.checkX1) * 0.18));
-      const pricePadX = Math.max(1, Math.round((layout.priceX2 - layout.priceX1) * 0.06));
-      const checkRect = {
-        x: Math.round(layout.checkX1 + checkPadX),
-        y: top + rowPadY,
-        w: Math.max(8, Math.round((layout.checkX2 - layout.checkX1) - (checkPadX * 2))),
-        h: Math.max(8, Math.round((bottom - top) - (rowPadY * 2)))
-      };
-      const priceRect = {
-        x: Math.round(layout.priceX1 + pricePadX),
-        y: top + rowPadY,
-        w: Math.max(20, Math.round((layout.priceX2 - layout.priceX1) - (pricePadX * 2))),
-        h: Math.max(10, Math.round((bottom - top) - (rowPadY * 2)))
-      };
-      const checkCanvas = extractRectCanvas(formCanvas, checkRect.x, checkRect.y, checkRect.w, checkRect.h, true);
+    const geometry = detectRepairSheetGeometry(formCanvas, rowsMeta.length);
+    const rows = rowsMeta.map(([code, text], idx) => {
+      const box = geometry.boxes[idx];
+      const checkCanvas = extractRectCanvas(formCanvas, box.innerX, box.innerY, box.innerW, box.innerH, true);
       const metrics = getCheckboxMetrics(checkCanvas.getContext('2d', {willReadFrequently:true}), 0, 0, checkCanvas.width, checkCanvas.height);
+      const priceRect = geometry.priceRects[idx];
       const priceCanvas = extractRectCanvas(formCanvas, priceRect.x, priceRect.y, priceRect.w, priceRect.h, false);
       const priceInk = getInkMetrics(priceCanvas.getContext('2d', {willReadFrequently:true}), 0, 0, priceCanvas.width, priceCanvas.height);
       return {
-        code, text, use:false, price:0,
-        checkRect, priceRect, metrics, priceInk,
+        code, text,
+        index: idx,
+        box,
+        checkRect: { x: box.innerX, y: box.innerY, w: box.innerW, h: box.innerH },
+        priceRect,
+        metrics,
         checkScore: checkboxScore(metrics),
-        top, bottom
+        priceInk,
+        price: 0,
+        use: false,
       };
     });
 
     const totalCanvas = extractRectCanvas(
       formCanvas,
-      Math.round(layout.totalX1),
-      Math.round(layout.totalY1),
-      Math.round(layout.totalX2 - layout.totalX1),
-      Math.round(layout.totalY2 - layout.totalY1),
+      geometry.totalRect.x,
+      geometry.totalRect.y,
+      geometry.totalRect.w,
+      geometry.totalRect.h,
       false
     );
     const writtenTotal = await recognizeMoneyFromCanvas(totalCanvas);
 
-    for (const row of rows) {
-      const strongPriceInk = (row.priceInk.centerFill > 0.028 || row.priceInk.fill > 0.040);
-      if (strongPriceInk) {
-        const priceCanvas = extractRectCanvas(formCanvas, row.priceRect.x, row.priceRect.y, row.priceRect.w, row.priceRect.h, false);
-        row.price = await recognizeMoneyFromCanvas(priceCanvas);
+    for(const row of rows){
+      if(row.priceInk.centerFill >= 0.018 || row.priceInk.fill >= 0.028){
+        const pc = extractRectCanvas(formCanvas, row.priceRect.x, row.priceRect.y, row.priceRect.w, row.priceRect.h, false);
+        row.price = await recognizeMoneyFromCanvas(pc);
       }
     }
 
-    const checkCandidates = rows.filter(r => {
-      const minDiag = Math.min(Number(r.metrics?.diagA || 0), Number(r.metrics?.diagB || 0));
-      return r.checkScore >= 0.28 && minDiag >= 0.10 && Number(r.metrics?.fill || 0) >= 0.022;
-    }).sort((a,b)=> a.top - b.top);
-    const pricedRows = rows.filter(r => Number(r.price || 0) > 0).sort((a,b)=> a.top - b.top);
+    const markedRows = detectMarkedRows(rows);
+    const pricedRows = rows.filter(r => Number(r.price || 0) > 0);
 
-    // Regola prioritaria: se c'e' una sola riga con prezzo scritto, quella e' la riga del RIP.
-    // La X serve solo come conferma aggiuntiva, non deve spostare il prezzo su altre righe.
-    if (pricedRows.length === 1) {
+    if(markedRows.length === 1){
+      const winner = markedRows[0];
+      winner.use = true;
+      winner.price = normalizeMoneyChoice(winner.price, writtenTotal);
+    } else if(pricedRows.length === 1){
       const winner = pricedRows[0];
       winner.use = true;
       winner.price = normalizeMoneyChoice(writtenTotal, winner.price);
-    } else if (checkCandidates.length === 1) {
-      const winner = checkCandidates[0];
+    } else if(markedRows.length > 1 && pricedRows.length === 1){
+      const winner = pricedRows[0];
       winner.use = true;
       winner.price = normalizeMoneyChoice(writtenTotal, winner.price);
-    } else if (checkCandidates.length > 1 && pricedRows.length > 1) {
-      const pair = checkCandidates.map(c => ({ c, p: pricedRows.slice().sort((a,b)=>Math.abs(a.top-c.top)-Math.abs(b.top-c.top))[0] }))
-        .filter(x => x.p)
-        .sort((a,b)=> Math.abs(a.c.top-a.p.top) - Math.abs(b.c.top-b.p.top))[0];
-      if (pair) {
-        pair.p.use = true;
-        pair.p.price = normalizeMoneyChoice(writtenTotal, pair.p.price);
+    } else if(markedRows.length > 0 && pricedRows.length > 0){
+      const pairs = [];
+      for(const m of markedRows){
+        let best = null;
+        let bestDist = Infinity;
+        for(const p of pricedRows){
+          const d = Math.abs((m.box.cy || 0) - (p.box.cy || 0));
+          if(d < bestDist){ bestDist = d; best = p; }
+        }
+        if(best) pairs.push({ m, p: best, d: bestDist });
       }
-    } else if (checkCandidates.length === 1 && !pricedRows.length && writtenTotal > 0) {
-      checkCandidates[0].use = true;
-      checkCandidates[0].price = writtenTotal;
-    } else {
-      const combo = rows.slice().sort((a,b) => ((b.priceInk.centerFill * 4.0) + (b.priceInk.fill * 2.5) + (b.checkScore * 1.5)) - ((a.priceInk.centerFill * 4.0) + (a.priceInk.fill * 2.5) + (a.checkScore * 1.5)));
-      const winner = combo[0];
-      const second = combo[1];
-      if (winner && (winner.price > 0 || writtenTotal > 0) && (!second || (((winner.priceInk.centerFill * 4.0) + (winner.priceInk.fill * 2.5) + (winner.checkScore * 1.5)) - ((second.priceInk.centerFill * 4.0) + (second.priceInk.fill * 2.5) + (second.checkScore * 1.5)) > 0.18))) {
-        winner.use = true;
-        winner.price = normalizeMoneyChoice(writtenTotal, winner.price);
+      pairs.sort((a,b)=> a.d - b.d);
+      if(pairs[0]){
+        pairs[0].p.use = true;
+        pairs[0].p.price = normalizeMoneyChoice(writtenTotal, pairs[0].p.price);
       }
-    }
-
-    // Fallback professionale per modulo ELIP:
-    // se il totale sotto e' scritto ma non ho ancora trovato nessuna riga valida,
-    // prendo la casella X con punteggio piu' alto e la considero unica riga attiva.
-    if (!rows.some(r => r.use) && writtenTotal > 0) {
-      const rankedChecks = rows.slice().sort((a,b) => b.checkScore - a.checkScore);
-      const best = rankedChecks[0];
-      const second = rankedChecks[1];
-      const bestMinDiag = Math.min(Number(best?.metrics?.diagA || 0), Number(best?.metrics?.diagB || 0));
-      const bestCenter = Number(best?.metrics?.centerFill || 0);
-      const secondScore = Number(second?.checkScore || 0);
-      // Soglia abbastanza larga per non perdere la prima riga RIP05 come nel caso reale,
-      // ma sempre con distacco dal secondo classificato per evitare falsi positivi multipli.
-      if (best && best.checkScore >= 0.16 && bestMinDiag >= 0.06 && bestCenter >= 0.05 && (best.checkScore - secondScore) >= 0.02) {
-        best.use = true;
-        best.price = writtenTotal;
+    } else if(markedRows.length === 1 && writtenTotal > 0){
+      markedRows[0].use = true;
+      markedRows[0].price = writtenTotal;
+    } else if(pricedRows.length === 0 && writtenTotal > 0){
+      const fallback = rows.slice().sort((a,b)=> b.checkScore - a.checkScore)[0];
+      if(fallback && fallback.checkScore >= 0.22){
+        fallback.use = true;
+        fallback.price = writtenTotal;
       }
     }
 
     rows.forEach(r => {
-      if (!(r.use && Number(r.price || 0) > 0)) {
+      if(!(r.use && Number(r.price || 0) > 0)){
         r.use = false;
         r.price = 0;
       }
-      delete r.checkRect; delete r.priceRect; delete r.top; delete r.bottom; delete r.priceInk;
+      delete r.box; delete r.checkRect; delete r.priceRect; delete r.priceInk; delete r.index;
     });
 
-    const total = rows.filter(r=>r.use).reduce((s,r)=> s + Number(r.price || 0), 0);
+    const total = rows.filter(r => r.use).reduce((s,r)=> s + Number(r.price || 0), 0);
     return { rows, total: total || writtenTotal || 0 };
+  }
+
+  function detectRepairSheetGeometry(formCanvas, expectedCount){
+    const w = formCanvas.width;
+    const h = formCanvas.height;
+    const rowBandTop = Math.round(h * 0.18);
+    const rowBandBottom = Math.round(h * 0.89);
+
+    const vPeaks = detectVerticalInkPeaks(formCanvas, rowBandTop, rowBandBottom);
+    const checkLeft = pickClosest(vPeaks, w * 0.52, w * 0.44, w * 0.60) ?? Math.round(w * 0.525);
+    const checkRight = pickClosest(vPeaks, w * 0.565, w * 0.50, w * 0.64) ?? Math.round(w * 0.565);
+    const priceLeft = pickClosest(vPeaks, w * 0.885, w * 0.80, w * 0.94) ?? Math.round(w * 0.885);
+    const rightEdge = pickClosest(vPeaks, w * 0.985, w * 0.93, w * 0.999) ?? Math.round(w * 0.985);
+
+    let boxes = detectCheckboxBoxesPrecise(formCanvas, checkLeft, checkRight, rowBandTop, rowBandBottom);
+    if(boxes.length < expectedCount){
+      boxes = synthesizeCheckboxBoxes(formCanvas, { checkLeft, checkRight, rowBandTop, rowBandBottom, expectedCount, source: boxes });
+    }
+    boxes = boxes.slice(0, expectedCount);
+
+    const medianHeight = median(boxes.map(b => b.h)) || Math.round(h * 0.022);
+    const priceRects = boxes.map((b, idx) => {
+      const nextCy = boxes[idx + 1]?.cy;
+      const prevCy = boxes[idx - 1]?.cy;
+      const rowHalf = Math.max(
+        medianHeight * 0.95,
+        Math.min(
+          nextCy ? (nextCy - b.cy) * 0.46 : medianHeight * 1.15,
+          prevCy ? (b.cy - prevCy) * 0.46 : medianHeight * 1.15,
+          medianHeight * 1.55
+        )
+      );
+      const y = Math.max(0, Math.round(b.cy - rowHalf));
+      const hRect = Math.max(12, Math.round(rowHalf * 2));
+      return {
+        x: Math.max(0, Math.round(priceLeft + (rightEdge - priceLeft) * 0.05)),
+        y,
+        w: Math.max(18, Math.round((rightEdge - priceLeft) * 0.88)),
+        h: Math.min(formCanvas.height - y, hRect)
+      };
+    });
+
+    const bottomCy = boxes[boxes.length - 1]?.cy || Math.round(h * 0.84);
+    const totalRect = {
+      x: Math.round(w * 0.12),
+      y: Math.max(0, Math.round(bottomCy + medianHeight * 1.2)),
+      w: Math.round(w * 0.22),
+      h: Math.round(h * 0.055)
+    };
+
+    return { boxes, priceRects, totalRect, checkLeft, checkRight, priceLeft, rightEdge };
+  }
+
+  function detectVerticalInkPeaks(formCanvas, y1, y2){
+    const ctx = formCanvas.getContext('2d', { willReadFrequently:true });
+    const w = formCanvas.width;
+    const h = formCanvas.height;
+    y1 = Math.max(0, Math.min(h - 1, Math.round(y1)));
+    y2 = Math.max(y1 + 1, Math.min(h, Math.round(y2)));
+    const data = ctx.getImageData(0, y1, w, y2 - y1).data;
+    const sums = new Float32Array(w);
+    for(let y=0; y<y2-y1; y++){
+      for(let x=0; x<w; x++){
+        const i = (y * w + x) * 4;
+        const g = (data[i] + data[i+1] + data[i+2]) / 3;
+        if(g < 210) sums[x] += (210 - g);
+      }
+    }
+    const smooth = new Float32Array(w);
+    for(let x=0; x<w; x++){
+      let s = 0, c = 0;
+      for(let k=-2; k<=2; k++){
+        const xx = x + k;
+        if(xx >= 0 && xx < w){ s += sums[xx]; c++; }
+      }
+      smooth[x] = c ? s / c : sums[x];
+    }
+    const maxv = Math.max(...smooth);
+    const thr = maxv * 0.34;
+    const peaks = [];
+    let start = -1;
+    for(let x=0; x<w; x++){
+      if(smooth[x] >= thr){ if(start < 0) start = x; }
+      else if(start >= 0){
+        const end = x - 1;
+        let bestX = start, bestV = -1;
+        for(let i=start; i<=end; i++) if(smooth[i] > bestV){ bestV = smooth[i]; bestX = i; }
+        peaks.push(bestX);
+        start = -1;
+      }
+    }
+    if(start >= 0){
+      let bestX = start, bestV = -1;
+      for(let i=start; i<w; i++) if(smooth[i] > bestV){ bestV = smooth[i]; bestX = i; }
+      peaks.push(bestX);
+    }
+    return peaks;
+  }
+
+  function pickClosest(peaks, target, min, max){
+    const list = (peaks || []).filter(x => x >= min && x <= max);
+    if(!list.length) return null;
+    return list.sort((a,b)=> Math.abs(a - target) - Math.abs(b - target))[0];
+  }
+
+  function detectCheckboxBoxesPrecise(formCanvas, checkLeft, checkRight, y1, y2){
+    const searchPad = Math.round((checkRight - checkLeft) * 0.9);
+    const x = Math.max(0, Math.round(checkLeft - searchPad));
+    const w = Math.min(formCanvas.width - x, Math.round((checkRight - checkLeft) + searchPad * 2));
+    const y = Math.max(0, Math.round(y1));
+    const h = Math.min(formCanvas.height - y, Math.round(y2 - y1));
+    const ctx = formCanvas.getContext('2d', { willReadFrequently:true });
+    const data = ctx.getImageData(x, y, w, h).data;
+    const bin = new Uint8Array(w * h);
+    for(let yy=0; yy<h; yy++){
+      for(let xx=0; xx<w; xx++){
+        const i = (yy * w + xx) * 4;
+        const g = (data[i] + data[i+1] + data[i+2]) / 3;
+        bin[yy * w + xx] = g < 175 ? 1 : 0;
+      }
+    }
+    const visited = new Uint8Array(w * h);
+    const comps = [];
+    const q = new Int32Array(w * h);
+    for(let yy=0; yy<h; yy++){
+      for(let xx=0; xx<w; xx++){
+        const idx = yy * w + xx;
+        if(!bin[idx] || visited[idx]) continue;
+        let head = 0, tail = 0;
+        q[tail++] = idx;
+        visited[idx] = 1;
+        let minx = xx, maxx = xx, miny = yy, maxy = yy, count = 0;
+        while(head < tail){
+          const cur = q[head++];
+          const cx = cur % w;
+          const cy = (cur / w) | 0;
+          count++;
+          if(cx < minx) minx = cx; if(cx > maxx) maxx = cx;
+          if(cy < miny) miny = cy; if(cy > maxy) maxy = cy;
+          const neigh = [cur - 1, cur + 1, cur - w, cur + w];
+          for(const ni of neigh){
+            if(ni < 0 || ni >= w * h || visited[ni] || !bin[ni]) continue;
+            visited[ni] = 1;
+            q[tail++] = ni;
+          }
+        }
+        const bw = maxx - minx + 1;
+        const bh = maxy - miny + 1;
+        const aspect = bw / Math.max(1, bh);
+        if(count < 30 || bw < 12 || bh < 12 || bw > 60 || bh > 60) continue;
+        if(aspect < 0.70 || aspect > 1.35) continue;
+        const cx = x + minx + bw / 2;
+        if(cx < checkLeft - 25 || cx > checkRight + 35) continue;
+        comps.push({ x: x + minx, y: y + miny, w: bw, h: bh, cx, cy: y + miny + bh / 2, count });
+      }
+    }
+    comps.sort((a,b)=> a.cy - b.cy);
+    const out = [];
+    for(const c of comps){
+      const prev = out[out.length - 1];
+      if(prev && Math.abs(prev.cy - c.cy) < Math.max(8, Math.min(prev.h, c.h) * 0.7)){
+        const prevDelta = Math.abs(prev.cx - ((checkLeft + checkRight) / 2));
+        const curDelta = Math.abs(c.cx - ((checkLeft + checkRight) / 2));
+        if(curDelta < prevDelta) out[out.length - 1] = c;
+      } else {
+        out.push(c);
+      }
+    }
+    return out.map(c => {
+      const padX = Math.max(2, Math.round(c.w * 0.22));
+      const padY = Math.max(2, Math.round(c.h * 0.22));
+      return {
+        ...c,
+        innerX: Math.round(c.x + padX),
+        innerY: Math.round(c.y + padY),
+        innerW: Math.max(6, Math.round(c.w - padX * 2)),
+        innerH: Math.max(6, Math.round(c.h - padY * 2))
+      };
+    });
+  }
+
+  function synthesizeCheckboxBoxes(formCanvas, opts){
+    const expectedCount = opts.expectedCount;
+    const source = (opts.source || []).slice().sort((a,b)=> a.cy - b.cy);
+    const medianGap = median(source.slice(1).map((b,i)=> b.cy - source[i].cy)) || Math.round((opts.rowBandBottom - opts.rowBandTop) / (expectedCount + 2));
+    const medianSize = median(source.map(b => (b.w + b.h) / 2)) || Math.round((opts.checkRight - opts.checkLeft) * 0.7);
+    let startCy = source[0]?.cy || Math.round(formCanvas.height * 0.28);
+    if(source.length >= 2){
+      const firstGap = source[1].cy - source[0].cy;
+      if(firstGap > medianGap * 1.4) startCy = Math.round(source[1].cy - medianGap);
+    }
+    const centerX = source[0]?.cx || Math.round((opts.checkLeft + opts.checkRight) / 2);
+    const size = Math.max(14, Math.round(medianSize));
+    const boxes = [];
+    for(let i=0; i<expectedCount; i++){
+      const cy = Math.round(startCy + i * medianGap);
+      const x = Math.round(centerX - size / 2);
+      const y = Math.round(cy - size / 2);
+      boxes.push({
+        x, y, w: size, h: size, cx: centerX, cy,
+        innerX: x + Math.round(size * 0.22),
+        innerY: y + Math.round(size * 0.22),
+        innerW: Math.max(6, Math.round(size * 0.56)),
+        innerH: Math.max(6, Math.round(size * 0.56))
+      });
+    }
+    return boxes;
+  }
+
+  function detectMarkedRows(rows){
+    const candidates = rows.map(r => ({ row: r, score: r.checkScore, minDiag: Math.min(Number(r.metrics?.diagA || 0), Number(r.metrics?.diagB || 0)), fill: Number(r.metrics?.fill || 0) }))
+      .sort((a,b)=> b.score - a.score);
+    if(!candidates.length) return [];
+    const top = candidates[0];
+    const second = candidates[1];
+    if(top.score >= 0.30 && top.minDiag >= 0.17 && top.fill >= 0.08 && (!second || top.score - second.score >= 0.10)) return [top.row];
+    if(top.score >= 0.24 && top.minDiag >= 0.14 && top.fill >= 0.06 && (!second || top.score - second.score >= 0.06)) return [top.row];
+    return [];
   }
 
   function extractFormCanvas(img){
@@ -1939,7 +2118,7 @@ async function generateQuotePdfBlob(){
     const out = document.createElement('canvas');
     out.width = rect.w;
     out.height = rect.h;
-    const outCtx = out.getContext('2d');
+    const outCtx = out.getContext('2d', { willReadFrequently: true });
     outCtx.fillStyle = '#fff';
     outCtx.fillRect(0,0,out.width,out.height);
     outCtx.drawImage(canvas, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
@@ -1950,31 +2129,30 @@ async function generateQuotePdfBlob(){
     const img = ctx.getImageData(0,0,w,h).data;
     const row = new Float32Array(h);
     const col = new Float32Array(w);
-    const yA = Math.round(h * 0.10), yB = Math.round(h * 0.95);
-    const xA = Math.round(w * 0.02), xB = Math.round(w * 0.98);
-    for(let y=yA; y<yB; y++){
-      for(let x=xA; x<xB; x++){
+    for(let y=0; y<h; y++){
+      for(let x=0; x<w; x++){
         const i=(y*w+x)*4;
         const g=(img[i]+img[i+1]+img[i+2])/3;
-        const ink = g < 215 ? (215 - g) : 0;
+        const ink = g < 225 ? (225 - g) : 0;
         row[y]+=ink;
         col[x]+=ink;
       }
     }
-    let left = findFirstPeak(col, Math.round(w*0.02), Math.round(w*0.35), 0.45);
-    let right = findLastPeak(col, Math.round(w*0.65), Math.round(w*0.98), 0.45);
-    if(right <= left){ left = Math.round(w*0.04); right = Math.round(w*0.94); }
-    let top = findFirstPeak(row, Math.round(h*0.08), Math.round(h*0.30), 0.40);
-    let bottom = findLastPeak(row, Math.round(h*0.72), Math.round(h*0.96), 0.35);
-    if(bottom <= top){ top = Math.round(h*0.14); bottom = Math.round(h*0.90); }
-    const padX = Math.round((right-left) * 0.02);
-    const padYTop = Math.round((bottom-top) * 0.02);
-    const padYBottom = Math.round((bottom-top) * 0.05);
+    let left = findFirstPeak(col, Math.round(w*0.01), Math.round(w*0.20), 0.20);
+    let right = findLastPeak(col, Math.round(w*0.80), Math.round(w*0.999), 0.20);
+    let top = findFirstPeak(row, Math.round(h*0.02), Math.round(h*0.15), 0.18);
+    let bottom = findLastPeak(row, Math.round(h*0.85), Math.round(h*0.995), 0.15);
+    if(right <= left) { left = Math.round(w*0.02); right = Math.round(w*0.98); }
+    if(bottom <= top) { top = Math.round(h*0.03); bottom = Math.round(h*0.98); }
+    const padX = Math.round((right-left) * 0.012);
+    const padY = Math.round((bottom-top) * 0.012);
+    const x = Math.max(0, left - padX);
+    const y = Math.max(0, top - padY);
     return {
-      x: Math.max(0, left - padX),
-      y: Math.max(0, top - padYTop),
-      w: Math.min(w, right + padX) - Math.max(0, left - padX),
-      h: Math.min(h, bottom + padYBottom) - Math.max(0, top - padYTop)
+      x,
+      y,
+      w: Math.min(w - x, (right + padX) - x),
+      h: Math.min(h - y, (bottom + padY) - y)
     };
   }
 
@@ -1994,77 +2172,10 @@ async function generateQuotePdfBlob(){
     return end-1;
   }
 
-
-  function detectCheckboxBoxes(formCanvas, layout, expectedCount){
-    const x1 = Math.max(0, Math.round(layout.checkX1 - (layout.checkX2 - layout.checkX1) * 0.08));
-    const x2 = Math.min(formCanvas.width, Math.round(layout.checkX2 + (layout.checkX2 - layout.checkX1) * 0.08));
-    const y1 = Math.max(0, Math.round(layout.rowTop - layout.rowH * 0.25));
-    const y2 = Math.min(formCanvas.height, Math.round(layout.rowTop + layout.rowH * expectedCount + layout.rowH * 0.25));
-    const sw = Math.max(1, x2 - x1), sh = Math.max(1, y2 - y1);
-    const ctx = formCanvas.getContext('2d', { willReadFrequently:true });
-    const data = ctx.getImageData(x1, y1, sw, sh).data;
-    const bin = new Uint8Array(sw * sh);
-    for(let yy=0; yy<sh; yy++){
-      for(let xx=0; xx<sw; xx++){
-        const i=(yy*sw+xx)*4;
-        const g=(data[i]+data[i+1]+data[i+2])/3;
-        bin[yy*sw+xx] = g < 205 ? 1 : 0;
-      }
-    }
-    const visited = new Uint8Array(sw * sh);
-    const comps = [];
-    const qx = new Int32Array(sw * sh);
-    const qy = new Int32Array(sw * sh);
-    for(let yy=0; yy<sh; yy++){
-      for(let xx=0; xx<sw; xx++){
-        const idx = yy*sw+xx;
-        if(!bin[idx] || visited[idx]) continue;
-        let head=0, tail=0;
-        visited[idx]=1;
-        qx[tail]=xx; qy[tail]=yy; tail++;
-        let minx=xx,maxx=xx,miny=yy,maxy=yy,count=0;
-        while(head<tail){
-          const cx=qx[head], cy=qy[head]; head++; count++;
-          if(cx<minx) minx=cx; if(cx>maxx) maxx=cx; if(cy<miny) miny=cy; if(cy>maxy) maxy=cy;
-          for(let dy=-1; dy<=1; dy++){
-            for(let dx=-1; dx<=1; dx++){
-              if(!dx && !dy) continue;
-              const nx=cx+dx, ny=cy+dy;
-              if(nx<0||ny<0||nx>=sw||ny>=sh) continue;
-              const ni=ny*sw+nx;
-              if(!bin[ni] || visited[ni]) continue;
-              visited[ni]=1;
-              qx[tail]=nx; qy[tail]=ny; tail++;
-            }
-          }
-        }
-        const bw = maxx-minx+1, bh=maxy-miny+1;
-        if(count < 20) continue;
-                comps.push({ x:x1+minx, y:y1+miny, w:bw, h:bh, count });
-      }
-    }
-    const filtered = comps.filter(c => c.w >= sw*0.35 && c.w <= sw*0.98 && c.h >= sh*0.012 && c.h <= sh*0.06);
-    filtered.sort((a,b)=> (a.y + a.h/2) - (b.y + b.h/2));
-    const dedup = [];
-    for(const c of filtered){
-      const cy = c.y + c.h/2;
-      const prev = dedup[dedup.length-1];
-      if(prev && Math.abs((prev.y + prev.h/2) - cy) < Math.max(6, Math.min(prev.h, c.h) * 0.6)){
-        if(c.count > prev.count) dedup[dedup.length-1] = c;
-      }else{
-        dedup.push(c);
-      }
-    }
-    if(dedup.length >= expectedCount){
-      return dedup.slice(0, expectedCount);
-    }
-    return [];
-  }
-
   function getCheckboxMetrics(ctx, x, y, w, h){
     const data = ctx.getImageData(x,y,w,h).data;
-    const mx = Math.max(1, Math.floor(w*0.22));
-    const my = Math.max(1, Math.floor(h*0.22));
+    const mx = Math.max(1, Math.floor(w*0.10));
+    const my = Math.max(1, Math.floor(h*0.10));
     let total=0, dark=0, diag1=0, diag2=0, tot1=0, tot2=0;
     for(let yy=my; yy<h-my; yy++){
       const x1 = Math.round(mx + ((w - (mx*2) - 1) * ((yy-my) / Math.max(1, h - (my*2) - 1))));
@@ -2072,27 +2183,36 @@ async function generateQuotePdfBlob(){
       for(let xx=mx; xx<w-mx; xx++){
         const i=(yy*w+xx)*4;
         const g=(data[i]+data[i+1]+data[i+2])/3;
-        const isDark = g < 170;
+        const isDark = g < 175;
         total++; if(isDark) dark++;
       }
-      const band = Math.max(1, Math.floor(w*0.10));
+      const band = Math.max(1, Math.floor(w*0.14));
       for(let dx=-band; dx<=band; dx++){
         const xa = x1 + dx, xb = x2 + dx;
-        if(xa>=mx && xa<w-mx){ const i=(yy*w+xa)*4; const g=(data[i]+data[i+1]+data[i+2])/3; tot1++; if(g < 170) diag1++; }
-        if(xb>=mx && xb<w-mx){ const i=(yy*w+xb)*4; const g=(data[i]+data[i+1]+data[i+2])/3; tot2++; if(g < 170) diag2++; }
+        if(xa>=mx && xa<w-mx){ const i=(yy*w+xa)*4; const g=(data[i]+data[i+1]+data[i+2])/3; tot1++; if(g < 175) diag1++; }
+        if(xb>=mx && xb<w-mx){ const i=(yy*w+xb)*4; const g=(data[i]+data[i+1]+data[i+2])/3; tot2++; if(g < 175) diag2++; }
+      }
+    }
+    let centerTotal = 0, centerDark = 0;
+    for(let yy=Math.floor(h*0.25); yy<Math.ceil(h*0.75); yy++){
+      for(let xx=Math.floor(w*0.25); xx<Math.ceil(w*0.75); xx++){
+        const i=(yy*w+xx)*4;
+        const g=(data[i]+data[i+1]+data[i+2])/3;
+        centerTotal++; if(g < 175) centerDark++;
       }
     }
     return {
       fill: total ? dark/total : 0,
       diagA: tot1 ? diag1/tot1 : 0,
-      diagB: tot2 ? diag2/tot2 : 0
+      diagB: tot2 ? diag2/tot2 : 0,
+      centerFill: centerTotal ? centerDark/centerTotal : 0
     };
   }
 
   function checkboxScore(m){
     if(!m) return 0;
-    return (Math.min(Number(m.diagA || 0), Number(m.diagB || 0)) * 3.2)
-      + (Math.max(Number(m.diagA || 0), Number(m.diagB || 0)) * 0.8)
+    return (Math.min(Number(m.diagA || 0), Number(m.diagB || 0)) * 3.8)
+      + (Number(m.centerFill || 0) * 1.8)
       + (Number(m.fill || 0) * 0.8);
   }
 
@@ -2103,37 +2223,15 @@ async function generateQuotePdfBlob(){
     return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
   }
 
-  function detectCheckedRows(metricsList){
-    const list = (metricsList || []).map((m, idx) => ({ idx, m, score: checkboxScore(m) }));
-    if(!list.length) return [];
-    list.sort((a,b)=> b.score - a.score);
-    const scores = list.map(x => x.score);
-    const med = median(scores);
-    const second = list[1]?.score || 0;
-    const top = list[0];
-    const standout = top.score > Math.max(0.22, med + 0.10) && top.score > (second + 0.10)
-      && Math.min(Number(top.m?.diagA || 0), Number(top.m?.diagB || 0)) > 0.11
-      && Number(top.m?.fill || 0) > 0.030;
-    return standout ? [top.idx] : [];
-  }
-
-  function findSingleStandoutRow(rows){
-    const list = (rows || []).map(r => ({ row:r, score: checkboxScore(r.metrics) })).sort((a,b)=> b.score - a.score);
-    if(!list.length) return null;
-    const top = list[0];
-    const second = list[1]?.score || 0;
-    return (top.score > Math.max(0.22, second + 0.10)) ? top.row : null;
-  }
-
   function getInkMetrics(ctx, x, y, w, h){
     const data = ctx.getImageData(x,y,w,h).data;
     let total=0, dark=0, centerTotal=0, centerDark=0;
-    const mx = Math.floor(w*0.18), my = Math.floor(h*0.22);
+    const mx = Math.floor(w*0.12), my = Math.floor(h*0.18);
     for(let yy=0; yy<h; yy++){
       for(let xx=0; xx<w; xx++){
         const i=(yy*w+xx)*4;
         const g=(data[i]+data[i+1]+data[i+2])/3;
-        const isDark = g < 175;
+        const isDark = g < 185;
         total++; if(isDark) dark++;
         if(xx>=mx && xx<w-mx && yy>=my && yy<h-my){ centerTotal++; if(isDark) centerDark++; }
       }
@@ -2154,8 +2252,8 @@ async function generateQuotePdfBlob(){
 
   function preprocessCheckboxCanvas(canvas){
     const out = document.createElement('canvas');
-    out.width = canvas.width * 5;
-    out.height = canvas.height * 5;
+    out.width = canvas.width * 6;
+    out.height = canvas.height * 6;
     const ctx = out.getContext('2d', { willReadFrequently:true });
     ctx.fillStyle = '#fff';
     ctx.fillRect(0,0,out.width,out.height);
@@ -2165,7 +2263,7 @@ async function generateQuotePdfBlob(){
     const d = img.data;
     for(let i=0;i<d.length;i+=4){
       const g = (d[i]+d[i+1]+d[i+2])/3;
-      const v = g < 185 ? 0 : 255;
+      const v = g < 188 ? 0 : 255;
       d[i]=d[i+1]=d[i+2]=v;
     }
     ctx.putImageData(img,0,0);
@@ -2174,8 +2272,8 @@ async function generateQuotePdfBlob(){
 
   function preprocessMoneyCanvas(canvas){
     const out = document.createElement('canvas');
-    out.width = canvas.width * 5;
-    out.height = canvas.height * 5;
+    out.width = canvas.width * 6;
+    out.height = canvas.height * 6;
     const ctx = out.getContext('2d', { willReadFrequently:true });
     ctx.fillStyle = '#fff';
     ctx.fillRect(0,0,out.width,out.height);
@@ -2185,7 +2283,7 @@ async function generateQuotePdfBlob(){
     const d = img.data;
     for(let i=0;i<d.length;i+=4){
       const g = (d[i]+d[i+1]+d[i+2])/3;
-      const v = g < 195 ? 0 : 255;
+      const v = g < 205 ? 0 : 255;
       d[i]=d[i+1]=d[i+2]=v;
     }
     ctx.putImageData(img,0,0);
