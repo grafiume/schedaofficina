@@ -209,6 +209,7 @@
       .ocr-row .ocr-desc{ font-weight:700; color:#344054; }
       .ocr-row .ocr-price{ text-align:right; }
       .ocr-total-line{ margin-top:14px; padding-top:12px; border-top:1px solid #eef2f6; font-size:1.18rem; text-align:right; }
+      .ocr-source-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
     </style>
   </head>
   <body>
@@ -335,7 +336,8 @@
 
 
 
-    <input type="file" id="ocrPhotoInput" accept="image/*" capture="environment" hidden>
+    <input type="file" id="ocrPhotoInput" accept="image/*" hidden>
+    <input type="file" id="ocrPhotoCameraInput" accept="image/*" capture="environment" hidden>
 
     <div class="modal fade" id="ocrModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down">
@@ -354,6 +356,10 @@
                 <div id="ocrBusy" class="text-muted">Carica una foto del modulo.</div>
               </div>
               <div class="ocr-results-wrap">
+                <div class="ocr-source-actions">
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="btnChooseOcrFromLibrary">🖼️ Scegli da libreria</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="btnChooseOcrFromCamera">📷 Scatta foto</button>
+                </div>
                 <div class="ocr-summary" id="ocrSummary">Nessuna analisi eseguita.</div>
                 <div id="ocrRows"></div>
                 <div class="ocr-total-line">Totale OCR: <strong id="ocrDetectedTotal">€ 0,00</strong></div>

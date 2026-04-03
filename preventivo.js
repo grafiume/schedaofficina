@@ -402,6 +402,9 @@
     $('btnInvia')?.addEventListener('click', sendQuoteUnified);
     $('btnOcrPhoto')?.addEventListener('click', openOcrImport);
     $('ocrPhotoInput')?.addEventListener('change', onOcrPhotoSelected);
+    $('ocrPhotoCameraInput')?.addEventListener('change', onOcrPhotoSelected);
+    $('btnChooseOcrFromLibrary')?.addEventListener('click', ()=> $('ocrPhotoInput')?.click());
+    $('btnChooseOcrFromCamera')?.addEventListener('click', ()=> $('ocrPhotoCameraInput')?.click());
     $('btnConfirmOcrImport')?.addEventListener('click', confirmOcrImport);
 
     ['status','sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{
@@ -1673,7 +1676,6 @@ async function generateQuotePdfBlob(){
       ocrModal = ocrModal || new bootstrap.Modal(modalEl);
       resetOcrUi();
       ocrModal.show();
-      setTimeout(()=> $('ocrPhotoInput')?.click(), 80);
     }catch(e){
       showErr('Impossibile aprire importazione OCR: ' + (e?.message || e));
     }
@@ -1689,6 +1691,7 @@ async function generateQuotePdfBlob(){
     if(img){ img.src = ''; img.classList.add('d-none'); }
     if($('ocrBusy')) $('ocrBusy').textContent = 'Carica una foto del modulo.';
     if($('ocrPhotoInput')) $('ocrPhotoInput').value = '';
+    if($('ocrPhotoCameraInput')) $('ocrPhotoCameraInput').value = '';
   }
 
   async function onOcrPhotoSelected(ev){
