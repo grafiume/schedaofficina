@@ -1812,28 +1812,38 @@ async function generateQuotePdfBlob(){
       const y2 = Math.round(y1 + rowH * 0.92);
       const box = { x:checkX1, y:y1, w:(checkX2-checkX1), h:(y2-y1) };
       const metrics = getCheckboxMetrics(ctx, box.x, box.y, box.w, box.h);
-      const use = isCheckedBox(metrics);
-      let price = 0;
-      if(use){
-        const cell = extractRectCanvas(croppedCanvas, priceX1, y1, priceX2-priceX1, y2-y1);
-        const ink = getInkMetrics(cell.getContext('2d', {willReadFrequently:true}), 0,0,cell.width,cell.height);
-        if(ink.fill > 0.012 || ink.centerFill > 0.010){
-          price = await recognizeMoneyFromCanvas(cell);
-        }
-      }
-      rows.push({ code: rowsMeta[i][0], text: rowsMeta[i][1], use, price, metrics });
+      rows.push({ code: rowsMeta[i][0], text: rowsMeta[i][1], use:false, price:0, metrics, y1, y2 });
     }
-    const selected = rows.filter(r=>r.use);
+
+    const checkedIdx = detectCheckedRows(rows.map(r => r.metrics));
+    checkedIdx.forEach(idx => { if(rows[idx]) rows[idx].use = true; });
+
     const totalCanvas = extractRectCanvas(croppedCanvas, totalRect.x1, totalRect.y1, totalRect.x2-totalRect.x1, totalRect.y2-totalRect.y1);
     const totalInk = getInkMetrics(totalCanvas.getContext('2d', {willReadFrequently:true}),0,0,totalCanvas.width,totalCanvas.height);
-    const writtenTotal = (totalInk.fill > 0.012 || totalInk.centerFill > 0.012) ? await recognizeMoneyFromCanvas(totalCanvas) : 0;
+    const writtenTotal = (totalInk.fill > 0.010 || totalInk.centerFill > 0.010) ? await recognizeMoneyFromCanvas(totalCanvas) : 0;
+
+    const selected = rows.filter(r => r.use);
     if(selected.length === 1 && writtenTotal > 0){
       selected[0].price = writtenTotal;
+    }else{
+      for(const row of selected){
+        const cell = extractRectCanvas(croppedCanvas, priceX1, row.y1, priceX2-priceX1, row.y2-row.y1);
+        const ink = getInkMetrics(cell.getContext('2d', {willReadFrequently:true}), 0,0,cell.width,cell.height);
+        if(ink.fill > 0.010 || ink.centerFill > 0.008){
+          row.price = await recognizeMoneyFromCanvas(cell);
+        }
+      }
+      if(writtenTotal > 0){
+        const sum = selected.reduce((s,r)=> s + Number(r.price || 0), 0);
+        if(selected.length === 1 && (!sum || Math.abs(sum - writtenTotal) > 0.5)){
+          selected[0].price = writtenTotal;
+        }
+      }
     }
-    // hard rule: rows without X cannot carry any price
-    rows.forEach(r=>{ if(!r.use) r.price = 0; });
+
+    rows.forEach(r=>{ if(!r.use) r.price = 0; delete r.y1; delete r.y2; });
     const total = rows.filter(r=>r.use).reduce((s,r)=> s + Number(r.price || 0), 0);
-    return { rows, total };
+    return { rows, total: total || writtenTotal || 0 };
   }
 
   function autoCropSheet(img){
@@ -1927,6 +1937,49 @@ async function generateQuotePdfBlob(){
     return strongDiag && enoughCenter && enoughFill;
   }
 
+  function checkboxScore(m){
+    if(!m) return 0;
+    const diagMin = Math.min(Number(m.diagA || 0), Number(m.diagB || 0));
+    const diagMax = Math.max(Number(m.diagA || 0), Number(m.diagB || 0));
+    return (diagMin * 2.6) + (diagMax * 0.8) + (Number(m.centerFill || 0) * 1.8) + (Number(m.fill || 0) * 0.4);
+  }
+
+  function median(arr){
+    const vals = (arr || []).filter(v => Number.isFinite(v)).slice().sort((a,b)=>a-b);
+    if(!vals.length) return 0;
+    const mid = Math.floor(vals.length / 2);
+    return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+  }
+
+  function detectCheckedRows(metricsList){
+    const list = (metricsList || []).map((m, idx) => ({ idx, m, score: checkboxScore(m) }));
+    if(!list.length) return [];
+    const scores = list.map(x => x.score);
+    const med = median(scores);
+    const mad = median(scores.map(v => Math.abs(v - med))) || 0.0001;
+    const diagAMed = median(list.map(x => Number(x.m?.diagA || 0)));
+    const diagBMed = median(list.map(x => Number(x.m?.diagB || 0)));
+    const centerMed = median(list.map(x => Number(x.m?.centerFill || 0)));
+    const fillMed = median(list.map(x => Number(x.m?.fill || 0)));
+    list.sort((a,b)=> b.score - a.score);
+    const top = list[0];
+    const second = list[1] || { score: 0 };
+    const hardMin = med + Math.max(0.08, mad * 8);
+    const selected = list.filter(x => {
+      const m = x.m || {};
+      const diagOk = Number(m.diagA || 0) > (diagAMed + 0.035) && Number(m.diagB || 0) > (diagBMed + 0.035);
+      const centerOk = Number(m.centerFill || 0) > (centerMed + 0.012);
+      const fillOk = Number(m.fill || 0) > (fillMed + 0.010);
+      return x.score >= hardMin && diagOk && centerOk && fillOk;
+    }).map(x => x.idx);
+    if(selected.length) return selected.sort((a,b)=>a-b);
+    const standout = top && top.score > (second.score + 0.12) && top.score > (med + 0.14)
+      && Number(top.m?.diagA || 0) > (diagAMed + 0.05)
+      && Number(top.m?.diagB || 0) > (diagBMed + 0.05)
+      && Number(top.m?.centerFill || 0) > (centerMed + 0.015);
+    return standout ? [top.idx] : [];
+  }
+
   function getInkMetrics(ctx, x, y, w, h){
     const data = ctx.getImageData(x,y,w,h).data;
     let total=0, dark=0, centerTotal=0, centerDark=0;
@@ -1976,17 +2029,30 @@ async function generateQuotePdfBlob(){
 
   async function recognizeMoneyFromCanvas(canvas){
     if(!window.Tesseract) return 0;
-    const { data } = await Tesseract.recognize(canvas, 'eng', {
-      tessedit_char_whitelist: '0123456789,.-',
-      preserve_interword_spaces: '0'
-    });
-    const txt0 = String(data?.text || '').replace(/\s+/g,'');
-    const txt = txt0.replace(/€/g,'').replace(/O/g,'0').replace(/,/g,'.');
-    let m = txt.match(/(\d{1,4}(?:\.\d{1,2})?)/g) || [];
-    m = m.map(s => Number(s.replace(/\.(?=.*\.)/g,''))).filter(n => Number.isFinite(n));
-    if(!m.length) return 0;
-    const plausible = m.filter(n => n >= 0 && n < 100000);
-    return plausible.length ? plausible[plausible.length-1] : 0;
+    const attempts = [
+      { tessedit_pageseg_mode: '7' },
+      { tessedit_pageseg_mode: '8' },
+      { tessedit_pageseg_mode: '13' }
+    ];
+    const found = [];
+    for(const extra of attempts){
+      const { data } = await Tesseract.recognize(canvas, 'eng', {
+        tessedit_char_whitelist: '0123456789,.-',
+        preserve_interword_spaces: '0',
+        ...extra
+      });
+      const txt0 = String(data?.text || '').replace(/\s+/g,'');
+      const txt = txt0.replace(/€/g,'').replace(/O/g,'0').replace(/,/g,'.');
+      let m = txt.match(/(\d{1,5}(?:\.\d{1,2})?)/g) || [];
+      m = m.map(s => Number(s.replace(/\.(?=.*\.)/g,''))).filter(n => Number.isFinite(n));
+      found.push(...m.filter(n => n >= 0 && n < 100000));
+    }
+    if(!found.length) return 0;
+    const rounded = found.map(n => Math.round(n * 100) / 100);
+    const counts = new Map();
+    rounded.forEach(v => counts.set(v, (counts.get(v) || 0) + 1));
+    const ordered = [...counts.entries()].sort((a,b)=> b[1] - a[1] || b[0] - a[0]);
+    return ordered[0]?.[0] || 0;
   }
 
   function readFileAsDataUrl(file){
