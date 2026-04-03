@@ -35,7 +35,12 @@
   }
 
   function isClosedQuote(q){
-    return String(q?.status||'').toUpperCase()==='CHIUSO';
+    return String(q?.status||'').toUpperCase()==='CHIUSO' || isCompletedRecord(q);
+  }
+
+  function isCompletedRecord(q){
+    const s = String(q?.statoPratica || '').trim().toLowerCase();
+    return s === 'completata';
   }
 
   let sb;
@@ -56,12 +61,10 @@
 
       let query = sb.from('quotes').select('id,record_id,status,is_urgent,sent_at,accepted_at,delivery_days,delivery_date,subtotal_ex_vat,progress_percent,created_at,notes,quote_items(id),records:records(id,cliente,descrizione,modello,statoPratica)').limit(1000);
 
-      if(status){
+      if(status && status !== 'CHIUSO'){
         query = query.eq('status', status);
-      } else if(viewMode === 'archive'){
-        query = query.eq('status', 'CHIUSO');
       } else {
-        query = query.in('status', ['BOZZA','INVIATO','ACCETTATO','ANNULLATO']);
+        query = query.in('status', ['BOZZA','INVIATO','ACCETTATO','ANNULLATO','CHIUSO']);
       }
 
       if(order==='accepted_asc') query=query.order('accepted_at',{ascending:true,nullsFirst:false});
@@ -90,10 +93,17 @@
         cliente:q.records?.cliente||'—',
         descrizione:q.records?.descrizione||'—',
         modello:q.records?.modello||'',
-        statoPratica:q.records?.statoPratica||''
+        statoPratica:q.records?.statoPratica||'',
+        auto_closed:String(q.records?.statoPratica||'').trim().toLowerCase()==='completata'
       }));
 
       rows=rows.filter(isMeaningfulQuote);
+      if(status === 'CHIUSO') {
+        rows = rows.filter(x => isClosedQuote(x));
+      } else if(status !== 'CHIUSO') {
+        if(viewMode === 'archive') rows = rows.filter(x => isClosedQuote(x));
+        else rows = rows.filter(x => !isClosedQuote(x));
+      }
       if(qTxt){ rows=rows.filter(x=>norm(`${x.cliente} ${x.descrizione} ${x.modello}`).includes(qTxt)); }
       if(urgentFilter==='urgent') rows=rows.filter(x=>!isClosedQuote(x) && x.is_urgent);
       if(urgentFilter==='normal') rows=rows.filter(x=>!isClosedQuote(x) && !x.is_urgent);
@@ -138,11 +148,11 @@
       const due=computeDue(q);
       const tr=document.createElement('tr');
       if(q.is_urgent) tr.className='row-urgent';
-      if(String(q.status||'').toUpperCase()==='CHIUSO') tr.classList.add('row-archived');
+      if(isClosedQuote(q)) tr.classList.add('row-archived');
       tr.innerHTML=`
         <td><div class="fw-semibold">${escapeHtml(q.cliente)}</div><div class="small text-muted">${escapeHtml(q.modello||'')}</div></td>
-        <td><div>${escapeHtml(q.descrizione)}</div><div class="small text-muted">creato ${fmtDate(q.created_at)}${q.statoPratica?` • scheda ${escapeHtml(q.statoPratica)}`:''}</div></td>
-        <td class="nowrap"><div class="state-stack">${badge(q.status)}${(!isClosedQuote(q) && q.is_urgent)?'<span class="urgent-tag">URG</span>':''}</div></td>
+        <td><div>${escapeHtml(q.descrizione)}</div><div class="small text-muted">creato ${fmtDate(q.created_at)}${q.statoPratica?` • scheda ${escapeHtml(q.statoPratica)}`:''}${q.auto_closed?` • archiviato automatico`:''}</div></td>
+        <td class="nowrap"><div class="state-stack">${badge(isCompletedRecord(q) ? 'CHIUSO' : q.status)}${(!isClosedQuote(q) && q.is_urgent)?'<span class="urgent-tag">URG</span>':''}</div></td>
         <td class="nowrap"><div class="small fw-semibold ${due.tone==='due-over'?'text-danger':due.tone==='due-today'?'text-warning':due.tone==='due-tomorrow'?'text-primary':'text-body'}">${escapeHtml(due.label)}</div><div class="small ${due.tone==='due-over'?'text-danger':due.tone==='due-today'?'text-warning':due.tone==='due-tomorrow'?'text-primary':'text-muted'}">${escapeHtml(due.sub)}</div></td>
         <td class="nowrap" style="min-width:160px;"><div class="d-flex justify-content-between small"><span>${Math.round(prog)}%</span><span class="text-muted">lavoro</span></div><div class="progbar"><div style="width:${prog}%;"></div></div></td>
         <td class="text-end nowrap"><span class="fw-semibold">€ ${money(q.subtotal_ex_vat||0)}</span></td>
