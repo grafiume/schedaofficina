@@ -197,6 +197,18 @@
         .status-stack,.price-wrap,.progress-stack{ grid-column:auto; }
         .totals-box{ width:100%; }
       }
+
+      .ocr-layout{ display:grid; grid-template-columns:minmax(320px, 1fr) minmax(320px, 1fr); gap:18px; align-items:start; }
+      .ocr-preview-wrap,.ocr-results-wrap{ border:1px solid var(--elip-line); border-radius:18px; background:#fff; padding:14px; }
+      .ocr-preview-img{ width:100%; height:auto; border-radius:12px; border:1px solid #d7dde5; }
+      .ocr-summary{ margin-bottom:12px; color:#475467; font-weight:700; }
+      .ocr-row{ display:grid; grid-template-columns:34px 92px minmax(0,1fr) 140px; gap:10px; align-items:center; padding:10px 0; border-top:1px solid #eef2f6; }
+      .ocr-row:first-child{ border-top:none; }
+      .ocr-row input[type="checkbox"]{ width:18px; height:18px; }
+      .ocr-row .badge{ justify-self:start; }
+      .ocr-row .ocr-desc{ font-weight:700; color:#344054; }
+      .ocr-row .ocr-price{ text-align:right; }
+      .ocr-total-line{ margin-top:14px; padding-top:12px; border-top:1px solid #eef2f6; font-size:1.18rem; text-align:right; }
     </style>
   </head>
   <body>
@@ -212,8 +224,8 @@
           <button class="btn btn-outline-secondary" id="btnOpenRecord">Scheda</button>
           <button class="btn btn-outline-secondary" id="btnUnlock">🔒 Sblocca modifiche</button>
           <button class="btn btn-outline-secondary" id="btnPdf">📄 PDF</button>
+          <button class="btn btn-outline-secondary" id="btnOcrPhoto">📷 Importa foto OCR</button>
           <button class="btn btn-outline-secondary" id="btnInvia">📤 Invia</button>
-          <button class="btn btn-outline-secondary" id="btnImportOcr">📷 Importa foto OCR</button>
           <button class="btn btn-sm btn-quiet" id="btnDelete" title="Cancella preventivo">🗑</button>
           <button class="btn btn-orange" id="btnSave">Salva</button>
         </div>
@@ -322,51 +334,44 @@
     </div>
 
 
-    <div class="modal fade" id="ocrImportModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+
+    <input type="file" id="ocrPhotoInput" accept="image/*" capture="environment" hidden>
+
+    <div class="modal fade" id="ocrModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down">
         <div class="modal-content">
           <div class="modal-header">
             <div>
               <h5 class="modal-title">Importa foto OCR</h5>
-              <div class="text-muted small">Riconosce solo le righe RIP con X reale nella colonna X. Prima della conferma puoi correggere tutto.</div>
+              <div class="text-muted small">Considera solo la colonna centrale X e la colonna PREZZO. Prima della conferma puoi correggere tutto.</div>
             </div>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
           </div>
           <div class="modal-body">
-            <div class="d-flex flex-wrap gap-2 mb-3">
-              <input id="ocrPhotoInput" type="file" accept="image/*" capture="environment" class="form-control" style="max-width:340px">
-              <button id="btnRunOcr" type="button" class="btn btn-outline-secondary">Analizza foto</button>
-            </div>
-            <div id="ocrStatus" class="small text-muted mb-3">Seleziona una foto del modulo.</div>
-            <div class="row g-3">
-              <div class="col-lg-6">
-                <div class="border rounded-4 p-2 bg-light">
-                  <img id="ocrPreviewImg" alt="Anteprima" style="max-width:100%;display:block;border-radius:14px;">
-                </div>
+            <div class="ocr-layout">
+              <div class="ocr-preview-wrap">
+                <img id="ocrPreview" alt="Anteprima OCR" class="ocr-preview-img d-none">
+                <div id="ocrBusy" class="text-muted">Carica una foto del modulo.</div>
               </div>
-              <div class="col-lg-6">
-                <div class="table-responsive">
-                  <table class="table align-middle" id="ocrTable">
-                    <thead><tr><th>Usa</th><th>RIP</th><th>Descrizione</th><th style="width:160px">Prezzo</th></tr></thead>
-                    <tbody><tr><td colspan="4" class="text-muted">Nessuna analisi eseguita.</td></tr></tbody>
-                  </table>
-                </div>
-                <div class="d-flex justify-content-end fs-4 fw-bold">Totale OCR: <span id="ocrGrandTotal" class="ms-2">€ 0,00</span></div>
+              <div class="ocr-results-wrap">
+                <div class="ocr-summary" id="ocrSummary">Nessuna analisi eseguita.</div>
+                <div id="ocrRows"></div>
+                <div class="ocr-total-line">Totale OCR: <strong id="ocrDetectedTotal">€ 0,00</strong></div>
               </div>
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Chiudi</button>
-            <button type="button" class="btn btn-primary" id="btnConfirmOcr">Conferma importazione</button>
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button>
+            <button type="button" class="btn btn-primary" id="btnConfirmOcrImport">Conferma importazione</button>
           </div>
         </div>
       </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
     <script src="preventivo.js"></script>
