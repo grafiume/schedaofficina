@@ -139,6 +139,9 @@
   let dictationMode = 'rips';
   let lastAutoApplied = '';
 
+  let ocrFileObjectUrl = '';
+  let ocrBusy = false;
+
 
   async function getCurrentSessionSafe(){
     if(!sb || !sb.auth) return null;
@@ -396,6 +399,7 @@
     $('btnUnlock')?.addEventListener('click', unlockEdit);
     $('btnPdf')?.addEventListener('click', downloadQuotePdf);
     $('btnInvia')?.addEventListener('click', sendQuoteUnified);
+    $('btnOcrImport')?.addEventListener('click', openOcrImport);
 
     ['status','sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{
       $(id)?.addEventListener('input', ()=>{
@@ -493,6 +497,7 @@
 
     if($('btnSave')) $('btnSave').disabled = !isEditUnlocked;
     if($('btnDelete')) $('btnDelete').disabled = !currentQuoteId || !isEditUnlocked;
+    if($('btnOcrImport')) $('btnOcrImport').disabled = !isEditUnlocked;
     if($('btnUnlock')) $('btnUnlock').textContent = isEditUnlocked ? '🔓 Modifica attiva' : '🔒 Sblocca modifiche';
 
     const lock = $('lockState');
@@ -1141,6 +1146,326 @@
     renderAll();
     showOk('Totale riparazione impostato a € ' + fmtMoney(total));
     return true;
+  }
+
+
+  function openOcrImport(){
+    if(!isEditUnlocked){
+      showErr('Prima sblocca le modifiche con la password.');
+      return;
+    }
+    ensureOcrOverlay();
+    resetOcrOverlay();
+    const ov = $('ocrOverlay');
+    if(ov) ov.style.display = 'flex';
+  }
+
+  function ensureOcrOverlay(){
+    if($('ocrOverlay')) return;
+
+    const wrap = document.createElement('div');
+    wrap.id = 'ocrOverlay';
+    wrap.style.cssText = `
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,.52);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:100000;
+      padding:18px;
+    `;
+
+    wrap.innerHTML = `
+      <div style="width:min(100%,1100px);max-height:92vh;overflow:auto;background:#fff;border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,.18);padding:18px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:1.1rem;font-weight:800;">Importa foto OCR</div>
+            <div style="font-size:.92rem;color:#667085;margin-top:4px;">Carica la foto del preventivo, controlla il testo letto dall'OCR e conferma solo dopo aver corretto eventuali errori.</div>
+          </div>
+          <button type="button" id="ocrClose" style="border:1px solid #d0d5dd;background:#fff;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer;">Chiudi</button>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+          <input id="ocrFileInput" type="file" accept="image/*" style="display:none;">
+          <button type="button" id="ocrChooseBtn" style="border:1px solid #d0d5dd;background:#fff;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;">Scegli foto</button>
+          <button type="button" id="ocrRunBtn" style="border:1px solid #ff7a00;background:#ff7a00;color:#fff;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer;" disabled>Leggi con OCR</button>
+          <div id="ocrStatus" style="font-size:.92rem;color:#667085;">Nessuna immagine selezionata.</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:minmax(280px,.9fr) minmax(340px,1.1fr);gap:16px;align-items:start;">
+          <div style="border:1px solid #e6e9ee;border-radius:16px;padding:12px;background:#fafbfc;">
+            <div style="font-size:.88rem;font-weight:800;color:#475467;margin-bottom:8px;">Anteprima foto</div>
+            <div id="ocrImageWrap" style="min-height:280px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px dashed #d0d5dd;border-radius:12px;overflow:hidden;">
+              <div id="ocrImageEmpty" style="padding:18px;color:#98a2b3;text-align:center;">Seleziona una foto del preventivo.</div>
+              <img id="ocrImagePreview" alt="Anteprima OCR" style="display:none;max-width:100%;height:auto;">
+            </div>
+          </div>
+
+          <div style="border:1px solid #e6e9ee;border-radius:16px;padding:12px;background:#fafbfc;">
+            <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+              <div style="font-size:.88rem;font-weight:800;color:#475467;">Testo OCR correggibile</div>
+              <div style="font-size:.8rem;color:#667085;">Puoi correggere prima della conferma</div>
+            </div>
+            <textarea id="ocrTextInput" rows="12" style="width:100%;border:1px solid #d0d5dd;border-radius:12px;padding:12px;font-size:15px;resize:vertical;background:#fff;"></textarea>
+            <div style="margin-top:10px;font-size:.86rem;color:#667085;">Suggerimento: scrivi una riga per voce, ad esempio <b>RIP21 45</b> oppure <b>RIP00 revisione completa 250</b>.</div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;border:1px solid #e6e9ee;border-radius:16px;padding:12px;background:#fafbfc;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+            <div style="font-size:.88rem;font-weight:800;color:#475467;">Anteprima voci riconosciute</div>
+            <div id="ocrPreviewCount" style="font-size:.82rem;color:#667085;">0 voci</div>
+          </div>
+          <div id="ocrPreviewBox" style="background:#fff;border:1px solid #e6e9ee;border-radius:12px;padding:12px;min-height:110px;color:#667085;">Nessuna voce ancora rilevata.</div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;flex-wrap:wrap;">
+          <button type="button" id="ocrCancel" style="border:1px solid #d0d5dd;background:#fff;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;">Annulla</button>
+          <button type="button" id="ocrApplyBtn" style="border:1px solid #ff7a00;background:#ff7a00;color:#fff;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer;">Conferma e applica</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(wrap);
+
+    $('ocrClose').addEventListener('click', closeOcrOverlay);
+    $('ocrCancel').addEventListener('click', closeOcrOverlay);
+    $('ocrChooseBtn').addEventListener('click', ()=> $('ocrFileInput')?.click());
+    $('ocrFileInput').addEventListener('change', onOcrFileSelected);
+    $('ocrRunBtn').addEventListener('click', runOcrOnSelectedImage);
+    $('ocrTextInput').addEventListener('input', renderOcrPreviewFromText);
+    $('ocrApplyBtn').addEventListener('click', applyOcrPreviewToQuote);
+  }
+
+  function resetOcrOverlay(){
+    if(ocrFileObjectUrl){
+      try{ URL.revokeObjectURL(ocrFileObjectUrl); }catch{}
+      ocrFileObjectUrl = '';
+    }
+    const fileInput = $('ocrFileInput');
+    if(fileInput) fileInput.value = '';
+    const img = $('ocrImagePreview');
+    if(img){ img.style.display = 'none'; img.removeAttribute('src'); }
+    const empty = $('ocrImageEmpty');
+    if(empty) empty.style.display = 'block';
+    const txt = $('ocrTextInput');
+    if(txt) txt.value = '';
+    const status = $('ocrStatus');
+    if(status) status.textContent = 'Nessuna immagine selezionata.';
+    const run = $('ocrRunBtn');
+    if(run) run.disabled = true;
+    const box = $('ocrPreviewBox');
+    if(box){ box.innerHTML = 'Nessuna voce ancora rilevata.'; box.style.color = '#667085'; }
+    const count = $('ocrPreviewCount');
+    if(count) count.textContent = '0 voci';
+  }
+
+  function closeOcrOverlay(){
+    if(ocrBusy) return;
+    const ov = $('ocrOverlay');
+    if(ov) ov.style.display = 'none';
+    resetOcrOverlay();
+  }
+
+  function onOcrFileSelected(ev){
+    const file = ev?.target?.files?.[0];
+    if(!file) return;
+    if(ocrFileObjectUrl){
+      try{ URL.revokeObjectURL(ocrFileObjectUrl); }catch{}
+      ocrFileObjectUrl = '';
+    }
+    ocrFileObjectUrl = URL.createObjectURL(file);
+    const img = $('ocrImagePreview');
+    const empty = $('ocrImageEmpty');
+    if(img){
+      img.src = ocrFileObjectUrl;
+      img.style.display = 'block';
+    }
+    if(empty) empty.style.display = 'none';
+    const status = $('ocrStatus');
+    if(status) status.textContent = `Immagine selezionata: ${file.name}`;
+    const run = $('ocrRunBtn');
+    if(run) run.disabled = false;
+  }
+
+  async function runOcrOnSelectedImage(){
+    const file = $('ocrFileInput')?.files?.[0];
+    if(!file){
+      showErr('Seleziona prima una foto del preventivo.');
+      return;
+    }
+    if(!window.Tesseract){
+      showErr('Libreria OCR non disponibile.');
+      return;
+    }
+
+    ocrBusy = true;
+    const run = $('ocrRunBtn');
+    const apply = $('ocrApplyBtn');
+    const status = $('ocrStatus');
+    if(run) run.disabled = true;
+    if(apply) apply.disabled = true;
+
+    try{
+      if(status) status.textContent = 'OCR in elaborazione…';
+      const result = await window.Tesseract.recognize(file, 'ita+eng', {
+        logger: (m)=>{
+          if(!status) return;
+          if(m?.status === 'recognizing text'){
+            const pct = Math.round((Number(m.progress || 0)) * 100);
+            status.textContent = `OCR in elaborazione… ${pct}%`;
+          }else if(m?.status){
+            status.textContent = 'OCR: ' + m.status;
+          }
+        }
+      });
+
+      const raw = String(result?.data?.text || '').trim();
+      const textArea = $('ocrTextInput');
+      if(textArea) textArea.value = cleanupOcrText(raw);
+      renderOcrPreviewFromText();
+      if(status) status.textContent = 'OCR completato. Controlla e correggi il testo prima di confermare.';
+    }catch(e){
+      showErr('Errore OCR: ' + (e?.message || e));
+      if(status) status.textContent = 'Errore durante la lettura OCR.';
+    }finally{
+      ocrBusy = false;
+      if(run) run.disabled = false;
+      if(apply) apply.disabled = false;
+    }
+  }
+
+  function cleanupOcrText(text){
+    return String(text || '')
+      .replace(/[|]/g, ' ')
+      .replace(/[“”]/g, '"')
+      .replace(/[’]/g, "'")
+      .replace(/€+/g, ' € ')
+      .replace(/RIP\s+/gi, 'RIP')
+      .replace(/\bRlP\b/gi, 'RIP')
+      .replace(/\bR1P\b/gi, 'RIP')
+      .replace(/\bRIPO\b/gi, 'RIP0')
+      .replace(/\r/g, '')
+      .replace(/\t/g, ' ')
+      .replace(/[ ]{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  function parseOcrTextToEntries(text){
+    const lines = String(text || '').split(/\n+/).map(x => x.trim()).filter(Boolean);
+    const entries = [];
+    const validCodes = new Set(WORKS.map(w => w.code));
+
+    lines.forEach((line)=>{
+      let normalized = normalizeVoiceText(line)
+        .replace(/\bRIPO\b/g, 'RIP0')
+        .replace(/\bRIPO0\b/g, 'RIP00')
+        .replace(/\bRIP0([1-9])\b/g, 'RIP0$1');
+
+      const ripMatch = normalized.match(/\b(RIP\d{1,2}[A-Z]?)\b/);
+      if(!ripMatch) return;
+
+      const code = ripMatch[1];
+      if(!validCodes.has(code)) return;
+
+      let amount = 0;
+      const amountCandidates = [...normalized.matchAll(/(\d+[\.,]\d{2}|\d+[\.,]\d{1}|\d{1,5})/g)].map(m => parseNum(m[1]));
+      if(amountCandidates.length){
+        amount = Math.max(...amountCandidates.filter(n => isFinite(n) && n >= 0));
+      }
+
+      let description = '';
+      if(code === 'RIP00'){
+        description = normalized.replace(code, '').replace(/\b\d+[\.,]?\d*\b/g, ' ').replace(/EURO/g, ' ').replace(/\s+/g, ' ').trim();
+        description = normalizeFreeDescription(code, description || 'LAVORAZIONE LIBERA');
+      }
+
+      entries.push({ code, amount, description, raw: line });
+    });
+
+    return mergeOcrEntries(entries);
+  }
+
+  function mergeOcrEntries(entries){
+    const map = new Map();
+    entries.forEach((entry)=>{
+      if(!entry?.code) return;
+      const prev = map.get(entry.code);
+      if(prev){
+        prev.amount = entry.amount > 0 ? entry.amount : prev.amount;
+        if(entry.code === 'RIP00' && entry.description) prev.description = entry.description;
+        prev.raw += ' | ' + entry.raw;
+      }else{
+        map.set(entry.code, { ...entry });
+      }
+    });
+    return [...map.values()];
+  }
+
+  function renderOcrPreviewFromText(){
+    const text = $('ocrTextInput')?.value || '';
+    const entries = parseOcrTextToEntries(text);
+    const box = $('ocrPreviewBox');
+    const count = $('ocrPreviewCount');
+    if(count) count.textContent = `${entries.length} ${entries.length === 1 ? 'voce' : 'voci'}`;
+    if(!box) return entries;
+
+    if(!entries.length){
+      box.style.color = '#667085';
+      box.innerHTML = 'Nessuna voce RIP riconosciuta. Correggi il testo inserendo codici tipo <b>RIP21 45</b> oppure <b>RIP00 revisione completa 250</b>.';
+      return entries;
+    }
+
+    box.style.color = '#101828';
+    box.innerHTML = `
+      <div style="display:grid;gap:8px;">
+        ${entries.map(entry => {
+          const work = WORKS.find(w => w.code === entry.code);
+          const label = entry.code === 'RIP00'
+            ? esc(entry.description || work?.text || '')
+            : esc(work?.text || entry.code);
+          return `<div style="display:flex;justify-content:space-between;gap:14px;border:1px solid #e6e9ee;border-radius:10px;padding:10px 12px;align-items:flex-start;">
+            <div>
+              <div style="font-weight:800;">${esc(entry.code)}</div>
+              <div style="font-size:.9rem;color:#475467;margin-top:2px;">${label}</div>
+            </div>
+            <div style="font-weight:800;white-space:nowrap;">${entry.amount > 0 ? '€ ' + esc(fmtMoney(entry.amount)) : '€ 0,00'}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    return entries;
+  }
+
+  function applyOcrPreviewToQuote(){
+    const entries = renderOcrPreviewFromText();
+    if(!entries.length){
+      showErr('Nessuna voce RIP valida da importare.');
+      return;
+    }
+
+    const hasExisting = getSelectedItems().length > 0;
+    if(hasExisting){
+      const ok = confirm('Vuoi sostituire le voci attuali con quelle lette dalla foto?');
+      if(!ok) return;
+      quoteState.items = {};
+    }
+
+    entries.forEach((entry)=>{
+      const work = WORKS.find(w => w.code === entry.code);
+      const idx = WORKS.findIndex(w => w.code === entry.code);
+      if(!work || idx < 0) return;
+      const it = ensureLocalItem(work, idx);
+      if(entry.amount > 0) it.unit_price_ex_vat = entry.amount;
+      if(entry.code === 'RIP00') it.description = normalizeFreeDescription(entry.code, entry.description || it.description);
+      if(!it.work_status) it.work_status = 'DA_FARE';
+    });
+
+    recalcTotals();
+    renderAll();
+    closeOcrOverlay();
+    showOk('Importazione OCR applicata al preventivo.');
   }
 
   function firstFilled(obj, keys){
