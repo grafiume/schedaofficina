@@ -1830,7 +1830,7 @@ async function generateQuotePdfBlob(){
     const writtenTotal = await recognizeMoneyFromCanvas(totalCanvas);
 
     for(const row of rows){
-      if(row.priceInk.centerFill >= 0.018 || row.priceInk.fill >= 0.028){
+      if(row.priceInk.centerFill >= 0.010 || row.priceInk.fill >= 0.018){
         const pc = extractRectCanvas(formCanvas, row.priceRect.x, row.priceRect.y, row.priceRect.w, row.priceRect.h, false);
         row.price = await recognizeMoneyFromCanvas(pc);
       }
@@ -1893,52 +1893,73 @@ async function generateQuotePdfBlob(){
   function detectRepairSheetGeometry(formCanvas, expectedCount){
     const w = formCanvas.width;
     const h = formCanvas.height;
-    const rowBandTop = Math.round(h * 0.18);
-    const rowBandBottom = Math.round(h * 0.89);
 
-    const vPeaks = detectVerticalInkPeaks(formCanvas, rowBandTop, rowBandBottom);
-    const checkLeft = pickClosest(vPeaks, w * 0.52, w * 0.44, w * 0.60) ?? Math.round(w * 0.525);
-    const checkRight = pickClosest(vPeaks, w * 0.565, w * 0.50, w * 0.64) ?? Math.round(w * 0.565);
-    const priceLeft = pickClosest(vPeaks, w * 0.885, w * 0.80, w * 0.94) ?? Math.round(w * 0.885);
-    const rightEdge = pickClosest(vPeaks, w * 0.985, w * 0.93, w * 0.999) ?? Math.round(w * 0.985);
+    const tpl = {
+      rowsTop: 0.236,
+      rowsBottom: 0.907,
+      xLeft: 0.505,
+      xRight: 0.555,
+      priceLeft: 0.842,
+      priceRight: 0.972,
+      totalLeft: 0.145,
+      totalTop: 0.906,
+      totalWidth: 0.165,
+      totalHeight: 0.050
+    };
 
-    let boxes = detectCheckboxBoxesPrecise(formCanvas, checkLeft, checkRight, rowBandTop, rowBandBottom);
-    if(boxes.length < expectedCount){
-      boxes = synthesizeCheckboxBoxes(formCanvas, { checkLeft, checkRight, rowBandTop, rowBandBottom, expectedCount, source: boxes });
-    }
-    boxes = boxes.slice(0, expectedCount);
+    const rowBandTop = Math.round(h * tpl.rowsTop);
+    const rowBandBottom = Math.round(h * tpl.rowsBottom);
+    const rowGap = (rowBandBottom - rowBandTop) / Math.max(1, expectedCount);
 
-    const medianHeight = median(boxes.map(b => b.h)) || Math.round(h * 0.022);
-    const priceRects = boxes.map((b, idx) => {
-      const nextCy = boxes[idx + 1]?.cy;
-      const prevCy = boxes[idx - 1]?.cy;
-      const rowHalf = Math.max(
-        medianHeight * 0.95,
-        Math.min(
-          nextCy ? (nextCy - b.cy) * 0.46 : medianHeight * 1.15,
-          prevCy ? (b.cy - prevCy) * 0.46 : medianHeight * 1.15,
-          medianHeight * 1.55
-        )
-      );
-      const y = Math.max(0, Math.round(b.cy - rowHalf));
-      const hRect = Math.max(12, Math.round(rowHalf * 2));
-      return {
-        x: Math.max(0, Math.round(priceLeft + (rightEdge - priceLeft) * 0.05)),
+    const boxes = [];
+    const xL = Math.round(w * tpl.xLeft);
+    const xR = Math.round(w * tpl.xRight);
+    const boxW = Math.max(14, xR - xL);
+    const boxH = Math.max(14, Math.round(rowGap * 0.54));
+
+    for(let i=0;i<expectedCount;i++){
+      const cy = Math.round(rowBandTop + rowGap * (i + 0.5));
+      const y = Math.round(cy - boxH / 2);
+      boxes.push({
+        x: xL,
         y,
-        w: Math.max(18, Math.round((rightEdge - priceLeft) * 0.88)),
-        h: Math.min(formCanvas.height - y, hRect)
+        w: boxW,
+        h: boxH,
+        cx: Math.round((xL + xR) / 2),
+        cy,
+        innerX: xL + Math.round(boxW * 0.16),
+        innerY: y + Math.round(boxH * 0.16),
+        innerW: Math.max(8, Math.round(boxW * 0.68)),
+        innerH: Math.max(8, Math.round(boxH * 0.68))
+      });
+    }
+
+    const priceRects = boxes.map((b) => {
+      const y = Math.max(0, Math.round(b.cy - rowGap * 0.46));
+      return {
+        x: Math.round(w * tpl.priceLeft),
+        y,
+        w: Math.max(18, Math.round(w * (tpl.priceRight - tpl.priceLeft))),
+        h: Math.max(16, Math.round(rowGap * 0.90))
       };
     });
 
-    const bottomCy = boxes[boxes.length - 1]?.cy || Math.round(h * 0.84);
     const totalRect = {
-      x: Math.round(w * 0.12),
-      y: Math.max(0, Math.round(bottomCy + medianHeight * 1.2)),
-      w: Math.round(w * 0.22),
-      h: Math.round(h * 0.055)
+      x: Math.round(w * tpl.totalLeft),
+      y: Math.round(h * tpl.totalTop),
+      w: Math.round(w * tpl.totalWidth),
+      h: Math.round(h * tpl.totalHeight)
     };
 
-    return { boxes, priceRects, totalRect, checkLeft, checkRight, priceLeft, rightEdge };
+    return {
+      boxes,
+      priceRects,
+      totalRect,
+      checkLeft: xL,
+      checkRight: xR,
+      priceLeft: Math.round(w * tpl.priceLeft),
+      rightEdge: Math.round(w * tpl.priceRight)
+    };
   }
 
   function detectVerticalInkPeaks(formCanvas, y1, y2){
@@ -2098,13 +2119,19 @@ async function generateQuotePdfBlob(){
   }
 
   function detectMarkedRows(rows){
-    const candidates = rows.map(r => ({ row: r, score: r.checkScore, minDiag: Math.min(Number(r.metrics?.diagA || 0), Number(r.metrics?.diagB || 0)), fill: Number(r.metrics?.fill || 0) }))
-      .sort((a,b)=> b.score - a.score);
+    const candidates = rows.map(r => ({
+      row: r,
+      score: Number(r.checkScore || 0),
+      minDiag: Math.min(Number(r.metrics?.diagA || 0), Number(r.metrics?.diagB || 0)),
+      fill: Number(r.metrics?.fill || 0),
+      centerFill: Number(r.metrics?.centerFill || 0)
+    })).sort((a,b)=> b.score - a.score);
     if(!candidates.length) return [];
     const top = candidates[0];
     const second = candidates[1];
-    if(top.score >= 0.30 && top.minDiag >= 0.17 && top.fill >= 0.08 && (!second || top.score - second.score >= 0.10)) return [top.row];
-    if(top.score >= 0.24 && top.minDiag >= 0.14 && top.fill >= 0.06 && (!second || top.score - second.score >= 0.06)) return [top.row];
+    const gap = second ? (top.score - second.score) : top.score;
+    if(top.minDiag >= 0.14 && top.centerFill >= 0.05 && top.fill >= 0.035 && gap >= 0.045) return [top.row];
+    if(top.minDiag >= 0.11 && top.centerFill >= 0.04 && top.fill >= 0.028 && gap >= 0.065) return [top.row];
     return [];
   }
 
