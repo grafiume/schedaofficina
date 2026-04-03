@@ -1660,7 +1660,7 @@ async function generateQuotePdfBlob(){
   }
 
   document.addEventListener('DOMContentLoaded', init);
-})()
+
   function openOcrImport(){
     if(!isEditUnlocked){
       showErr('Prima sblocca le modifiche.');
@@ -1950,3 +1950,4 @@ async function generateQuotePdfBlob(){
     });
   }
 ;
+})()
