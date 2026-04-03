@@ -1692,5 +1692,356 @@ async function generateQuotePdfBlob(){
     }
   }
 
+
+  function openOcrModal(){
+    if(!isEditUnlocked){
+      showErr('Prima sblocca le modifiche.');
+      return;
+    }
+    try{
+      const modalEl = $('ocrImportModal');
+      if(!modalEl) throw new Error('Finestra OCR non trovata');
+      ocrModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      resetOcrUi();
+      ocrModal.show();
+    }catch(e){
+      showErr('Impossibile aprire importazione OCR: ' + (e?.message || e));
+    }
+  }
+
+  function resetOcrUi(){
+    ocrRowsDraft = [];
+    if(ocrImageUrl && ocrImageUrl.startsWith('blob:')){ try{ URL.revokeObjectURL(ocrImageUrl); }catch(_e){} }
+    ocrImageUrl = '';
+    if($('ocrPhotoInput')) $('ocrPhotoInput').value = '';
+    if($('ocrPreviewImg')){ $('ocrPreviewImg').src = ''; $('ocrPreviewImg').style.display = 'none'; }
+    if($('ocrPreviewEmpty')) $('ocrPreviewEmpty').style.display = '';
+    if($('ocrRunState')) $('ocrRunState').textContent = 'Carica una foto del modulo e poi premi “Analizza foto”.';
+    if($('ocrRowsBody')) $('ocrRowsBody').innerHTML = '<tr><td colspan="4" class="text-muted text-center py-4">Carica una foto per iniziare.</td></tr>';
+    if($('ocrTotalLabel')) $('ocrTotalLabel').textContent = '€ 0,00';
+  }
+
+  async function onOcrPhotoSelected(ev){
+    const file = ev?.target?.files?.[0];
+    if(!file) return;
+    if(ocrImageUrl && ocrImageUrl.startsWith('blob:')){ try{ URL.revokeObjectURL(ocrImageUrl); }catch(_e){} }
+    ocrImageUrl = URL.createObjectURL(file);
+    if($('ocrPreviewImg')){ $('ocrPreviewImg').src = ocrImageUrl; $('ocrPreviewImg').style.display = ''; }
+    if($('ocrPreviewEmpty')) $('ocrPreviewEmpty').style.display = 'none';
+    if($('ocrRunState')) $('ocrRunState').textContent = 'Foto caricata. Premi “Analizza foto”.';
+    ocrRowsDraft = [];
+    if($('ocrRowsBody')) $('ocrRowsBody').innerHTML = '<tr><td colspan="4" class="text-muted text-center py-4">Premi “Analizza foto”.</td></tr>';
+    if($('ocrTotalLabel')) $('ocrTotalLabel').textContent = '€ 0,00';
+  }
+
+  async function runOcrAnalysis(){
+    try{
+      const file = $('ocrPhotoInput')?.files?.[0];
+      if(!file || !ocrImageUrl){
+        showErr('Seleziona prima una foto del modulo.');
+        return;
+      }
+      if($('ocrRunState')) $('ocrRunState').textContent = 'Analisi OCR in corso…';
+      await ensureTesseractLoaded();
+      const analysis = await analyzeRepairSheetFromPhoto(ocrImageUrl);
+      ocrRowsDraft = analysis.rows || [];
+      renderOcrRowsDraft();
+      refreshOcrTotalLabel();
+      const picked = ocrRowsDraft.filter(r => r.use).length;
+      const totalTxt = analysis.totalFromSheet > 0 ? (' Totale scheda letto: € ' + fmtMoney(analysis.totalFromSheet) + '.') : '';
+      if($('ocrRunState')) $('ocrRunState').textContent = `Analisi completata. Righe riconosciute: ${picked}.${totalTxt} Controlla prima di confermare.`;
+    }catch(e){
+      console.error(e);
+      if($('ocrRunState')) $('ocrRunState').textContent = 'Analisi non riuscita.';
+      showErr('OCR non riuscito: ' + (e?.message || e));
+    }
+  }
+
+  function renderOcrRowsDraft(){
+    const body = $('ocrRowsBody');
+    if(!body) return;
+    if(!ocrRowsDraft.length){
+      body.innerHTML = '<tr><td colspan="4" class="text-muted text-center py-4">Nessuna riga riconosciuta con X reale.</td></tr>';
+      return;
+    }
+    body.innerHTML = '';
+    ocrRowsDraft.forEach((row, idx)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="checkbox" class="form-check-input" ${row.use ? 'checked' : ''}></td>
+        <td><span class="badge text-bg-light border">${esc(row.code)}</span></td>
+        <td>${esc(row.text)}</td>
+        <td><input type="text" class="form-control" value="${esc(fmtMoney(row.price || 0))}"></td>`;
+      const chk = tr.querySelector('input[type="checkbox"]');
+      const inp = tr.querySelector('input[type="text"]');
+      chk.addEventListener('change', ()=>{ row.use = !!chk.checked; refreshOcrTotalLabel(); });
+      inp.addEventListener('input', ()=>{ row.price = parseNum(inp.value); refreshOcrTotalLabel(); });
+      inp.addEventListener('blur', ()=>{ inp.value = fmtMoney(row.price || 0); });
+      body.appendChild(tr);
+    });
+  }
+
+  function refreshOcrTotalLabel(){
+    const total = (ocrRowsDraft || []).filter(r => r.use).reduce((s, r)=> s + Number(r.price || 0), 0);
+    if($('ocrTotalLabel')) $('ocrTotalLabel').textContent = '€ ' + fmtMoney(total);
+  }
+
+  function confirmOcrImport(){
+    if(!ocrRowsDraft.length){
+      showErr('Nessuna riga OCR da importare.');
+      return;
+    }
+    const rows = ocrRowsDraft.filter(r => r.use);
+    if(!rows.length){
+      showErr('Seleziona almeno una riga da importare.');
+      return;
+    }
+    rows.forEach((row, idx)=>{
+      const work = WORKS.find(w => w.code === row.code);
+      if(!work) return;
+      const item = ensureLocalItem(work, idx);
+      item.description = work.text;
+      item.unit_price_ex_vat = Number(row.price || 0);
+      item.work_status = item.work_status || 'DA_FARE';
+    });
+    recalcTotals();
+    renderAll();
+    if(ocrModal) ocrModal.hide();
+    showOk('Importazione OCR applicata. Controlla e salva.');
+  }
+
+  async function ensureTesseractLoaded(){
+    if(window.Tesseract) return;
+    await new Promise((resolve, reject)=>{
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      s.onload = resolve;
+      s.onerror = ()=> reject(new Error('Impossibile caricare Tesseract'));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function analyzeRepairSheetFromPhoto(src){
+    const img = await loadImage(src);
+    const sheet = autoCropSheet(img);
+
+    if($('ocrPreviewImg')){
+      $('ocrPreviewImg').src = sheet.toDataURL('image/jpeg', 0.95);
+      $('ocrPreviewImg').style.display = '';
+    }
+    if($('ocrPreviewEmpty')) $('ocrPreviewEmpty').style.display = 'none';
+
+    const rows = [];
+    const ctx = sheet.getContext('2d', { willReadFrequently:true });
+    for(let i=0;i<OCR_FORM_ROWS.length;i++){
+      const meta = OCR_FORM_ROWS[i];
+      const rr = getOcrRowRects(sheet.width, sheet.height, i);
+      const mark = analyzeXBox(ctx, rr.xBox);
+      if(!mark.use) continue;
+      let price = 0;
+      const priceInk = inkDensity(ctx, rr.priceBox, 0.10);
+      if(priceInk > 0.012){
+        const priceCanvas = extractRectCanvas(sheet, rr.priceBox, { scale:6, threshold:192, trim:true });
+        price = await recognizeMoneyFromCanvas(priceCanvas);
+      }
+      rows.push({ code: meta.code, text: meta.text, use: true, price, markScore: mark.score });
+    }
+
+    const totalCanvas = extractRectCanvas(sheet, getOcrTotalRect(sheet.width, sheet.height), { scale:6, threshold:194, trim:true });
+    const totalFromSheet = await recognizeMoneyFromCanvas(totalCanvas);
+
+    if(rows.length === 1 && totalFromSheet > 0){
+      rows[0].price = totalFromSheet;
+    }
+
+    return { rows, totalFromSheet };
+  }
+
+  function getOcrRowRects(w, h, idx){
+    const page = OCR_LAYOUT.page;
+    const pageX = Math.round(w * page.x1);
+    const pageY = Math.round(h * page.y1);
+    const pageW = Math.round(w * (page.x2 - page.x1));
+    const pageH = Math.round(h * (page.y2 - page.y1));
+    const rowTop = pageY + Math.round(pageH * (OCR_LAYOUT.rowsTop - page.y1)) + Math.round(idx * pageH * OCR_LAYOUT.rowHeight);
+    const rowH = Math.round(pageH * OCR_LAYOUT.rowHeight * 0.92);
+    return {
+      xBox: rectFromRel(pageX, pageY, pageW, pageH, OCR_LAYOUT.xCol.x1, rowTop - pageY + Math.round(rowH * OCR_LAYOUT.xCol.yPad) , OCR_LAYOUT.xCol.x2, rowTop - pageY + rowH - Math.round(rowH * OCR_LAYOUT.xCol.yPad), true),
+      priceBox: rectFromRel(pageX, pageY, pageW, pageH, OCR_LAYOUT.priceCol.x1, rowTop - pageY + Math.round(rowH * OCR_LAYOUT.priceCol.yPad), OCR_LAYOUT.priceCol.x2, rowTop - pageY + rowH - Math.round(rowH * OCR_LAYOUT.priceCol.yPad), true)
+    };
+  }
+
+  function getOcrTotalRect(w, h){
+    const page = OCR_LAYOUT.page;
+    const pageX = Math.round(w * page.x1);
+    const pageY = Math.round(h * page.y1);
+    const pageW = Math.round(w * (page.x2 - page.x1));
+    const pageH = Math.round(h * (page.y2 - page.y1));
+    return rectFromRel(pageX, pageY, pageW, pageH, OCR_LAYOUT.totalCell.x1, OCR_LAYOUT.totalCell.y1, OCR_LAYOUT.totalCell.x2, OCR_LAYOUT.totalCell.y2);
+  }
+
+  function rectFromRel(pageX, pageY, pageW, pageH, rx1, ry1, rx2, ry2, yIsAbsPx){
+    if(yIsAbsPx){
+      return { x: Math.round(pageX + pageW * rx1), y: Math.round(pageY + ry1), w: Math.round(pageW * (rx2 - rx1)), h: Math.max(1, Math.round(ry2 - ry1)) };
+    }
+    return { x: Math.round(pageX + pageW * rx1), y: Math.round(pageY + pageH * ry1), w: Math.round(pageW * (rx2 - rx1)), h: Math.round(pageH * (ry2 - ry1)) };
+  }
+
+  function autoCropSheet(img){
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently:true });
+    ctx.drawImage(img, 0, 0);
+    const rect = findDenseContentRect(ctx, canvas.width, canvas.height);
+    const out = document.createElement('canvas');
+    out.width = rect.w;
+    out.height = rect.h;
+    out.getContext('2d').drawImage(canvas, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+    return out;
+  }
+
+  function findDenseContentRect(ctx, w, h){
+    const img = ctx.getImageData(0,0,w,h).data;
+    const row = new Float32Array(h);
+    const col = new Float32Array(w);
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const i=(y*w+x)*4;
+        const g=(img[i]+img[i+1]+img[i+2])/3;
+        const ink = Math.max(0, 248 - g);
+        row[y]+=ink;
+        col[x]+=ink;
+      }
+    }
+    const rowThr = Math.max(...row) * 0.11;
+    const colThr = Math.max(...col) * 0.11;
+    let top=0,bottom=h-1,left=0,right=w-1;
+    while(top < h-1 && row[top] < rowThr) top++;
+    while(bottom > 0 && row[bottom] < rowThr) bottom--;
+    while(left < w-1 && col[left] < colThr) left++;
+    while(right > 0 && col[right] < colThr) right--;
+    const padX = Math.round((right-left)*0.02);
+    const padY = Math.round((bottom-top)*0.02);
+    return { x:Math.max(0,left-padX), y:Math.max(0,top-padY), w:Math.max(100,Math.min(w,right+padX)-Math.max(0,left-padX)), h:Math.max(100,Math.min(h,bottom+padY)-Math.max(0,top-padY)) };
+  }
+
+  function analyzeXBox(ctx, rect){
+    const {x,y,w,h} = rect;
+    const data = ctx.getImageData(x,y,w,h).data;
+    const innerX1 = Math.max(1, Math.floor(w*0.22));
+    const innerY1 = Math.max(1, Math.floor(h*0.22));
+    const innerX2 = Math.max(innerX1+1, Math.floor(w*0.78));
+    const innerY2 = Math.max(innerY1+1, Math.floor(h*0.78));
+    let dark=0, total=0;
+    let diag1=0, diag2=0, diagN=0;
+    for(let yy=innerY1; yy<innerY2; yy++){
+      for(let xx=innerX1; xx<innerX2; xx++){
+        const i=(yy*w+xx)*4;
+        const g=(data[i]+data[i+1]+data[i+2])/3;
+        const isDark = g < 170;
+        if(isDark) dark++;
+        total++;
+        const nx = (xx-innerX1)/Math.max(1,(innerX2-innerX1-1));
+        const ny = (yy-innerY1)/Math.max(1,(innerY2-innerY1-1));
+        if(Math.abs(nx-ny) < 0.14){ if(isDark) diag1++; diagN++; }
+        if(Math.abs((1-nx)-ny) < 0.14){ if(isDark) diag2++; }
+      }
+    }
+    const fill = total ? dark/total : 0;
+    const d1 = diagN ? diag1/diagN : 0;
+    const d2 = diagN ? diag2/diagN : 0;
+    const score = fill * 0.55 + Math.min(d1,d2) * 0.45;
+    const use = fill > 0.04 && d1 > 0.10 && d2 > 0.10 && score > 0.085;
+    return { use, score, fill, d1, d2 };
+  }
+
+  function inkDensity(ctx, rect, innerPad){
+    const {x,y,w,h} = rect;
+    const data = ctx.getImageData(x,y,w,h).data;
+    const px = Math.floor(w * innerPad);
+    const py = Math.floor(h * innerPad);
+    let dark=0,total=0;
+    for(let yy=py; yy<h-py; yy++){
+      for(let xx=px; xx<w-px; xx++){
+        const i=(yy*w+xx)*4;
+        const g=(data[i]+data[i+1]+data[i+2])/3;
+        if(g < 190) dark++;
+        total++;
+      }
+    }
+    return total ? dark/total : 0;
+  }
+
+  function extractRectCanvas(srcCanvas, rect, opts){
+    const o = Object.assign({ scale:4, threshold:190, trim:false }, opts || {});
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(rect.w * o.scale));
+    c.height = Math.max(1, Math.round(rect.h * o.scale));
+    const cx = c.getContext('2d', { willReadFrequently:true });
+    cx.fillStyle = '#fff';
+    cx.fillRect(0,0,c.width,c.height);
+    cx.imageSmoothingEnabled = false;
+    cx.drawImage(srcCanvas, rect.x, rect.y, rect.w, rect.h, 0, 0, c.width, c.height);
+    const img = cx.getImageData(0,0,c.width,c.height);
+    const d = img.data;
+    for(let i=0;i<d.length;i+=4){
+      const g = (d[i]+d[i+1]+d[i+2])/3;
+      const v = g < o.threshold ? 0 : 255;
+      d[i]=d[i+1]=d[i+2]=v;
+    }
+    cx.putImageData(img,0,0);
+    return o.trim ? trimBinaryCanvas(c) : c;
+  }
+
+  function trimBinaryCanvas(canvas){
+    const ctx = canvas.getContext('2d', { willReadFrequently:true });
+    const {width:w,height:h} = canvas;
+    const data = ctx.getImageData(0,0,w,h).data;
+    let left=w, right=0, top=h, bottom=0;
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const i=(y*w+x)*4;
+        if(data[i] < 128){
+          if(x < left) left = x;
+          if(x > right) right = x;
+          if(y < top) top = y;
+          if(y > bottom) bottom = y;
+        }
+      }
+    }
+    if(right <= left || bottom <= top) return canvas;
+    const pad = 8;
+    left = Math.max(0,left-pad); top = Math.max(0,top-pad);
+    right = Math.min(w-1,right+pad); bottom = Math.min(h-1,bottom+pad);
+    const out = document.createElement('canvas');
+    out.width = right-left+1;
+    out.height = bottom-top+1;
+    out.getContext('2d').drawImage(canvas, left, top, out.width, out.height, 0, 0, out.width, out.height);
+    return out;
+  }
+
+  async function recognizeMoneyFromCanvas(canvas){
+    if(!window.Tesseract) return 0;
+    const { data } = await Tesseract.recognize(canvas, 'eng', {
+      tessedit_char_whitelist: '0123456789,.-',
+      preserve_interword_spaces: '0'
+    });
+    const txt = String(data?.text || '').replace(/\s+/g,'');
+    const cleaned = txt.replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+    const m = cleaned.match(/(\d+(?:\.\d{1,2})?)/);
+    const n = Number(m ? m[1] : 0);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function loadImage(src){
+    return new Promise((resolve,reject)=>{
+      const img = new Image();
+      img.onload = ()=> resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', init);
 })();
