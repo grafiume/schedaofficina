@@ -593,34 +593,83 @@
     return c;
   }
 
+  function groupRanges(indices, gap=3){
+    const out = [];
+    if(!indices || !indices.length) return out;
+    let start = indices[0];
+    let prev = indices[0];
+    for(let i=1; i<indices.length; i++){
+      const v = indices[i];
+      if(v <= prev + gap){
+        prev = v;
+      }else{
+        out.push({ start, end:prev, len:(prev-start+1) });
+        start = prev = v;
+      }
+    }
+    out.push({ start, end:prev, len:(prev-start+1) });
+    return out;
+  }
+
   function estimateFormBounds(canvas){
     const ctx = canvas.getContext('2d', { willReadFrequently:true });
     const { width:w, height:h } = canvas;
-    const img = ctx.getImageData(0,0,w,h).data;
+    const data = ctx.getImageData(0,0,w,h).data;
     const darkCols = new Float32Array(w);
     const darkRows = new Float32Array(h);
     for(let y=0; y<h; y++){
       for(let x=0; x<w; x++){
         const i = (y*w + x) * 4;
-        const gray = (img[i] + img[i+1] + img[i+2]) / 3;
-        if(gray < 200){
+        const gray = (data[i] + data[i+1] + data[i+2]) / 3;
+        if(gray < 185){
           darkCols[x] += 1;
           darkRows[y] += 1;
         }
       }
     }
-    const colTh = Math.max(12, h * 0.06);
-    const rowTh = Math.max(12, w * 0.06);
-    let left = 0, right = w-1, top = 0, bottom = h-1;
-    for(let x=0; x<w; x++){ if(darkCols[x] > colTh){ left = x; break; } }
-    for(let x=w-1; x>=0; x--){ if(darkCols[x] > colTh){ right = x; break; } }
-    for(let y=0; y<h; y++){ if(darkRows[y] > rowTh){ top = y; break; } }
-    for(let y=h-1; y>=0; y--){ if(darkRows[y] > rowTh){ bottom = y; break; } }
-    left = Math.max(0, left - Math.round(w*0.01));
-    right = Math.min(w-1, right + Math.round(w*0.01));
-    top = Math.max(0, top - Math.round(h*0.01));
-    bottom = Math.min(h-1, bottom + Math.round(h*0.01));
-    return { x:left, y:top, w:Math.max(1,right-left), h:Math.max(1,bottom-top) };
+
+    const rowIdx = [];
+    const rowTh = Math.max(40, Math.round(w * 0.18));
+    for(let y=0; y<h; y++) if(darkRows[y] > rowTh) rowIdx.push(y);
+    const rowGroups = groupRanges(rowIdx, 4);
+
+    let top = Math.round(h * 0.12);
+    let bottom = Math.round(h * 0.84);
+    if(rowGroups.length){
+      const firstUseful = rowGroups.find(g => g.start > h * 0.08) || rowGroups[0];
+      top = firstUseful.start;
+      let lastUseful = rowGroups[rowGroups.length - 1];
+      if(lastUseful.start > h * 0.82 && lastUseful.len > h * 0.06 && rowGroups.length >= 2){
+        lastUseful = rowGroups[rowGroups.length - 2];
+      }
+      if(lastUseful.start > h * 0.78 && rowGroups.length >= 3 && lastUseful.len > h * 0.02){
+        const prev = rowGroups[rowGroups.length - 3];
+        if((lastUseful.end - prev.end) > h * 0.04) lastUseful = prev;
+      }
+      bottom = Math.max(top + 50, lastUseful.end);
+    }
+
+    const colIdx = [];
+    const colTh = Math.max(20, Math.round((bottom - top) * 0.02));
+    for(let x=0; x<w; x++) if(darkCols[x] > colTh) colIdx.push(x);
+    const colGroups = groupRanges(colIdx, 3);
+    let left = Math.round(w * 0.04);
+    let right = Math.round(w * 0.96);
+    if(colGroups.length){
+      let usable = colGroups.filter(g => g.end > w * 0.03 && g.start < w * 0.98);
+      usable = usable.filter(g => !(g.start < w * 0.03 && g.len < w * 0.04));
+      if(usable.length){
+        left = usable[0].start;
+        right = usable[usable.length - 1].end;
+      }
+    }
+
+    left = Math.max(0, left - Math.round(w * 0.01));
+    right = Math.min(w - 1, right + Math.round(w * 0.005));
+    top = Math.max(0, top - Math.round(h * 0.005));
+    bottom = Math.min(h - 1, bottom + Math.round(h * 0.01));
+
+    return { x:left, y:top, w:Math.max(1, right-left), h:Math.max(1, bottom-top) };
   }
 
   function cropCanvas(source, rect){
@@ -640,19 +689,59 @@
     };
   }
 
-  function detectCheckboxMarked(source, rect){
-    const inner = getInnerRect(rect, 0.22, 0.22);
+  function getBinaryStats(source, rect, padX=0.18, padY=0.18, grayTh=180){
+    const inner = getInnerRect(rect, padX, padY);
     const c = cropCanvas(source, inner);
     const ctx = c.getContext('2d', { willReadFrequently:true });
     const data = ctx.getImageData(0,0,c.width,c.height).data;
     let dark = 0;
-    let total = c.width * c.height;
-    for(let i=0; i<data.length; i+=4){
-      const gray = (data[i] + data[i+1] + data[i+2]) / 3;
-      if(gray < 170) dark++;
+    let centerDark = 0;
+    let centerTotal = 0;
+    let diag1 = 0, diag2 = 0, diagCount = 0;
+    const w = c.width, h = c.height;
+    for(let y=0; y<h; y++){
+      for(let x=0; x<w; x++){
+        const i = (y*w + x) * 4;
+        const gray = (data[i] + data[i+1] + data[i+2]) / 3;
+        const isDark = gray < grayTh;
+        if(isDark) dark++;
+        if(x > w*0.32 && x < w*0.68 && y > h*0.32 && y < h*0.68){
+          centerTotal++;
+          if(isDark) centerDark++;
+        }
+        const nearDiag1 = Math.abs((x / Math.max(1,w-1)) - (y / Math.max(1,h-1))) < 0.14;
+        const nearDiag2 = Math.abs((x / Math.max(1,w-1)) - (1 - (y / Math.max(1,h-1)))) < 0.14;
+        if(nearDiag1 || nearDiag2){
+          diagCount++;
+          if(isDark){
+            if(nearDiag1) diag1++;
+            if(nearDiag2) diag2++;
+          }
+        }
+      }
     }
-    const ratio = total ? (dark / total) : 0;
-    return ratio > 0.035;
+    const total = Math.max(1, w * h);
+    return {
+      overall: dark / total,
+      center: centerTotal ? (centerDark / centerTotal) : 0,
+      diag1: diagCount ? (diag1 / diagCount) : 0,
+      diag2: diagCount ? (diag2 / diagCount) : 0,
+      width:w,
+      height:h
+    };
+  }
+
+  function detectCheckboxMarked(source, rect){
+    const s = getBinaryStats(source, rect, 0.24, 0.24, 178);
+    if(s.center > 0.58) return true;
+    if(s.overall > 0.26 && (s.diag1 > 0.16 || s.diag2 > 0.16)) return true;
+    if(s.overall > 0.32) return true;
+    return false;
+  }
+
+  function detectAmountPresence(source, rect){
+    const s = getBinaryStats(source, rect, 0.12, 0.18, 185);
+    return s.overall > 0.055 || s.center > 0.075;
   }
 
   function preprocessForOcr(source, rect){
@@ -715,10 +804,18 @@
     const rows = getOcrRowRects(form);
     const found = [];
     for(const row of rows){
-      const checked = detectCheckboxMarked(canvas, row.checkboxRect);
+      const checkedStrong = detectCheckboxMarked(canvas, row.checkboxRect);
+      const hasAmountInk = detectAmountPresence(canvas, row.priceRect);
+      let checked = checkedStrong;
       let amount = 0;
-      if(checked){
+      if(checkedStrong || hasAmountInk){
         amount = await ocrAmountFromRect(canvas, row.priceRect);
+      }
+      if(!checked && hasAmountInk && amount > 0){
+        checked = true;
+      }
+      if(checked && amount <= 0 && !hasAmountInk){
+        checked = false;
       }
       found.push({
         code: row.code,
@@ -726,6 +823,11 @@
         checked,
         amount: checked ? amount : 0
       });
+    }
+
+    const active = found.filter(r => r.checked);
+    if(active.length > 6){
+      found.forEach(r=>{ if(!r.amount || r.amount <= 0) r.checked = false; });
     }
     return found;
   }
