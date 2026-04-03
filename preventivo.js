@@ -1800,16 +1800,18 @@ async function generateQuotePdfBlob(){
 
     // Layout fissato sul modulo ELIP, in ordine reale delle righe del foglio.
     const layout = {
-      rowTop: h * 0.188,
-      rowH: h * 0.0436,
-      checkX1: w * 0.468,
-      checkX2: w * 0.510,
-      priceX1: w * 0.850,
-      priceX2: w * 0.972,
-      totalX1: w * 0.126,
+      // Coordinate normalizzate sul modulo gia' ritagliato.
+      // Tarate sul modello reale ELIP per evitare slittamenti di riga.
+      rowTop: h * 0.078,
+      rowH: h * 0.0495,
+      checkX1: w * 0.486,
+      checkX2: w * 0.535,
+      priceX1: w * 0.868,
+      priceX2: w * 0.985,
+      totalX1: w * 0.105,
       totalX2: w * 0.315,
-      totalY1: h * 0.902,
-      totalY2: h * 0.965
+      totalY1: h * 0.944,
+      totalY2: h * 0.995
     };
 
     const rows = rowsMeta.map(([code, text], i) => {
@@ -1862,33 +1864,36 @@ async function generateQuotePdfBlob(){
 
     const checkCandidates = rows.filter(r => {
       const minDiag = Math.min(Number(r.metrics?.diagA || 0), Number(r.metrics?.diagB || 0));
-      return r.checkScore >= 0.34 && minDiag >= 0.12 && Number(r.metrics?.fill || 0) >= 0.030;
-    });
-    const pricedRows = rows.filter(r => Number(r.price || 0) > 0);
+      return r.checkScore >= 0.28 && minDiag >= 0.10 && Number(r.metrics?.fill || 0) >= 0.022;
+    }).sort((a,b)=> a.top - b.top);
+    const pricedRows = rows.filter(r => Number(r.price || 0) > 0).sort((a,b)=> a.top - b.top);
 
-    // Caso professionale più frequente: una sola X reale e un solo prezzo reale.
-    if (checkCandidates.length === 1) {
-      const winner = checkCandidates[0];
-      winner.use = true;
-      winner.price = normalizeMoneyChoice(writtenTotal, winner.price);
-    } else if (checkCandidates.length > 1 && pricedRows.length === 1) {
-      const priced = pricedRows[0];
-      const ranked = checkCandidates.slice().sort((a,b) => Math.abs(a.top - priced.top) - Math.abs(b.top - priced.top));
-      const winner = ranked[0] || priced;
-      winner.use = true;
-      winner.price = normalizeMoneyChoice(writtenTotal, priced.price);
-    } else if (!checkCandidates.length && pricedRows.length === 1) {
+    // Regola prioritaria: se c'e' una sola riga con prezzo scritto, quella e' la riga del RIP.
+    // La X serve solo come conferma aggiuntiva, non deve spostare il prezzo su altre righe.
+    if (pricedRows.length === 1) {
       const winner = pricedRows[0];
       winner.use = true;
       winner.price = normalizeMoneyChoice(writtenTotal, winner.price);
+    } else if (checkCandidates.length === 1) {
+      const winner = checkCandidates[0];
+      winner.use = true;
+      winner.price = normalizeMoneyChoice(writtenTotal, winner.price);
+    } else if (checkCandidates.length > 1 && pricedRows.length > 1) {
+      const pair = checkCandidates.map(c => ({ c, p: pricedRows.slice().sort((a,b)=>Math.abs(a.top-c.top)-Math.abs(b.top-c.top))[0] }))
+        .filter(x => x.p)
+        .sort((a,b)=> Math.abs(a.c.top-a.p.top) - Math.abs(b.c.top-b.p.top))[0];
+      if (pair) {
+        pair.p.use = true;
+        pair.p.price = normalizeMoneyChoice(writtenTotal, pair.p.price);
+      }
     } else if (checkCandidates.length === 1 && !pricedRows.length && writtenTotal > 0) {
       checkCandidates[0].use = true;
       checkCandidates[0].price = writtenTotal;
     } else {
-      const combo = rows.slice().sort((a,b) => ((b.checkScore * 3.2) + (b.priceInk.centerFill * 2.2) + (b.priceInk.fill * 1.4)) - ((a.checkScore * 3.2) + (a.priceInk.centerFill * 2.2) + (a.priceInk.fill * 1.4)));
+      const combo = rows.slice().sort((a,b) => ((b.priceInk.centerFill * 4.0) + (b.priceInk.fill * 2.5) + (b.checkScore * 1.5)) - ((a.priceInk.centerFill * 4.0) + (a.priceInk.fill * 2.5) + (a.checkScore * 1.5)));
       const winner = combo[0];
       const second = combo[1];
-      if (winner && (winner.price > 0 || writtenTotal > 0) && (!second || (((winner.checkScore * 3.2) + (winner.priceInk.centerFill * 2.2) + (winner.priceInk.fill * 1.4)) - ((second.checkScore * 3.2) + (second.priceInk.centerFill * 2.2) + (second.priceInk.fill * 1.4)) > 0.20))) {
+      if (winner && (winner.price > 0 || writtenTotal > 0) && (!second || (((winner.priceInk.centerFill * 4.0) + (winner.priceInk.fill * 2.5) + (winner.checkScore * 1.5)) - ((second.priceInk.centerFill * 4.0) + (second.priceInk.fill * 2.5) + (second.checkScore * 1.5)) > 0.18))) {
         winner.use = true;
         winner.price = normalizeMoneyChoice(writtenTotal, winner.price);
       }
