@@ -22,6 +22,37 @@
     { code:'RIP00', text:'LAVORAZIONE LIBERA', free:true },
   ];
 
+
+  const OCR_FORM_ROWS = [
+    { code:'RIP05', text:'SMONTAGGIO COMPLETO DEL MOTORE SISTEMATICO' },
+    { code:'RIP29', text:'LAVAGGIO COMPONENTI, E TRATTAMENTO TERMICO AVVOLGIMENTI' },
+    { code:'RIP06', text:'VERIFICHE MECCANICHE ALBERI E ALLOGIAMENTO CUSCINETTI E VERIFICHE ELETTRICHE AVVOLGIMENTI' },
+    { code:'RIP07', text:'TORNITURA, SMICATURA ED EQUILIBRATURA ROTORE' },
+    { code:'RIP22', text:'SOSTITUZIONE COLLETTORE CON RECUPERO AVVOLGIMENTO' },
+    { code:'RIP01', text:'AVVOLGIMENTO INDOTTO CON RECUPERO COLLETTORE' },
+    { code:'RIP01C', text:'AVVOLGIMENTO INDOTTO CON SOSTITUZIONE COLLETTORE' },
+    { code:'RIP08', text:'ISOLAMENTO STATORE' },
+    { code:'RIP02', text:'AVVOLGIMENTO STATORE' },
+    { code:'RIP31', text:'LAVORAZIONI MECCANICHE ALBERO' },
+    { code:'RIP32', text:'LAVORAZIONI MECCANICHE FLANGE' },
+    { code:'RIP19', text:'SOSTITUZIONE SPAZZOLE' },
+    { code:'RIP20', text:'SOSTITUZIONE MOLLE PREMISPAZZOLE' },
+    { code:'RIP21', text:'SOSTITUZIONE CUSCINETTI' },
+    { code:'RIP23', text:'SOSTITUZIONE TENUTA MECCANICA' },
+    { code:'RIP26', text:'SOSTITUZIONE GUARNIZIONI/ PARAOLIO' },
+    { code:'RIP30', text:'MONTAGGIO, COLLAUDO E VERNICIATURA' },
+    { code:'RIP16', text:'RICAMBI VARI' },
+  ];
+
+  const OCR_LAYOUT = {
+    page:{ x1:0.02, y1:0.10, x2:0.98, y2:0.98 },
+    rowsTop:0.247,
+    rowHeight:0.0467,
+    xCol:{ x1:0.505, x2:0.54, yPad:0.16 },
+    priceCol:{ x1:0.865, x2:0.976, yPad:0.10 },
+    totalCell:{ x1:0.12, x2:0.36, y1:0.907, y2:0.942 }
+  };
+
   const STATUS = [
     { v:'DA_FARE', label:'DA FARE', pct:0 },
     { v:'IN_LAVORAZIONE', label:'IN LAVORAZIONE', pct:50 },
@@ -139,8 +170,8 @@
   let dictationMode = 'rips';
   let lastAutoApplied = '';
   let ocrModal = null;
-  let ocrImportRows = [];
-  let ocrImageDataUrl = '';
+  let ocrRowsDraft = [];
+  let ocrImageUrl = '';
 
 
   async function getCurrentSessionSafe(){
@@ -399,8 +430,9 @@
     $('btnUnlock')?.addEventListener('click', unlockEdit);
     $('btnPdf')?.addEventListener('click', downloadQuotePdf);
     $('btnInvia')?.addEventListener('click', sendQuoteUnified);
-    $('btnOcrPhoto')?.addEventListener('click', openOcrImport);
-    $('btnConfirmOcrImport')?.addEventListener('click', confirmOcrImport);
+    $('btnImportFoto')?.addEventListener('click', openOcrModal);
+    $('btnRunOcr')?.addEventListener('click', runOcrAnalysis);
+    $('btnConfirmOcr')?.addEventListener('click', confirmOcrImport);
     $('ocrPhotoInput')?.addEventListener('change', onOcrPhotoSelected);
 
     ['status','sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{
@@ -499,6 +531,7 @@
 
     if($('btnSave')) $('btnSave').disabled = !isEditUnlocked;
     if($('btnDelete')) $('btnDelete').disabled = !currentQuoteId || !isEditUnlocked;
+    if($('btnImportFoto')) $('btnImportFoto').disabled = !isEditUnlocked;
     if($('btnUnlock')) $('btnUnlock').textContent = isEditUnlocked ? '🔓 Modifica attiva' : '🔒 Sblocca modifiche';
 
     const lock = $('lockState');
@@ -1660,294 +1693,4 @@ async function generateQuotePdfBlob(){
   }
 
   document.addEventListener('DOMContentLoaded', init);
-
-  function openOcrImport(){
-    if(!isEditUnlocked){
-      showErr('Prima sblocca le modifiche.');
-      return;
-    }
-    try{
-      ocrModal = ocrModal || new bootstrap.Modal(document.getElementById('ocrModal'));
-      resetOcrUi();
-      ocrModal.show();
-      $('ocrPhotoInput')?.click();
-    }catch(e){
-      showErr('Impossibile aprire importazione OCR: ' + (e?.message || e));
-    }
-  }
-
-  function resetOcrUi(){
-    ocrImportRows = [];
-    ocrImageDataUrl = '';
-    if($('ocrRows')) $('ocrRows').innerHTML = '';
-    if($('ocrSummary')) $('ocrSummary').textContent = 'Nessuna analisi eseguita.';
-    if($('ocrDetectedTotal')) $('ocrDetectedTotal').textContent = '€ 0,00';
-    const img = $('ocrPreview');
-    if(img){ img.src = ''; img.classList.add('d-none'); }
-    if($('ocrBusy')) $('ocrBusy').textContent = 'Carica una foto del modulo.';
-    if($('ocrPhotoInput')) $('ocrPhotoInput').value = '';
-  }
-
-  async function onOcrPhotoSelected(ev){
-    const file = ev?.target?.files?.[0];
-    if(!file) return;
-    const dataUrl = await readFileAsDataUrl(file);
-    ocrImageDataUrl = dataUrl;
-    const img = $('ocrPreview');
-    if(img){ img.src = dataUrl; img.classList.remove('d-none'); }
-    if($('ocrBusy')) $('ocrBusy').textContent = 'Analisi in corso…';
-    if($('ocrSummary')) $('ocrSummary').textContent = 'Sto cercando solo la colonna X e i prezzi delle righe flaggate.';
-    try{
-      const analysis = await analyzeRepairSheetFromPhoto(dataUrl);
-      ocrImportRows = analysis.rows || [];
-      renderOcrRows();
-      if($('ocrDetectedTotal')) $('ocrDetectedTotal').textContent = '€ ' + fmtMoney(analysis.total || 0);
-      if($('ocrSummary')) $('ocrSummary').textContent = `Analisi completata. Righe suggerite: ${ocrImportRows.filter(r=>r.use).length}. Controlla prima di confermare.`;
-      if($('ocrBusy')) $('ocrBusy').textContent = '';
-    }catch(e){
-      console.error(e);
-      if($('ocrBusy')) $('ocrBusy').textContent = '';
-      if($('ocrSummary')) $('ocrSummary').textContent = 'Analisi non riuscita.';
-      showErr('OCR non riuscito: ' + (e?.message || e));
-    }
-  }
-
-  function renderOcrRows(){
-    const wrap = $('ocrRows');
-    if(!wrap) return;
-    wrap.innerHTML = '';
-    ocrImportRows.forEach((row, idx)=>{
-      const el = document.createElement('div');
-      el.className = 'ocr-row';
-      el.innerHTML = `
-        <input type="checkbox" class="form-check-input" ${row.use ? 'checked' : ''}>
-        <span class="badge badge-rip">${esc(row.code)}</span>
-        <div class="ocr-desc">${esc(row.text)}</div>
-        <input type="text" class="form-control ocr-price" value="${esc(fmtMoney(row.price || 0))}">`;
-      const chk = el.querySelector('input[type="checkbox"]');
-      const price = el.querySelector('.ocr-price');
-      chk.addEventListener('change', ()=>{ row.use = !!chk.checked; refreshOcrTotal(); });
-      price.addEventListener('input', ()=>{ row.price = parseNum(price.value); refreshOcrTotal(); });
-      price.addEventListener('blur', ()=>{ price.value = fmtMoney(row.price || 0); });
-      wrap.appendChild(el);
-    });
-    refreshOcrTotal();
-  }
-
-  function refreshOcrTotal(){
-    const total = ocrImportRows.filter(r=>r.use).reduce((s,r)=> s + Number(r.price || 0), 0);
-    if($('ocrDetectedTotal')) $('ocrDetectedTotal').textContent = '€ ' + fmtMoney(total);
-  }
-
-  function confirmOcrImport(){
-    if(!ocrImportRows.length){
-      showErr('Nessun dato OCR da importare.');
-      return;
-    }
-    const selected = ocrImportRows.filter(r=>r.use && Number(r.price || 0) > 0);
-    if(!selected.length){
-      showErr('Seleziona almeno una riga valida con importo.');
-      return;
-    }
-    selected.forEach((row, idx)=>{
-      const work = WORKS.find(w => w.code === row.code);
-      if(!work) return;
-      const item = ensureLocalItem(work, idx);
-      item.description = work.text;
-      item.unit_price_ex_vat = Number(row.price || 0);
-      item.work_status = item.work_status || 'DA_FARE';
-    });
-    recalcTotals();
-    renderAll();
-    if(ocrModal) ocrModal.hide();
-    showOk('Importazione OCR applicata. Controlla e salva.');
-  }
-
-  async function analyzeRepairSheetFromPhoto(dataUrl){
-    const img = await loadImage(dataUrl);
-    const croppedCanvas = autoCropSheet(img);
-    if($('ocrPreview')){
-      $('ocrPreview').src = croppedCanvas.toDataURL('image/jpeg', 0.95);
-      $('ocrPreview').classList.remove('d-none');
-    }
-    const rowsMeta = [
-      ['RIP05','SMONTAGGIO COMPLETO DEL MOTORE SISTEMATICO'],
-      ['RIP29','LAVAGGIO COMPONENTI, E TRATTAMENTO TERMICO AVVOLGIMENTI'],
-      ['RIP06','VERIFICHE MECCANICHE ALBERI E ALLOGIAMENTO CUSCINETTI E VERIFICHE ELETTRICHE AVVOLGIMENTI'],
-      ['RIP07','TORNITURA, SMICATURA ED EQUILIBRATURA ROTORE'],
-      ['RIP22','SOSTITUZIONE COLLETTORE CON RECUPERO AVVOLGIMENTO'],
-      ['RIP01','AVVOLGIMENTO INDOTTO CON RECUPERO COLLETTORE'],
-      ['RIP01C','AVVOLGIMENTO INDOTTO CON SOSTITUZIONE COLLETTORE'],
-      ['RIP08','ISOLAMENTO STATORE'],
-      ['RIP02','AVVOLGIMENTO STATORE'],
-      ['RIP31','LAVORAZIONI MECCANICHE ALBERO'],
-      ['RIP32','LAVORAZIONI MECCANICHE FLANGE'],
-      ['RIP19','SOSTITUZIONE SPAZZOLE'],
-      ['RIP20','SOSTITUZIONE MOLLE PREMISPAZZOLE'],
-      ['RIP21','SOSTITUZIONE CUSCINETTI'],
-      ['RIP23','SOSTITUZIONE TENUTA MECCANICA'],
-      ['RIP26','SOSTITUZIONE GUARNIZIONI/ PARAOLIO'],
-      ['RIP30','MONTAGGIO, COLLAUDO E VERNICIATURA'],
-      ['RIP16','RICAMBI VARI']
-    ];
-
-    const w = croppedCanvas.width;
-    const h = croppedCanvas.height;
-    const rowTop = Math.round(h * 0.1905);
-    const rowH = h * 0.0410;
-    const checkX1 = Math.round(w * 0.512);
-    const checkX2 = Math.round(w * 0.549);
-    const priceX1 = Math.round(w * 0.850);
-    const priceX2 = Math.round(w * 0.946);
-    const totalRect = {
-      x1: Math.round(w * 0.150),
-      x2: Math.round(w * 0.325),
-      y1: Math.round(h * 0.820),
-      y2: Math.round(h * 0.870)
-    };
-
-    const ctx = croppedCanvas.getContext('2d', { willReadFrequently: true });
-    const rows = [];
-    for(let i=0;i<rowsMeta.length;i++){
-      const y1 = Math.round(rowTop + i * rowH);
-      const y2 = Math.round(y1 + rowH * 0.90);
-      const checkScore = getCheckMarkScore(ctx, checkX1, y1, checkX2-checkX1, y2-y1);
-      const use = checkScore > 0.16;
-      let price = 0;
-      if(use){
-        const priceCanvas = extractRectCanvas(croppedCanvas, priceX1, y1, priceX2-priceX1, y2-y1);
-        price = await recognizeMoneyFromCanvas(priceCanvas);
-      }
-      rows.push({ code: rowsMeta[i][0], text: rowsMeta[i][1], use, price, score: checkScore });
-    }
-
-    const totalCanvas = extractRectCanvas(croppedCanvas, totalRect.x1, totalRect.y1, totalRect.x2-totalRect.x1, totalRect.y2-totalRect.y1);
-    const writtenTotal = await recognizeMoneyFromCanvas(totalCanvas);
-    const selected = rows.filter(r=>r.use);
-    if(selected.length === 1 && writtenTotal > 0){
-      selected[0].price = writtenTotal;
-    }
-    const total = rows.filter(r=>r.use).reduce((s,r)=> s + Number(r.price || 0), 0);
-    return { rows, total: writtenTotal > 0 && selected.length === 1 ? writtenTotal : total };
-  }
-
-  function autoCropSheet(img){
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth || img.width;
-    canvas.height = img.naturalHeight || img.height;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0);
-    const {x,y,w,h} = findDenseContentRect(ctx, canvas.width, canvas.height);
-    const out = document.createElement('canvas');
-    out.width = w;
-    out.height = h;
-    out.getContext('2d').drawImage(canvas, x, y, w, h, 0, 0, w, h);
-    return out;
-  }
-
-  function findDenseContentRect(ctx, w, h){
-    const img = ctx.getImageData(0,0,w,h).data;
-    const row = new Float32Array(h);
-    const col = new Float32Array(w);
-    for(let y=0;y<h;y++){
-      for(let x=0;x<w;x++){
-        const i=(y*w+x)*4;
-        const g=(img[i]+img[i+1]+img[i+2])/3;
-        const ink = Math.max(0, 255 - g - 18);
-        row[y]+=ink;
-        col[x]+=ink;
-      }
-    }
-    const rowThr = Math.max(...row) * 0.16;
-    const colThr = Math.max(...col) * 0.16;
-    let top=0,bottom=h-1,left=0,right=w-1;
-    while(top < h-1 && row[top] < rowThr) top++;
-    while(bottom > 0 && row[bottom] < rowThr) bottom--;
-    while(left < w-1 && col[left] < colThr) left++;
-    while(right > 0 && col[right] < colThr) right--;
-    const padX = Math.round((right-left)*0.03);
-    const padY = Math.round((bottom-top)*0.03);
-    left = Math.max(0, left - padX);
-    right = Math.min(w-1, right + padX);
-    top = Math.max(0, top - padY);
-    bottom = Math.min(h-1, bottom + padY);
-    return { x:left, y:top, w:Math.max(50,right-left+1), h:Math.max(50,bottom-top+1) };
-  }
-
-  function getCheckMarkScore(ctx, x, y, w, h){
-    const data = ctx.getImageData(x,y,w,h).data;
-    let dark=0, total=0;
-    const mx = Math.floor(w*0.20), my = Math.floor(h*0.18);
-    for(let yy=my; yy<h-my; yy++){
-      for(let xx=mx; xx<w-mx; xx++){
-        const i=(yy*w+xx)*4;
-        const g=(data[i]+data[i+1]+data[i+2])/3;
-        if(g < 165) dark++;
-        total++;
-      }
-    }
-    return total ? dark/total : 0;
-  }
-
-  function extractRectCanvas(srcCanvas, x, y, w, h){
-    const c = document.createElement('canvas');
-    c.width = Math.max(1, Math.round(w));
-    c.height = Math.max(1, Math.round(h));
-    const cx = c.getContext('2d');
-    cx.fillStyle = '#fff';
-    cx.fillRect(0,0,c.width,c.height);
-    cx.drawImage(srcCanvas, x, y, w, h, 0, 0, c.width, c.height);
-    return preprocessMoneyCanvas(c);
-  }
-
-  function preprocessMoneyCanvas(canvas){
-    const out = document.createElement('canvas');
-    out.width = canvas.width * 4;
-    out.height = canvas.height * 4;
-    const ctx = out.getContext('2d', { willReadFrequently:true });
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0,0,out.width,out.height);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(canvas, 0, 0, out.width, out.height);
-    const img = ctx.getImageData(0,0,out.width,out.height);
-    const d = img.data;
-    for(let i=0;i<d.length;i+=4){
-      const g = (d[i]+d[i+1]+d[i+2])/3;
-      const v = g < 185 ? 0 : 255;
-      d[i]=d[i+1]=d[i+2]=v;
-    }
-    ctx.putImageData(img,0,0);
-    return out;
-  }
-
-  async function recognizeMoneyFromCanvas(canvas){
-    if(!window.Tesseract) return 0;
-    const { data } = await Tesseract.recognize(canvas, 'eng', {
-      tessedit_char_whitelist: '0123456789,.-',
-      preserve_interword_spaces: '0'
-    });
-    const txt = String(data?.text || '').replace(/\s+/g,'').replace(/\./g,'').replace(/,/g,'.');
-    const m = txt.match(/(\d+(?:\.\d{1,2})?)/);
-    const n = Number(m ? m[1] : 0);
-    return Number.isFinite(n) ? n : 0;
-  }
-
-  function readFileAsDataUrl(file){
-    return new Promise((resolve,reject)=>{
-      const fr = new FileReader();
-      fr.onload = ()=> resolve(fr.result);
-      fr.onerror = reject;
-      fr.readAsDataURL(file);
-    });
-  }
-
-  function loadImage(src){
-    return new Promise((resolve,reject)=>{
-      const img = new Image();
-      img.onload = ()=> resolve(img);
-      img.onerror = reject;
-      img.src = src;
-    });
-  }
-;
-})()
+})();
