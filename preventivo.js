@@ -1797,87 +1797,111 @@ async function generateQuotePdfBlob(){
     if($('ocrPreview')){ $('ocrPreview').src = formCanvas.toDataURL('image/jpeg', 0.95); $('ocrPreview').classList.remove('d-none'); }
     const w = formCanvas.width;
     const h = formCanvas.height;
-    const ctx = formCanvas.getContext('2d', { willReadFrequently: true });
 
+    // Layout fissato sul modulo ELIP, in ordine reale delle righe del foglio.
     const layout = {
-      rowTop: Math.round(h * 0.186),
-      rowH: h * 0.0438,
-      checkX1: Math.round(w * 0.463),
-      checkX2: Math.round(w * 0.511),
-      priceX1: Math.round(w * 0.848),
-      priceX2: Math.round(w * 0.969),
-      totalX1: Math.round(w * 0.125),
-      totalX2: Math.round(w * 0.312),
-      totalY1: Math.round(h * 0.905),
-      totalY2: Math.round(h * 0.969)
+      rowTop: h * 0.188,
+      rowH: h * 0.0436,
+      checkX1: w * 0.468,
+      checkX2: w * 0.510,
+      priceX1: w * 0.850,
+      priceX2: w * 0.972,
+      totalX1: w * 0.126,
+      totalX2: w * 0.315,
+      totalY1: h * 0.902,
+      totalY2: h * 0.965
     };
 
-    const detectedBoxes = detectCheckboxBoxes(formCanvas, layout, rowsMeta.length);
-    const rows = [];
-    for(let i=0;i<rowsMeta.length;i++){
-      const box = detectedBoxes[i] || null;
-      const y1 = box
-        ? Math.max(0, Math.round(box.y - Math.max(4, box.h * 0.10)))
-        : Math.round(layout.rowTop + i * layout.rowH);
-      const y2 = box
-        ? Math.min(h, Math.round(box.y + box.h + Math.max(4, box.h * 0.10)))
-        : Math.round(y1 + layout.rowH * 0.78);
-      const checkCanvas = box
-        ? extractRectCanvas(formCanvas, box.x, box.y, box.w, box.h, true)
-        : extractRectCanvas(formCanvas, layout.checkX1, y1, layout.checkX2-layout.checkX1, y2-y1, true);
+    const rows = rowsMeta.map(([code, text], i) => {
+      const top = Math.round(layout.rowTop + (i * layout.rowH));
+      const bottom = Math.round(layout.rowTop + ((i + 1) * layout.rowH));
+      const rowPadY = Math.max(1, Math.round((bottom - top) * 0.12));
+      const checkPadX = Math.max(1, Math.round((layout.checkX2 - layout.checkX1) * 0.18));
+      const pricePadX = Math.max(1, Math.round((layout.priceX2 - layout.priceX1) * 0.06));
+      const checkRect = {
+        x: Math.round(layout.checkX1 + checkPadX),
+        y: top + rowPadY,
+        w: Math.max(8, Math.round((layout.checkX2 - layout.checkX1) - (checkPadX * 2))),
+        h: Math.max(8, Math.round((bottom - top) - (rowPadY * 2)))
+      };
+      const priceRect = {
+        x: Math.round(layout.priceX1 + pricePadX),
+        y: top + rowPadY,
+        w: Math.max(20, Math.round((layout.priceX2 - layout.priceX1) - (pricePadX * 2))),
+        h: Math.max(10, Math.round((bottom - top) - (rowPadY * 2)))
+      };
+      const checkCanvas = extractRectCanvas(formCanvas, checkRect.x, checkRect.y, checkRect.w, checkRect.h, true);
       const metrics = getCheckboxMetrics(checkCanvas.getContext('2d', {willReadFrequently:true}), 0, 0, checkCanvas.width, checkCanvas.height);
-      rows.push({ code: rowsMeta[i][0], text: rowsMeta[i][1], use:false, price:0, y1, y2, metrics, checkScore: checkboxScore(metrics), box });
-    }
+      const priceCanvas = extractRectCanvas(formCanvas, priceRect.x, priceRect.y, priceRect.w, priceRect.h, false);
+      const priceInk = getInkMetrics(priceCanvas.getContext('2d', {willReadFrequently:true}), 0, 0, priceCanvas.width, priceCanvas.height);
+      return {
+        code, text, use:false, price:0,
+        checkRect, priceRect, metrics, priceInk,
+        checkScore: checkboxScore(metrics),
+        top, bottom
+      };
+    });
 
-    const totalCanvas = extractRectCanvas(formCanvas, layout.totalX1, layout.totalY1, layout.totalX2-layout.totalX1, layout.totalY2-layout.totalY1, false);
+    const totalCanvas = extractRectCanvas(
+      formCanvas,
+      Math.round(layout.totalX1),
+      Math.round(layout.totalY1),
+      Math.round(layout.totalX2 - layout.totalX1),
+      Math.round(layout.totalY2 - layout.totalY1),
+      false
+    );
     const writtenTotal = await recognizeMoneyFromCanvas(totalCanvas);
 
-    const priceCandidates = [];
-    for(const row of rows){
-      const priceCanvas = extractRectCanvas(formCanvas, layout.priceX1, row.y1, layout.priceX2-layout.priceX1, row.y2-row.y1, false);
-      const ink = getInkMetrics(priceCanvas.getContext('2d', {willReadFrequently:true}), 0, 0, priceCanvas.width, priceCanvas.height);
-      row.priceInk = ink;
-      if((ink.centerFill > 0.012 || ink.fill > 0.020)){
-        const val = await recognizeMoneyFromCanvas(priceCanvas);
-        if(val > 0){
-          row.price = val;
-          priceCandidates.push(row);
-        }
+    for (const row of rows) {
+      const strongPriceInk = (row.priceInk.centerFill > 0.028 || row.priceInk.fill > 0.040);
+      if (strongPriceInk) {
+        const priceCanvas = extractRectCanvas(formCanvas, row.priceRect.x, row.priceRect.y, row.priceRect.w, row.priceRect.h, false);
+        row.price = await recognizeMoneyFromCanvas(priceCanvas);
       }
     }
 
-    if(priceCandidates.length === 1){
-      const winner = priceCandidates[0];
+    const checkCandidates = rows.filter(r => {
+      const minDiag = Math.min(Number(r.metrics?.diagA || 0), Number(r.metrics?.diagB || 0));
+      return r.checkScore >= 0.34 && minDiag >= 0.12 && Number(r.metrics?.fill || 0) >= 0.030;
+    });
+    const pricedRows = rows.filter(r => Number(r.price || 0) > 0);
+
+    // Caso professionale più frequente: una sola X reale e un solo prezzo reale.
+    if (checkCandidates.length === 1) {
+      const winner = checkCandidates[0];
       winner.use = true;
-      if(writtenTotal > 0) winner.price = normalizeMoneyChoice(writtenTotal, winner.price);
-    }else if(priceCandidates.length > 1){
-      priceCandidates.forEach(r => r.use = true);
-    }else{
-      const checkedIdx = detectCheckedRows(rows.map(r => r.metrics));
-      checkedIdx.forEach(idx => { if(rows[idx]) rows[idx].use = true; });
-      const selected = rows.filter(r => r.use);
-      if(selected.length === 1 && writtenTotal > 0){
-        selected[0].price = writtenTotal;
-      }else if(!selected.length && writtenTotal > 0){
-        const winner = findSingleStandoutRow(rows);
-        if(winner){ winner.use = true; winner.price = writtenTotal; }
-      }else if(selected.length > 1 && writtenTotal > 0){
-        const winner = findSingleStandoutRow(selected);
-        if(winner){
-          rows.forEach(r => { r.use = false; r.price = 0; });
-          winner.use = true;
-          winner.price = writtenTotal;
-        }
+      winner.price = normalizeMoneyChoice(writtenTotal, winner.price);
+    } else if (checkCandidates.length > 1 && pricedRows.length === 1) {
+      const priced = pricedRows[0];
+      const ranked = checkCandidates.slice().sort((a,b) => Math.abs(a.top - priced.top) - Math.abs(b.top - priced.top));
+      const winner = ranked[0] || priced;
+      winner.use = true;
+      winner.price = normalizeMoneyChoice(writtenTotal, priced.price);
+    } else if (!checkCandidates.length && pricedRows.length === 1) {
+      const winner = pricedRows[0];
+      winner.use = true;
+      winner.price = normalizeMoneyChoice(writtenTotal, winner.price);
+    } else if (checkCandidates.length === 1 && !pricedRows.length && writtenTotal > 0) {
+      checkCandidates[0].use = true;
+      checkCandidates[0].price = writtenTotal;
+    } else {
+      const combo = rows.slice().sort((a,b) => ((b.checkScore * 3.2) + (b.priceInk.centerFill * 2.2) + (b.priceInk.fill * 1.4)) - ((a.checkScore * 3.2) + (a.priceInk.centerFill * 2.2) + (a.priceInk.fill * 1.4)));
+      const winner = combo[0];
+      const second = combo[1];
+      if (winner && (winner.price > 0 || writtenTotal > 0) && (!second || (((winner.checkScore * 3.2) + (winner.priceInk.centerFill * 2.2) + (winner.priceInk.fill * 1.4)) - ((second.checkScore * 3.2) + (second.priceInk.centerFill * 2.2) + (second.priceInk.fill * 1.4)) > 0.20))) {
+        winner.use = true;
+        winner.price = normalizeMoneyChoice(writtenTotal, winner.price);
       }
     }
 
     rows.forEach(r => {
-      if(!(r.use && Number(r.price || 0) > 0)){
+      if (!(r.use && Number(r.price || 0) > 0)) {
         r.use = false;
         r.price = 0;
       }
-      delete r.y1; delete r.y2; delete r.priceInk;
+      delete r.checkRect; delete r.priceRect; delete r.top; delete r.bottom; delete r.priceInk;
     });
+
     const total = rows.filter(r=>r.use).reduce((s,r)=> s + Number(r.price || 0), 0);
     return { rows, total: total || writtenTotal || 0 };
   }
