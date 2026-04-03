@@ -1812,13 +1812,21 @@ async function generateQuotePdfBlob(){
       totalY2: Math.round(h * 0.969)
     };
 
+    const detectedBoxes = detectCheckboxBoxes(formCanvas, layout, rowsMeta.length);
     const rows = [];
     for(let i=0;i<rowsMeta.length;i++){
-      const y1 = Math.round(layout.rowTop + i * layout.rowH);
-      const y2 = Math.round(y1 + layout.rowH * 0.78);
-      const checkCanvas = extractRectCanvas(formCanvas, layout.checkX1, y1, layout.checkX2-layout.checkX1, y2-y1, true);
+      const box = detectedBoxes[i] || null;
+      const y1 = box
+        ? Math.max(0, Math.round(box.y - Math.max(4, box.h * 0.10)))
+        : Math.round(layout.rowTop + i * layout.rowH);
+      const y2 = box
+        ? Math.min(h, Math.round(box.y + box.h + Math.max(4, box.h * 0.10)))
+        : Math.round(y1 + layout.rowH * 0.78);
+      const checkCanvas = box
+        ? extractRectCanvas(formCanvas, box.x, box.y, box.w, box.h, true)
+        : extractRectCanvas(formCanvas, layout.checkX1, y1, layout.checkX2-layout.checkX1, y2-y1, true);
       const metrics = getCheckboxMetrics(checkCanvas.getContext('2d', {willReadFrequently:true}), 0, 0, checkCanvas.width, checkCanvas.height);
-      rows.push({ code: rowsMeta[i][0], text: rowsMeta[i][1], use:false, price:0, y1, y2, metrics, checkScore: checkboxScore(metrics) });
+      rows.push({ code: rowsMeta[i][0], text: rowsMeta[i][1], use:false, price:0, y1, y2, metrics, checkScore: checkboxScore(metrics), box });
     }
 
     const totalCanvas = extractRectCanvas(formCanvas, layout.totalX1, layout.totalY1, layout.totalX2-layout.totalX1, layout.totalY2-layout.totalY1, false);
@@ -1937,6 +1945,73 @@ async function generateQuotePdfBlob(){
     const thr = max * factor;
     for(let i=end-1;i>=start;i--) if(arr[i] >= thr) return i;
     return end-1;
+  }
+
+
+  function detectCheckboxBoxes(formCanvas, layout, expectedCount){
+    const x1 = Math.max(0, Math.round(layout.checkX1 - (layout.checkX2 - layout.checkX1) * 0.08));
+    const x2 = Math.min(formCanvas.width, Math.round(layout.checkX2 + (layout.checkX2 - layout.checkX1) * 0.08));
+    const y1 = Math.max(0, Math.round(layout.rowTop - layout.rowH * 0.25));
+    const y2 = Math.min(formCanvas.height, Math.round(layout.rowTop + layout.rowH * expectedCount + layout.rowH * 0.25));
+    const sw = Math.max(1, x2 - x1), sh = Math.max(1, y2 - y1);
+    const ctx = formCanvas.getContext('2d', { willReadFrequently:true });
+    const data = ctx.getImageData(x1, y1, sw, sh).data;
+    const bin = new Uint8Array(sw * sh);
+    for(let yy=0; yy<sh; yy++){
+      for(let xx=0; xx<sw; xx++){
+        const i=(yy*sw+xx)*4;
+        const g=(data[i]+data[i+1]+data[i+2])/3;
+        bin[yy*sw+xx] = g < 205 ? 1 : 0;
+      }
+    }
+    const visited = new Uint8Array(sw * sh);
+    const comps = [];
+    const qx = new Int32Array(sw * sh);
+    const qy = new Int32Array(sw * sh);
+    for(let yy=0; yy<sh; yy++){
+      for(let xx=0; xx<sw; xx++){
+        const idx = yy*sw+xx;
+        if(!bin[idx] || visited[idx]) continue;
+        let head=0, tail=0;
+        visited[idx]=1;
+        qx[tail]=xx; qy[tail]=yy; tail++;
+        let minx=xx,maxx=xx,miny=yy,maxy=yy,count=0;
+        while(head<tail){
+          const cx=qx[head], cy=qy[head]; head++; count++;
+          if(cx<minx) minx=cx; if(cx>maxx) maxx=cx; if(cy<miny) miny=cy; if(cy>maxy) maxy=cy;
+          for(let dy=-1; dy<=1; dy++){
+            for(let dx=-1; dx<=1; dx++){
+              if(!dx && !dy) continue;
+              const nx=cx+dx, ny=cy+dy;
+              if(nx<0||ny<0||nx>=sw||ny>=sh) continue;
+              const ni=ny*sw+nx;
+              if(!bin[ni] || visited[ni]) continue;
+              visited[ni]=1;
+              qx[tail]=nx; qy[tail]=ny; tail++;
+            }
+          }
+        }
+        const bw = maxx-minx+1, bh=maxy-miny+1;
+        if(count < 20) continue;
+                comps.push({ x:x1+minx, y:y1+miny, w:bw, h:bh, count });
+      }
+    }
+    const filtered = comps.filter(c => c.w >= sw*0.35 && c.w <= sw*0.98 && c.h >= sh*0.012 && c.h <= sh*0.06);
+    filtered.sort((a,b)=> (a.y + a.h/2) - (b.y + b.h/2));
+    const dedup = [];
+    for(const c of filtered){
+      const cy = c.y + c.h/2;
+      const prev = dedup[dedup.length-1];
+      if(prev && Math.abs((prev.y + prev.h/2) - cy) < Math.max(6, Math.min(prev.h, c.h) * 0.6)){
+        if(c.count > prev.count) dedup[dedup.length-1] = c;
+      }else{
+        dedup.push(c);
+      }
+    }
+    if(dedup.length >= expectedCount){
+      return dedup.slice(0, expectedCount);
+    }
+    return [];
   }
 
   function getCheckboxMetrics(ctx, x, y, w, h){
