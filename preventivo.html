@@ -250,7 +250,8 @@
             <div class="voice-row">
               <button class="btn btn-outline-secondary" id="btnDictateRips2">🎤 Detta codici RIP</button>
               <button class="btn btn-outline-secondary" id="btnDictateTotal2">🎤 Detta totale riparazione</button>
-              <button class="btn btn-outline-secondary" id="btnOcrImport">📷 Importa foto OCR</button>
+              <button class="btn btn-outline-primary" id="btnImportPhotoOcr">📷 Importa foto OCR</button>
+              <input type="file" id="ocrPhotoInput" accept="image/*" capture="environment" hidden>
             </div>
             <div id="dictationState">Dopo lo sblocco puoi dettare voci tipo “RIP01 250 RIP02 90” oppure “450 euro” in modalità totale.</div>
 
@@ -318,6 +319,53 @@
             </div>
           </div>
         </section>
+      </div>
+    </div>
+
+
+    <div class="modal fade" id="ocrReviewModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius:20px;overflow:hidden;">
+          <div class="modal-header">
+            <div>
+              <h5 class="modal-title mb-1">Importa foto OCR</h5>
+              <div class="text-muted small">Riconosce solo le righe RIP flaggate. Prima della conferma puoi correggere tutto.</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-lg-5">
+                <div class="border rounded-4 p-2 bg-light">
+                  <img id="ocrPreviewImage" alt="Anteprima foto OCR" style="width:100%;height:auto;display:block;border-radius:12px;">
+                </div>
+                <div id="ocrStatus" class="small text-muted mt-2">Pronto.</div>
+              </div>
+              <div class="col-lg-7">
+                <div class="table-responsive">
+                  <table class="table align-middle">
+                    <thead>
+                      <tr>
+                        <th style="width:80px;">Usa</th>
+                        <th style="width:95px;">RIP</th>
+                        <th>Descrizione</th>
+                        <th style="width:160px;">Prezzo</th>
+                      </tr>
+                    </thead>
+                    <tbody id="ocrRowsBody"></tbody>
+                  </table>
+                </div>
+                <div class="d-flex justify-content-end mt-2">
+                  <div class="fs-5 fw-bold">Totale OCR: <span id="ocrModalTotal">€ 0,00</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Chiudi</button>
+            <button type="button" class="btn btn-primary" id="btnApplyOcrImport">Conferma importazione</button>
+          </div>
+        </div>
       </div>
     </div>
 

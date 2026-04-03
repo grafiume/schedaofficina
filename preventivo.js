@@ -138,38 +138,10 @@
   let dictationDebounce = null;
   let dictationMode = 'rips';
   let lastAutoApplied = '';
+  let ocrModal = null;
+  let ocrRowsDraft = [];
+  let ocrImageDataUrl = '';
 
-  let ocrFileObjectUrl = '';
-  let ocrBusy = false;
-  let ocrLastAnalysis = null;
-
-  const OCR_FORM_TEMPLATE = {
-    checkboxBox: { x1:0.534, x2:0.567 },
-    checkboxInnerInsetX:0.0045,
-    checkboxInnerInsetY:0.0065,
-    priceBox: { x1:0.862, x2:0.985 },
-    totalBox: { x1:0.145, x2:0.355, y1:0.910, y2:0.955 },
-    rowH: 0.0428,
-    rows: [
-      { formCode:'05', ripCode:'RIP05', y1:0.1890 },
-      { formCode:'29', ripCode:'RIP29', y1:0.2322 },
-      { formCode:'06', ripCode:'RIP06', y1:0.2754 },
-      { formCode:'07', ripCode:'RIP07', y1:0.3186 },
-      { formCode:'22', ripCode:'RIP22', y1:0.3618 },
-      { formCode:'01', ripCode:'RIP01C', y1:0.4050 },
-      { formCode:'08', ripCode:'RIP08', y1:0.4482 },
-      { formCode:'02', ripCode:'RIP02', y1:0.4914 },
-      { formCode:'31', ripCode:'RIP31', y1:0.5346 },
-      { formCode:'32', ripCode:'RIP32', y1:0.5778 },
-      { formCode:'19', ripCode:'RIP19', y1:0.6210 },
-      { formCode:'20', ripCode:'RIP20', y1:0.6642 },
-      { formCode:'21', ripCode:'RIP21', y1:0.7074 },
-      { formCode:'23', ripCode:'RIP23', y1:0.7506 },
-      { formCode:'26', ripCode:'RIP26', y1:0.7938 },
-      { formCode:'30', ripCode:'RIP30', y1:0.8370 },
-      { formCode:'16', ripCode:'RIP16', y1:0.8802 },
-    ]
-  };
 
   async function getCurrentSessionSafe(){
     if(!sb || !sb.auth) return null;
@@ -269,6 +241,7 @@
       ensureDictationBox();
       bindUI();
       bindDictationButtons();
+      bindOcrImport();
       recalcTotals();
       renderAll();
 
@@ -427,7 +400,18 @@
     $('btnUnlock')?.addEventListener('click', unlockEdit);
     $('btnPdf')?.addEventListener('click', downloadQuotePdf);
     $('btnInvia')?.addEventListener('click', sendQuoteUnified);
-    $('btnOcrImport')?.addEventListener('click', openOcrImport);
+
+    $('btnImportPhotoOcr')?.addEventListener('click', ()=>{
+      if(!isEditUnlocked){ showErr('Prima sblocca le modifiche con la password.'); return; }
+      $('ocrPhotoInput')?.click();
+    });
+    $('ocrPhotoInput')?.addEventListener('change', async (ev)=>{
+      const file = ev.target?.files?.[0];
+      if(!file) return;
+      try{ await processOcrImport(file); }
+      finally{ ev.target.value = ''; }
+    });
+    $('btnApplyOcrImport')?.addEventListener('click', applyOcrRowsToQuote);
 
     ['status','sent_at','accepted_at','delivery_days','delivery_date','notes'].forEach(id=>{
       $(id)?.addEventListener('input', ()=>{
@@ -525,7 +509,7 @@
 
     if($('btnSave')) $('btnSave').disabled = !isEditUnlocked;
     if($('btnDelete')) $('btnDelete').disabled = !currentQuoteId || !isEditUnlocked;
-    if($('btnOcrImport')) $('btnOcrImport').disabled = !isEditUnlocked;
+    if($('btnImportPhotoOcr')) $('btnImportPhotoOcr').disabled = !isEditUnlocked;
     if($('btnUnlock')) $('btnUnlock').textContent = isEditUnlocked ? '🔓 Modifica attiva' : '🔒 Sblocca modifiche';
 
     const lock = $('lockState');
@@ -547,6 +531,297 @@
     document.querySelectorAll('.btn-dictation').forEach(el=>{
       el.disabled = !isEditUnlocked;
     });
+  }
+
+
+  const OCR_RIP_ROWS = WORKS.filter(w => w.code !== 'RIP00').map(w => ({
+    code:w.code,
+    text:w.text
+  }));
+
+  function bindOcrImport(){
+    const modalEl = $('ocrReviewModal');
+    if(modalEl && window.bootstrap){
+      ocrModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    }
+  }
+
+  function setOcrStatus(msg, isError=false){
+    const el = $('ocrStatus');
+    if(!el) return;
+    el.textContent = msg;
+    el.className = 'small mt-2 ' + (isError ? 'text-danger' : 'text-muted');
+  }
+
+  function loadImageFromFile(file){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onerror = ()=> reject(new Error('Impossibile leggere la foto.'));
+      reader.onload = ()=>{
+        const img = new Image();
+        img.onload = ()=> resolve(img);
+        img.onerror = ()=> reject(new Error('Impossibile aprire la foto.'));
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function normalizeAmountText(text){
+    return String(text || '')
+      .replace(/[^\d,\.]/g, '')
+      .replace(/\.(?=\d{3}(\D|$))/g, '')
+      .replace(/,/g, '.');
+  }
+
+  function parseAmountFromText(text){
+    const raw = normalizeAmountText(text);
+    if(!raw) return 0;
+    const parts = raw.match(/\d+(?:\.\d+)?/g) || [];
+    let best = 0;
+    parts.forEach(part=>{
+      const n = Number(part);
+      if(isFinite(n) && n > best) best = n;
+    });
+    return best;
+  }
+
+  function createCanvas(w,h){
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w));
+    c.height = Math.max(1, Math.round(h));
+    return c;
+  }
+
+  function estimateFormBounds(canvas){
+    const ctx = canvas.getContext('2d', { willReadFrequently:true });
+    const { width:w, height:h } = canvas;
+    const img = ctx.getImageData(0,0,w,h).data;
+    const darkCols = new Float32Array(w);
+    const darkRows = new Float32Array(h);
+    for(let y=0; y<h; y++){
+      for(let x=0; x<w; x++){
+        const i = (y*w + x) * 4;
+        const gray = (img[i] + img[i+1] + img[i+2]) / 3;
+        if(gray < 200){
+          darkCols[x] += 1;
+          darkRows[y] += 1;
+        }
+      }
+    }
+    const colTh = Math.max(12, h * 0.06);
+    const rowTh = Math.max(12, w * 0.06);
+    let left = 0, right = w-1, top = 0, bottom = h-1;
+    for(let x=0; x<w; x++){ if(darkCols[x] > colTh){ left = x; break; } }
+    for(let x=w-1; x>=0; x--){ if(darkCols[x] > colTh){ right = x; break; } }
+    for(let y=0; y<h; y++){ if(darkRows[y] > rowTh){ top = y; break; } }
+    for(let y=h-1; y>=0; y--){ if(darkRows[y] > rowTh){ bottom = y; break; } }
+    left = Math.max(0, left - Math.round(w*0.01));
+    right = Math.min(w-1, right + Math.round(w*0.01));
+    top = Math.max(0, top - Math.round(h*0.01));
+    bottom = Math.min(h-1, bottom + Math.round(h*0.01));
+    return { x:left, y:top, w:Math.max(1,right-left), h:Math.max(1,bottom-top) };
+  }
+
+  function cropCanvas(source, rect){
+    const out = createCanvas(rect.w, rect.h);
+    out.getContext('2d').drawImage(source, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+    return out;
+  }
+
+  function getInnerRect(rect, padRatioX=0.18, padRatioY=0.18){
+    const px = rect.w * padRatioX;
+    const py = rect.h * padRatioY;
+    return {
+      x: rect.x + px,
+      y: rect.y + py,
+      w: Math.max(1, rect.w - px*2),
+      h: Math.max(1, rect.h - py*2)
+    };
+  }
+
+  function detectCheckboxMarked(source, rect){
+    const inner = getInnerRect(rect, 0.22, 0.22);
+    const c = cropCanvas(source, inner);
+    const ctx = c.getContext('2d', { willReadFrequently:true });
+    const data = ctx.getImageData(0,0,c.width,c.height).data;
+    let dark = 0;
+    let total = c.width * c.height;
+    for(let i=0; i<data.length; i+=4){
+      const gray = (data[i] + data[i+1] + data[i+2]) / 3;
+      if(gray < 170) dark++;
+    }
+    const ratio = total ? (dark / total) : 0;
+    return ratio > 0.035;
+  }
+
+  function preprocessForOcr(source, rect){
+    const crop = cropCanvas(source, rect);
+    const scale = 4;
+    const out = createCanvas(crop.width * scale, crop.height * scale);
+    const ctx = out.getContext('2d', { willReadFrequently:true });
+    ctx.drawImage(crop, 0, 0, out.width, out.height);
+    const img = ctx.getImageData(0,0,out.width,out.height);
+    const d = img.data;
+    for(let i=0; i<d.length; i+=4){
+      const gray = (d[i] + d[i+1] + d[i+2]) / 3;
+      const v = gray < 190 ? 0 : 255;
+      d[i] = d[i+1] = d[i+2] = v;
+      d[i+3] = 255;
+    }
+    ctx.putImageData(img,0,0);
+    return out;
+  }
+
+  async function ocrAmountFromRect(source, rect){
+    const pre = preprocessForOcr(source, rect);
+    const result = await Tesseract.recognize(pre, 'eng', {
+      logger: ()=>{},
+      tessedit_pageseg_mode: 7,
+      tessedit_char_whitelist: '0123456789,.'
+    });
+    return parseAmountFromText(result?.data?.text || '');
+  }
+
+  function getOcrRowRects(form){
+    const rows = OCR_RIP_ROWS.length;
+    const bodyTop = form.y + form.h * 0.198;
+    const bodyBottom = form.y + form.h * 0.914;
+    const rowH = (bodyBottom - bodyTop) / rows;
+    return OCR_RIP_ROWS.map((row, idx)=>{
+      const y = bodyTop + rowH * idx;
+      return {
+        ...row,
+        checkboxRect: {
+          x: form.x + form.w * 0.505,
+          y: y + rowH * 0.12,
+          w: form.w * 0.036,
+          h: rowH * 0.62
+        },
+        priceRect: {
+          x: form.x + form.w * 0.895,
+          y: y + rowH * 0.10,
+          w: form.w * 0.094,
+          h: rowH * 0.70
+        }
+      };
+    });
+  }
+
+  async function analyzeOcrImage(img){
+    const canvas = createCanvas(img.naturalWidth || img.width, img.naturalHeight || img.height);
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    const form = estimateFormBounds(canvas);
+    const rows = getOcrRowRects(form);
+    const found = [];
+    for(const row of rows){
+      const checked = detectCheckboxMarked(canvas, row.checkboxRect);
+      let amount = 0;
+      if(checked){
+        amount = await ocrAmountFromRect(canvas, row.priceRect);
+      }
+      found.push({
+        code: row.code,
+        text: row.text,
+        checked,
+        amount: checked ? amount : 0
+      });
+    }
+    return found;
+  }
+
+  function renderOcrRowsTable(){
+    const tb = $('ocrRowsBody');
+    if(!tb) return;
+    tb.innerHTML = '';
+    ocrRowsDraft.forEach((row, idx)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="checkbox" class="form-check-input ocr-use" data-idx="${idx}" ${row.checked ? 'checked' : ''}></td>
+        <td><span class="badge text-bg-light border">${esc(row.code)}</span></td>
+        <td>${esc(row.text)}</td>
+        <td><input type="text" inputmode="decimal" class="form-control text-end ocr-amount" data-idx="${idx}" value="${row.amount ? esc(fmtMoney(row.amount)) : ''}" placeholder="0,00"></td>`;
+      tb.appendChild(tr);
+    });
+    tb.querySelectorAll('.ocr-use').forEach(el=>{
+      el.addEventListener('change', ()=>{
+        const idx = Number(el.dataset.idx);
+        if(!Number.isNaN(idx) && ocrRowsDraft[idx]) ocrRowsDraft[idx].checked = !!el.checked;
+        updateOcrModalTotal();
+      });
+    });
+    tb.querySelectorAll('.ocr-amount').forEach(el=>{
+      el.addEventListener('input', ()=>{
+        const idx = Number(el.dataset.idx);
+        if(!Number.isNaN(idx) && ocrRowsDraft[idx]) ocrRowsDraft[idx].amount = parseNum(el.value);
+        updateOcrModalTotal();
+      });
+      el.addEventListener('blur', ()=>{
+        const idx = Number(el.dataset.idx);
+        if(!Number.isNaN(idx) && ocrRowsDraft[idx] && ocrRowsDraft[idx].amount > 0){
+          el.value = fmtMoney(ocrRowsDraft[idx].amount);
+        }
+      });
+    });
+    updateOcrModalTotal();
+  }
+
+  function updateOcrModalTotal(){
+    const total = ocrRowsDraft.reduce((sum, row)=> sum + (row.checked ? Number(row.amount || 0) : 0), 0);
+    if($('ocrModalTotal')) $('ocrModalTotal').textContent = '€ ' + fmtMoney(total);
+  }
+
+  async function processOcrImport(file){
+    clearErr();
+    if(typeof Tesseract === 'undefined'){
+      showErr('Libreria OCR non disponibile.');
+      return;
+    }
+    setOcrStatus('Caricamento foto in corso…');
+    const img = await loadImageFromFile(file);
+    ocrImageDataUrl = img.src;
+    if($('ocrPreviewImage')) $('ocrPreviewImage').src = ocrImageDataUrl;
+    if(ocrModal) ocrModal.show();
+    setOcrStatus('Analisi del modulo: controllo caselle X e lettura importi…');
+    try{
+      ocrRowsDraft = await analyzeOcrImage(img);
+      renderOcrRowsTable();
+      const checkedCount = ocrRowsDraft.filter(r=>r.checked).length;
+      setOcrStatus(checkedCount
+        ? `Analisi completata. Righe suggerite: ${checkedCount}. Controlla prima di confermare.`
+        : 'Nessuna riga sicura rilevata automaticamente. Puoi selezionarle e correggerle a mano.');
+    }catch(err){
+      console.error(err);
+      ocrRowsDraft = OCR_RIP_ROWS.map(r=>({ ...r, checked:false, amount:0 }));
+      renderOcrRowsTable();
+      setOcrStatus('Lettura automatica non riuscita bene. Puoi comunque correggere tutto a mano.', true);
+    }
+  }
+
+  function applyOcrRowsToQuote(){
+    const selected = ocrRowsDraft.filter(r => r.checked && Number(r.amount || 0) > 0);
+    if(!selected.length){
+      showErr('Nessuna riga RIP valida selezionata da importare.');
+      return;
+    }
+    const hasExisting = getSelectedItems().length > 0;
+    if(hasExisting){
+      const ok = confirm('Vuoi sostituire le voci RIP attuali con quelle lette dalla foto?');
+      if(!ok) return;
+    }
+    quoteState.items = {};
+    selected.forEach(row=>{
+      const work = WORKS.find(w => w.code === row.code);
+      const idx = WORKS.findIndex(w => w.code === row.code);
+      if(!work || idx < 0) return;
+      const it = ensureLocalItem(work, idx);
+      it.unit_price_ex_vat = Number(row.amount || 0);
+      it.work_status = 'DA_FARE';
+    });
+    recalcTotals();
+    renderAll();
+    if(ocrModal) ocrModal.hide();
+    showOk('Importazione OCR applicata: ' + selected.map(r=> `${r.code} € ${fmtMoney(r.amount)}`).join(' • '));
   }
 
   function touch(){
@@ -1174,482 +1449,6 @@
     renderAll();
     showOk('Totale riparazione impostato a € ' + fmtMoney(total));
     return true;
-  }
-
-
-  function openOcrImport(){
-    if(!isEditUnlocked){
-      showErr('Prima sblocca le modifiche con la password.');
-      return;
-    }
-    ensureOcrOverlay();
-    resetOcrOverlay();
-    const ov = $('ocrOverlay');
-    if(ov) ov.style.display = 'flex';
-  }
-
-  function ensureOcrOverlay(){
-    if($('ocrOverlay')) return;
-
-    const wrap = document.createElement('div');
-    wrap.id = 'ocrOverlay';
-    wrap.style.cssText = `
-      position:fixed;
-      inset:0;
-      background:rgba(15,23,42,.52);
-      display:none;
-      align-items:center;
-      justify-content:center;
-      z-index:100000;
-      padding:18px;
-    `;
-
-    wrap.innerHTML = `
-      <div style="width:min(100%,1100px);max-height:92vh;overflow:auto;background:#fff;border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,.18);padding:18px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
-          <div>
-            <div style="font-size:1.1rem;font-weight:800;">Importa foto OCR</div>
-            <div style="font-size:.92rem;color:#667085;margin-top:4px;">Carica la foto del modulo riparazione: verranno importate solo le righe RIP flaggate, con possibilità di correggere gli importi prima della conferma.</div>
-          </div>
-          <button type="button" id="ocrClose" style="border:1px solid #d0d5dd;background:#fff;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer;">Chiudi</button>
-        </div>
-
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
-          <input id="ocrFileInput" type="file" accept="image/*" style="display:none;">
-          <button type="button" id="ocrChooseBtn" style="border:1px solid #d0d5dd;background:#fff;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;">Scegli foto</button>
-          <button type="button" id="ocrRunBtn" style="border:1px solid #ff7a00;background:#ff7a00;color:#fff;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer;" disabled>Leggi con OCR</button>
-          <div id="ocrStatus" style="font-size:.92rem;color:#667085;">Nessuna immagine selezionata.</div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:minmax(280px,.9fr) minmax(340px,1.1fr);gap:16px;align-items:start;">
-          <div style="border:1px solid #e6e9ee;border-radius:16px;padding:12px;background:#fafbfc;">
-            <div style="font-size:.88rem;font-weight:800;color:#475467;margin-bottom:8px;">Anteprima foto</div>
-            <div id="ocrImageWrap" style="min-height:280px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px dashed #d0d5dd;border-radius:12px;overflow:hidden;">
-              <div id="ocrImageEmpty" style="padding:18px;color:#98a2b3;text-align:center;">Seleziona una foto del preventivo.</div>
-              <img id="ocrImagePreview" alt="Anteprima OCR" style="display:none;max-width:100%;height:auto;">
-            </div>
-          </div>
-
-          <div style="border:1px solid #e6e9ee;border-radius:16px;padding:12px;background:#fafbfc;">
-            <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
-              <div style="font-size:.88rem;font-weight:800;color:#475467;">RIGHE RIP riconosciute e correggibili</div>
-              <div style="font-size:.8rem;color:#667085;">Puoi correggere prima della conferma</div>
-            </div>
-            <textarea id="ocrTextInput" rows="12" style="width:100%;border:1px solid #d0d5dd;border-radius:12px;padding:12px;font-size:15px;resize:vertical;background:#fff;"></textarea>
-            <div style="margin-top:10px;font-size:.86rem;color:#667085;">Suggerimento: lascia una riga per ogni voce, ad esempio <b>RIP21 45</b>. In questa modalità vengono considerate solo le voci RIP del modulo flaggate.</div>
-          </div>
-        </div>
-
-        <div style="margin-top:16px;border:1px solid #e6e9ee;border-radius:16px;padding:12px;background:#fafbfc;">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
-            <div style="font-size:.88rem;font-weight:800;color:#475467;">Anteprima voci RIP flaggate</div>
-            <div id="ocrPreviewCount" style="font-size:.82rem;color:#667085;">0 voci</div>
-          </div>
-          <div id="ocrPreviewBox" style="background:#fff;border:1px solid #e6e9ee;border-radius:12px;padding:12px;min-height:110px;color:#667085;">Nessuna voce ancora rilevata.</div>
-        </div>
-
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;flex-wrap:wrap;">
-          <button type="button" id="ocrCancel" style="border:1px solid #d0d5dd;background:#fff;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;">Annulla</button>
-          <button type="button" id="ocrApplyBtn" style="border:1px solid #ff7a00;background:#ff7a00;color:#fff;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer;">Conferma e applica</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(wrap);
-
-    $('ocrClose').addEventListener('click', closeOcrOverlay);
-    $('ocrCancel').addEventListener('click', closeOcrOverlay);
-    $('ocrChooseBtn').addEventListener('click', ()=> $('ocrFileInput')?.click());
-    $('ocrFileInput').addEventListener('change', onOcrFileSelected);
-    $('ocrRunBtn').addEventListener('click', runOcrOnSelectedImage);
-    $('ocrTextInput').addEventListener('input', renderOcrPreviewFromText);
-    $('ocrApplyBtn').addEventListener('click', applyOcrPreviewToQuote);
-  }
-
-  function resetOcrOverlay(){
-    if(ocrFileObjectUrl){
-      try{ URL.revokeObjectURL(ocrFileObjectUrl); }catch{}
-      ocrFileObjectUrl = '';
-    }
-    ocrLastAnalysis = null;
-    const fileInput = $('ocrFileInput');
-    if(fileInput) fileInput.value = '';
-    const img = $('ocrImagePreview');
-    if(img){ img.style.display = 'none'; img.removeAttribute('src'); }
-    const empty = $('ocrImageEmpty');
-    if(empty) empty.style.display = 'block';
-    const txt = $('ocrTextInput');
-    if(txt) txt.value = '';
-    const status = $('ocrStatus');
-    if(status) status.textContent = 'Nessuna immagine selezionata.';
-    const run = $('ocrRunBtn');
-    if(run) run.disabled = true;
-    const box = $('ocrPreviewBox');
-    if(box){ box.innerHTML = 'Nessuna voce ancora rilevata.'; box.style.color = '#667085'; }
-    const count = $('ocrPreviewCount');
-    if(count) count.textContent = '0 voci';
-  }
-
-  function closeOcrOverlay(){
-    if(ocrBusy) return;
-    const ov = $('ocrOverlay');
-    if(ov) ov.style.display = 'none';
-    resetOcrOverlay();
-  }
-
-  function onOcrFileSelected(ev){
-    const file = ev?.target?.files?.[0];
-    if(!file) return;
-    if(ocrFileObjectUrl){
-      try{ URL.revokeObjectURL(ocrFileObjectUrl); }catch{}
-      ocrFileObjectUrl = '';
-    }
-    ocrFileObjectUrl = URL.createObjectURL(file);
-    const img = $('ocrImagePreview');
-    const empty = $('ocrImageEmpty');
-    if(img){
-      img.src = ocrFileObjectUrl;
-      img.style.display = 'block';
-    }
-    if(empty) empty.style.display = 'none';
-    const status = $('ocrStatus');
-    if(status) status.textContent = `Immagine selezionata: ${file.name}`;
-    const run = $('ocrRunBtn');
-    if(run) run.disabled = false;
-  }
-
-  async function runOcrOnSelectedImage(){
-    const file = $('ocrFileInput')?.files?.[0];
-    if(!file){
-      showErr('Seleziona prima una foto del preventivo.');
-      return;
-    }
-    if(!window.Tesseract){
-      showErr('Libreria OCR non disponibile.');
-      return;
-    }
-
-    ocrBusy = true;
-    ocrLastAnalysis = null;
-    const run = $('ocrRunBtn');
-    const apply = $('ocrApplyBtn');
-    const status = $('ocrStatus');
-    if(run) run.disabled = true;
-    if(apply) apply.disabled = true;
-
-    let imageInfo = null;
-    try{
-      if(status) status.textContent = 'Analisi modulo in corso…';
-      imageInfo = await loadImageInfoFromFile(file);
-      const result = await window.Tesseract.recognize(file, 'ita+eng', {
-        logger: (m)=>{
-          if(!status) return;
-          if(m?.status === 'recognizing text'){
-            const pct = Math.round((Number(m.progress || 0)) * 100);
-            status.textContent = `OCR in elaborazione… ${pct}%`;
-          }else if(m?.status){
-            status.textContent = 'OCR: ' + m.status;
-          }
-        }
-      });
-
-      ocrLastAnalysis = analyzeOcrResult(result, imageInfo);
-      const textArea = $('ocrTextInput');
-      if(textArea) textArea.value = getTextLinesFromAnalysis(ocrLastAnalysis);
-      renderOcrPreviewFromText();
-      const selectedCount = (ocrLastAnalysis?.entries || []).length;
-      if(status) status.textContent = selectedCount
-        ? `OCR completato. Rilevate ${selectedCount} voci flaggate: puoi correggere importi e poi confermare.`
-        : 'OCR completato, ma non sono state rilevate spunte valide nelle caselle RIP.';
-    }catch(e){
-      showErr('Errore OCR: ' + (e?.message || e));
-      if(status) status.textContent = 'Errore durante la lettura OCR.';
-    }finally{
-      if(imageInfo?.url){ try{ URL.revokeObjectURL(imageInfo.url); }catch{} }
-      ocrBusy = false;
-      if(run) run.disabled = false;
-      if(apply) apply.disabled = false;
-    }
-  }
-
-  function cleanupOcrText(text){
-    return String(text || '')
-      .replace(/[|]/g, ' ')
-      .replace(/[“”]/g, '"')
-      .replace(/[’]/g, "'")
-      .replace(/€+/g, ' € ')
-      .replace(/RIP\s+/gi, 'RIP')
-      .replace(/\bRlP\b/gi, 'RIP')
-      .replace(/\bR1P\b/gi, 'RIP')
-      .replace(/\bRIPO\b/gi, 'RIP0')
-      .replace(/\r/g, '')
-      .replace(/\t/g, ' ')
-      .replace(/[ ]{2,}/g, ' ')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-  }
-
-  async function loadImageInfoFromFile(file){
-    return await new Promise((resolve, reject)=>{
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = ()=>{
-        try{
-          const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth || img.width;
-          canvas.height = img.naturalHeight || img.height;
-          const ctx = canvas.getContext('2d', { willReadFrequently:true });
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve({ url, img, canvas, ctx, width:canvas.width, height:canvas.height });
-        }catch(err){
-          try{ URL.revokeObjectURL(url); }catch{}
-          reject(err);
-        }
-      };
-      img.onerror = ()=>{
-        try{ URL.revokeObjectURL(url); }catch{}
-        reject(new Error('Impossibile leggere l\'immagine selezionata.'));
-      };
-      img.src = url;
-    });
-  }
-
-  function toPxBox(box, width, height){
-    return {
-      x1: Math.max(0, Math.floor(box.x1 * width)),
-      x2: Math.min(width, Math.ceil(box.x2 * width)),
-      y1: Math.max(0, Math.floor(box.y1 * height)),
-      y2: Math.min(height, Math.ceil(box.y2 * height)),
-    };
-  }
-
-  function getGrayStats(ctx, box){
-    const w = Math.max(1, box.x2 - box.x1);
-    const h = Math.max(1, box.y2 - box.y1);
-    const data = ctx.getImageData(box.x1, box.y1, w, h).data;
-    let dark = 0;
-    let total = 0;
-    let sum = 0;
-    for(let i=0; i<data.length; i+=4){
-      const gray = (data[i] * 0.299) + (data[i+1] * 0.587) + (data[i+2] * 0.114);
-      sum += gray;
-      total++;
-      if(gray < 150) dark++;
-    }
-    return {
-      darkRatio: total ? (dark / total) : 0,
-      meanGray: total ? (sum / total) : 255
-    };
-  }
-
-  function detectCheckedRipRows(imageInfo){
-    const tpl = OCR_FORM_TEMPLATE;
-    const { ctx, width, height } = imageInfo;
-    return tpl.rows.map((row)=>{
-      const y2 = row.y1 + tpl.rowH;
-      const outer = toPxBox({
-        x1: tpl.checkboxBox.x1,
-        x2: tpl.checkboxBox.x2,
-        y1: row.y1,
-        y2
-      }, width, height);
-      const inner = toPxBox({
-        x1: tpl.checkboxBox.x1 + tpl.checkboxInnerInsetX,
-        x2: tpl.checkboxBox.x2 - tpl.checkboxInnerInsetX,
-        y1: row.y1 + tpl.checkboxInnerInsetY,
-        y2: y2 - tpl.checkboxInnerInsetY
-      }, width, height);
-      const outerStats = getGrayStats(ctx, outer);
-      const innerStats = getGrayStats(ctx, inner);
-      const signal = Math.max(0, innerStats.darkRatio - outerStats.darkRatio * 0.45);
-      const checked = signal >= 0.035 || innerStats.darkRatio >= 0.075;
-      return {
-        ...row,
-        checked,
-        signal,
-        y2,
-        outer,
-        inner
-      };
-    });
-  }
-
-  function extractAmountCandidatesFromWords(words, box){
-    const nums = [];
-    (words || []).forEach((word)=>{
-      const bbox = word?.bbox || word?.bbox0 || null;
-      if(!bbox) return;
-      const x0 = Number(bbox.x0 ?? bbox.x1 ?? 0);
-      const x1 = Number(bbox.x1 ?? bbox.x2 ?? 0);
-      const y0 = Number(bbox.y0 ?? bbox.y1 ?? 0);
-      const y1 = Number(bbox.y1 ?? bbox.y2 ?? 0);
-      const cx = (x0 + x1) / 2;
-      const cy = (y0 + y1) / 2;
-      if(cx < box.x1 || cx > box.x2 || cy < box.y1 || cy > box.y2) return;
-      const txt = String(word.text || '').replace(/€/g, '').replace(/\s+/g, '');
-      const matches = txt.match(/\d+[\.,]?\d{0,2}/g) || [];
-      matches.forEach((m)=>{
-        const n = parseNum(m);
-        if(isFinite(n) && n >= 0) nums.push(n);
-      });
-    });
-    return nums;
-  }
-
-  function getTextLinesFromAnalysis(analysis){
-    const lines = [];
-    (analysis?.rows || []).forEach((row)=>{
-      if(!row.checked) return;
-      const amountTxt = row.amount > 0 ? fmtMoney(row.amount) : '0,00';
-      lines.push(`${row.ripCode} ${amountTxt}`);
-    });
-    if(analysis?.recognizedTotal > 0){
-      lines.push(`TOTALE ${fmtMoney(analysis.recognizedTotal)}`);
-    }
-    return lines.join('\n');
-  }
-
-  function analyzeOcrResult(result, imageInfo){
-    const tpl = OCR_FORM_TEMPLATE;
-    const words = result?.data?.words || [];
-    const detectedRows = detectCheckedRipRows(imageInfo).map((row)=>{
-      const box = toPxBox({
-        x1: tpl.priceBox.x1,
-        x2: tpl.priceBox.x2,
-        y1: row.y1,
-        y2: row.y2
-      }, imageInfo.width, imageInfo.height);
-      const nums = extractAmountCandidatesFromWords(words, box);
-      const amount = nums.length ? nums[nums.length - 1] : 0;
-      return { ...row, priceCandidates: nums, amount };
-    });
-
-    const totalNums = extractAmountCandidatesFromWords(words, toPxBox(tpl.totalBox, imageInfo.width, imageInfo.height));
-    const recognizedTotal = totalNums.length ? totalNums[totalNums.length - 1] : 0;
-    const selected = detectedRows.filter(r => r.checked);
-    return {
-      rows: detectedRows,
-      entries: selected.map(r => ({ code:r.ripCode, amount:r.amount, description:'', raw:`${r.ripCode} ${r.amount}` })),
-      recognizedTotal,
-      rawText: cleanupOcrText(String(result?.data?.text || ''))
-    };
-  }
-
-  function parseOcrTextToEntries(text){
-    const lines = String(text || '').split(/\n+/).map(x => x.trim()).filter(Boolean);
-    const entries = [];
-    let recognizedTotal = 0;
-    const validCodes = new Set(WORKS.map(w => w.code));
-
-    lines.forEach((line)=>{
-      let normalized = normalizeVoiceText(line)
-        .replace(/\bRIPO\b/g, 'RIP0')
-        .replace(/\bRIPO0\b/g, 'RIP00')
-        .replace(/\bRIP0([1-9])\b/g, 'RIP0$1');
-
-      if(/\bTOTALE\b/.test(normalized)){
-        const totalCandidates = [...normalized.matchAll(/(\d+[\.,]\d{1,2}|\d{1,5})/g)].map(m => parseNum(m[1])).filter(n => isFinite(n) && n >= 0);
-        if(totalCandidates.length) recognizedTotal = totalCandidates[totalCandidates.length - 1];
-        return;
-      }
-
-      const ripMatch = normalized.match(/\b(RIP\d{1,2}[A-Z]?)\b/);
-      if(!ripMatch) return;
-      const code = ripMatch[1] === 'RIP01' ? 'RIP01C' : ripMatch[1];
-      if(!validCodes.has(code)) return;
-
-      const amountCandidates = [...normalized.matchAll(/(\d+[\.,]\d{1,2}|\d{1,5})/g)].map(m => parseNum(m[1])).filter(n => isFinite(n) && n >= 0);
-      const amount = amountCandidates.length ? amountCandidates[amountCandidates.length - 1] : 0;
-      entries.push({ code, amount, description:'', raw:line });
-    });
-
-    const merged = mergeOcrEntries(entries);
-    return { entries: merged, recognizedTotal };
-  }
-
-  function mergeOcrEntries(entries){
-    const map = new Map();
-    entries.forEach((entry)=>{
-      if(!entry?.code) return;
-      const prev = map.get(entry.code);
-      if(prev){
-        prev.amount = entry.amount > 0 ? entry.amount : prev.amount;
-        prev.raw += ' | ' + entry.raw;
-      }else{
-        map.set(entry.code, { ...entry });
-      }
-    });
-    return [...map.values()];
-  }
-
-  function renderOcrPreviewFromText(){
-    const parsed = parseOcrTextToEntries($('ocrTextInput')?.value || '');
-    const entries = parsed.entries || [];
-    const recognizedTotal = parsed.recognizedTotal || 0;
-    const computedTotal = entries.reduce((sum, entry)=> sum + Number(entry.amount || 0), 0);
-    const box = $('ocrPreviewBox');
-    const count = $('ocrPreviewCount');
-    if(count) count.textContent = `${entries.length} ${entries.length === 1 ? 'voce' : 'voci'}`;
-    if(!box) return { entries, recognizedTotal, computedTotal };
-
-    if(!entries.length){
-      box.style.color = '#667085';
-      box.innerHTML = 'Nessuna voce RIP selezionata riconosciuta. In questa modalità vengono importate solo le righe flaggate del modulo fotografato.';
-      return { entries, recognizedTotal, computedTotal };
-    }
-
-    box.style.color = '#101828';
-    box.innerHTML = `
-      <div style="display:grid;gap:8px;">
-        ${entries.map(entry => {
-          const work = WORKS.find(w => w.code === entry.code);
-          return `<div style="display:flex;justify-content:space-between;gap:14px;border:1px solid #e6e9ee;border-radius:10px;padding:10px 12px;align-items:flex-start;">
-            <div>
-              <div style="font-weight:800;">${esc(entry.code)}</div>
-              <div style="font-size:.9rem;color:#475467;margin-top:2px;">${esc(work?.text || entry.code)}</div>
-            </div>
-            <div style="font-weight:800;white-space:nowrap;">${entry.amount > 0 ? '€ ' + esc(fmtMoney(entry.amount)) : '€ 0,00'}</div>
-          </div>`;
-        }).join('')}
-        <div style="display:flex;justify-content:space-between;gap:14px;border-top:1px dashed #d0d5dd;padding-top:10px;margin-top:2px;align-items:flex-start;">
-          <div>
-            <div style="font-weight:800;">Totale calcolato dai RIP selezionati</div>
-            ${recognizedTotal > 0 ? `<div style="font-size:.88rem;color:#667085;margin-top:3px;">Totale letto dal modulo: € ${esc(fmtMoney(recognizedTotal))}</div>` : ''}
-          </div>
-          <div style="font-weight:900;white-space:nowrap;">€ ${esc(fmtMoney(computedTotal))}</div>
-        </div>
-      </div>`;
-    return { entries, recognizedTotal, computedTotal };
-  }
-
-  function applyOcrPreviewToQuote(){
-    const parsed = renderOcrPreviewFromText();
-    const entries = parsed.entries || [];
-    if(!entries.length){
-      showErr('Nessuna voce RIP valida da importare.');
-      return;
-    }
-
-    const hasExisting = getSelectedItems().length > 0;
-    if(hasExisting){
-      const ok = confirm('Vuoi sostituire le voci attuali con quelle lette dalla foto?');
-      if(!ok) return;
-      quoteState.items = {};
-    }
-
-    entries.forEach((entry)=>{
-      const work = WORKS.find(w => w.code === entry.code);
-      const idx = WORKS.findIndex(w => w.code === entry.code);
-      if(!work || idx < 0) return;
-      const it = ensureLocalItem(work, idx);
-      if(entry.amount > 0) it.unit_price_ex_vat = entry.amount;
-      if(!it.work_status) it.work_status = 'DA_FARE';
-    });
-
-    recalcTotals();
-    renderAll();
-    closeOcrOverlay();
-    showOk('Importazione OCR applicata al preventivo.');
   }
 
   function firstFilled(obj, keys){
