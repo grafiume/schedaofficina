@@ -1899,6 +1899,24 @@ async function generateQuotePdfBlob(){
       }
     }
 
+    // Fallback professionale per modulo ELIP:
+    // se il totale sotto e' scritto ma non ho ancora trovato nessuna riga valida,
+    // prendo la casella X con punteggio piu' alto e la considero unica riga attiva.
+    if (!rows.some(r => r.use) && writtenTotal > 0) {
+      const rankedChecks = rows.slice().sort((a,b) => b.checkScore - a.checkScore);
+      const best = rankedChecks[0];
+      const second = rankedChecks[1];
+      const bestMinDiag = Math.min(Number(best?.metrics?.diagA || 0), Number(best?.metrics?.diagB || 0));
+      const bestCenter = Number(best?.metrics?.centerFill || 0);
+      const secondScore = Number(second?.checkScore || 0);
+      // Soglia abbastanza larga per non perdere la prima riga RIP05 come nel caso reale,
+      // ma sempre con distacco dal secondo classificato per evitare falsi positivi multipli.
+      if (best && best.checkScore >= 0.16 && bestMinDiag >= 0.06 && bestCenter >= 0.05 && (best.checkScore - secondScore) >= 0.02) {
+        best.use = true;
+        best.price = writtenTotal;
+      }
+    }
+
     rows.forEach(r => {
       if (!(r.use && Number(r.price || 0) > 0)) {
         r.use = false;
