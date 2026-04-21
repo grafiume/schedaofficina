@@ -19,8 +19,8 @@
 
     CASSETTI.forEach(c=>{
       const opt=document.createElement('option');
-      opt.value = c + (used.has(c)?' ❌':'');
-      if(used.has(c)) opt.disabled=true;
+      opt.value = c;
+      if(used.has(c)) opt.label = `${c} occupato`;
       list.appendChild(opt);
     });
 
