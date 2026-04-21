@@ -1,6 +1,6 @@
 // === CASSETTI AUTO INTEGRATION (APP.JS COMPAT) ===
 (function(){
-  const CASSETTI = Array.from({length:50},(_,i)=>`A${i+1}`);
+  const CASSETTI = Array.from({ length: 80 },(_,i)=>`A${i+1}`);
 
   function norm(v){ return String(v||'').trim().toUpperCase(); }
   function isClosed(stato){ return String(stato||'').toLowerCase().includes('completata'); }
