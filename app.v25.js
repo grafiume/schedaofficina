@@ -985,7 +985,7 @@ async function saveEdit(closeAfter=true){
   const payload={
     descrizione:val('eDescrizione'), modello:val('eModello'),
     dataApertura:val('eApertura')||null, dataAccettazione:val('eAcc')||null, dataScadenza:val('eScad')||null,
-    statoPratica:val('eStato'), docTrasporto:val('eDDT'), cassetto:val('eCassetto'),
+    statoPratica:val('eStato'), docTrasporto:val('eDDT'), cassetto:sanitizeCassettoInput(val('eCassetto')),
     cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'), importoConcordato:val('eImportoConcordato')||null,
     battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
     punta:val('ePunta'), numPunte:val('eNP')||null, note:val('eNote'),
@@ -1014,6 +1014,10 @@ let _newModal;
 function todayISO(){ const d=new Date(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${d.getFullYear()}-${m}-${dd}`; }
 function getV(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
 function toNull(s){ return s===''?null:s; }
+function sanitizeCassettoInput(v){
+  const x = String(v || '').trim().toUpperCase().replace(/\s*❌.*$/, '');
+  return x || null;
+}
 
 function previewNewFiles(){
   const box=document.getElementById('nPreview');
@@ -1052,7 +1056,7 @@ async function createNewRecord(){
     dataAccettazione:toNull(getV('nAcc')),
     dataScadenza:toNull(getV('nScad')),
     statoPratica:getV('nStato')||'In attesa',
-    docTrasporto:getV('nDDT'), cassetto:getV('nCassetto'),
+    docTrasporto:getV('nDDT'), cassetto:sanitizeCassettoInput(getV('nCassetto')),
     cliente:getV('nCliente'), telefono:getV('nTel'), email:getV('nEmail'), importoConcordato:toNull(getV('nImportoConcordato')),
     battCollettore:toNull(getV('nBatt')),
     lunghezzaAsse:toNull(getV('nAsse')),
