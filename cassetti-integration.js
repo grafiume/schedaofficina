@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const CASSETTI = Array.from({length:50}, (_,i)=>`A${i+1}`);
+  const CASSETTI = Array.from({ length: 80 }, (_,i)=>`A${i+1}`);
   const CHIUSI = new Set(['completata','chiusa','chiuso','consegnata']);
 
   function wait(ms){ return new Promise(r=>setTimeout(r, ms)); }
@@ -9,7 +9,7 @@
   function normCass(v){
     const x = s(v).toUpperCase();
     if (!x) return '';
-    if (!/^A([1-9]|[1-4][0-9]|50)$/.test(x)) throw new Error('Cassetto non valido. Usa A1-A50.');
+    if (!/^A([1-9]|[1-7][0-9]|80)$/.test(x)) throw new Error('Cassetto non valido. Usa A1-A80.');
     return x;
   }
   function isClosed(v){ return CHIUSI.has(s(v).toLowerCase()); }
