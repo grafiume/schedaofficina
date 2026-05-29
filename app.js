@@ -658,5 +658,22 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // Preview live per "Nuova scheda"
   const nFiles=document.getElementById('nFiles'); if(nFiles) nFiles.addEventListener('change', previewNewFiles);
 
-  try{ window.loadAll(); }catch(e){ showError(e.message||String(e)); }
+  try {
+  window.loadAll().then(() => {
+    const params = new URLSearchParams(window.location.search);
+    const editId = params.get("edit") || params.get("id");
+
+    if (editId) {
+      setTimeout(() => {
+        try {
+          openEdit(editId);
+        } catch (error) {
+          console.error("Errore apertura scheda da link:", error);
+        }
+      }, 300);
+    }
+  });
+} catch(e) {
+  showError(e.message || String(e));
+}
 });
