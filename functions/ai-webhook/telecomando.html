@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Telecomando Database</title>
+
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 16px;
+        background: #f4f4f4;
+      }
+
+      .card {
+        background: white;
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+      }
+
+      h1 {
+        margin-top: 0;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 90px;
+        font-size: 18px;
+        padding: 12px;
+        box-sizing: border-box;
+        border: 1px solid #ccc;
+        border-radius: 10px;
+      }
+
+      button,
+      select {
+        margin-top: 10px;
+        padding: 12px 14px;
+        font-size: 16px;
+        border: 0;
+        border-radius: 10px;
+        cursor: pointer;
+      }
+
+      select {
+        border: 1px solid #ccc;
+        background: white;
+        cursor: pointer;
+      }
+
+      .main-button {
+        width: 100%;
+        font-size: 18px;
+        padding: 14px;
+        background: #111;
+        color: white;
+      }
+
+      .filters,
+      .sorters,
+      .quick {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+        align-items: center;
+      }
+
+      .filters button,
+      .quick button {
+        background: #e9e9e9;
+        color: #111;
+      }
+
+      .filters button.active {
+        background: #111;
+        color: white;
+      }
+
+      .summary {
+        margin-top: 16px;
+        font-weight: 700;
+      }
+
+      .table-wrap {
+        margin-top: 12px;
+        overflow-x: auto;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 1250px;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #eee;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+
+      tr:nth-child(even) {
+        background: #fafafa;
+      }
+
+      .empty {
+        color: #777;
+        padding: 16px;
+      }
+
+      a {
+        color: #0057cc;
+        font-weight: 600;
+      }
+
+      .hint {
+        color: #555;
+        font-size: 14px;
+      }
+
+      details {
+        margin-top: 16px;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        background: #111;
+        color: #0f0;
+        padding: 12px;
+        border-radius: 10px;
+        overflow: auto;
+        max-height: 360px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="card">
+      <h1>Telecomando Database</h1>
+
+      <p>Scrivi cosa vuoi cercare nel database.</p>
+
+      <textarea id="message">cliente Rossi tutte le schede in lavorazione</textarea>
+
+      <button class="main-button" onclick="sendWebhook()">Cerca nel database</button>
+
+      <div class="quick">
+        <button onclick="quickSearch('tutte le schede aperte')">Tutte aperte</button>
+        <button onclick="quickSearch('tutte le schede in lavorazione')">Tutte in lavorazione</button>
+        <button onclick="quickSearch('tutte le schede completate')">Tutte completate</button>
+        <button onclick="quickSearch('tutti i preventivi')">Tutti i preventivi</button>
+      </div>
+
+      <div class="filters">
+        <button id="filter-all" class="active" onclick="setFilter('all')">Tutte</button>
+        <button id="filter-open" onclick="setFilter('open')">Aperte</button>
+        <button id="filter-working" onclick="setFilter('working')">In lavorazione</button>
+        <button id="filter-completed" onclick="setFilter('completed')">Completate</button>
+        <button id="filter-quotes" onclick="setFilter('quotes')">Preventivi</button>
+      </div>
+
+      <div class="sorters">
+        <label for="sortField"><b>Ordina per:</b></label>
+        <select id="sortField" onchange="renderFilteredTable()">
+          <option value="dataArrivo">Data arrivo</option>
+          <option value="dataApertura" selected>Data apertura</option>
+          <option value="dataScadenza">Data scadenza/consegna</option>
+          <option value="dataCompletamento">Data completamento</option>
+          <option value="cliente">Cliente</option>
+          <option value="stato">Stato</option>
+        </select>
+
+        <select id="sortDirection" onchange="renderFilteredTable()">
+          <option value="desc" selected>Dal più recente</option>
+          <option value="asc">Dal più vecchio</option>
+        </select>
+      </div>
+
+      <p class="hint">
+        Esempi: <b>cliente Rossi tutte le schede in lavorazione</b>,
+        <b>cliente Rossi completate</b>, <b>cliente Rossi aperte</b>,
+        <b>tutte le schede in lavorazione</b>, oppure solo un nome cliente.
+      </p>
+
+      <div id="summary" class="summary"></div>
+
+      <div class="table-wrap">
+        <table id="resultsTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <details>
+        <summary>Risposta completa JSON</summary>
+        <pre id="rawResult">In attesa...</pre>
+      </details>
+    </div>
+
+    <script>
+      let allRows = [];
+      let activeFilter = "all";
+
+      async function quickSearch(text) {
+        document.getElementById("message").value = text;
+        await sendWebhook();
+      }
+
+      async function sendWebhook() {
+        const message = document.getElementById("message").value;
+        const summary = document.getElementById("summary");
+        const rawResult = document.getElementById("rawResult");
+
+        summary.textContent = "Ricerca in corso...";
+        rawResult.textContent = "Invio in corso...";
+        clearTable();
+
+        try {
+          const parsed = parseSearch(message);
+
+          const response = await fetch(
+            "https://pedmdiljgjgswhfwedno.supabase.co/functions/v1/bright-worker",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-webhook-secret": "whsec_FRKoCfmqz-36CqzqvaKlgD6foNfvA5sTC9ZitQHaSJw"
+              },
+              body: JSON.stringify({
+                text: parsed.searchText,
+                source: "telecomando-web"
+              })
+            }
+          );
+
+          const data = await response.json();
+          rawResult.textContent = JSON.stringify(data, null, 2);
+
+          if (!data.success) {
+            summary.textContent = "Errore: " + (data.error || "Errore sconosciuto");
+            return;
+          }
+
+          allRows = buildRows(data.results || []);
+
+          if (parsed.clientName) {
+            allRows = filterByClientName(allRows, parsed.clientName);
+          }
+
+          activeFilter = parsed.filter;
+          updateFilterButtons();
+
+          renderFilteredTable(parsed.searchText, parsed.clientName);
+        } catch (error) {
+          summary.textContent = "Errore";
+          rawResult.textContent = "Errore: " + error.message;
+        }
+      }
+
+      function parseSearch(message) {
+        const q = normalize(message);
+        const filter = detectFilterFromText(message);
+        const clientName = extractClientName(message);
+        const searchText = buildSearchText(message, clientName, filter);
+
+        return {
+          filter,
+          clientName,
+          searchText
+        };
+      }
+
+      function extractClientName(message) {
+        const original = message.trim();
+
+        const match = original.match(/cliente\s+(.+?)(?:\s+tutte|\s+tutti|\s+schede|\s+apert[eoie]|\s+completat[eoie]|\s+in lavorazione|\s+preventiv[oi]|$)/i);
+
+        if (match && match[1]) {
+          return match[1].trim();
+        }
+
+        return "";
+      }
+
+      function buildSearchText(message, clientName, filter) {
+        const q = normalize(message);
+
+        // Se c'è un nome cliente, cerchiamo prima il cliente, poi filtriamo in tabella.
+        if (clientName) {
+          return clientName;
+        }
+
+        // Ricerche globali per stato.
+        if (filter === "working") return "lavorazione";
+        if (filter === "open") return "lavorazione";
+        if (filter === "completed") return "completata";
+        if (filter === "quotes") return "preventivo";
+
+        return cleanSearchText(message);
+      }
+
+      function cleanSearchText(message) {
+        return message
+          .replace(/cliente/gi, "")
+          .replace(/schede/gi, "")
+          .replace(/apri(mi)?/gi, "")
+          .replace(/mostra(mi)?/gi, "")
+          .replace(/cerca/gi, "")
+          .replace(/tutte/gi, "")
+          .replace(/tutti/gi, "")
+          .replace(/aperte/gi, "")
+          .replace(/aperti/gi, "")
+          .replace(/aperta/gi, "")
+          .replace(/aperto/gi, "")
+          .replace(/completate/gi, "")
+          .replace(/completati/gi, "")
+          .replace(/completata/gi, "")
+          .replace(/completato/gi, "")
+          .replace(/preventivi/gi, "")
+          .replace(/preventivo/gi, "")
+          .replace(/in lavorazione/gi, "")
+          .replace(/lavorazione/gi, "")
+          .replace(/\s+/g, " ")
+          .trim() || message.trim();
+      }
+
+      function detectFilterFromText(message) {
+        const q = normalize(message);
+
+        if (q.includes("in lavorazione") || q.includes("lavorazione")) {
+          return "working";
+        }
+
+        if (
+          q.includes("aperte") ||
+          q.includes("aperti") ||
+          q.includes("aperta") ||
+          q.includes("aperto")
+        ) {
+          return "open";
+        }
+
+        if (
+          q.includes("completate") ||
+          q.includes("completati") ||
+          q.includes("completata") ||
+          q.includes("completato")
+        ) {
+          return "completed";
+        }
+
+        if (q.includes("preventivo") || q.includes("preventivi")) {
+          return "quotes";
+        }
+
+        return "all";
+      }
+
+      function filterByClientName(rows, clientName) {
+        const needle = normalize(clientName);
+
+        return rows.filter((row) => {
+          return normalize(row.cliente).includes(needle);
+        });
+      }
+
+      function setFilter(filter) {
+        activeFilter = filter;
+        updateFilterButtons();
+        renderFilteredTable();
+      }
+
+      function updateFilterButtons() {
+        ["all", "open", "working", "completed", "quotes"].forEach((filter) => {
+          const button = document.getElementById("filter-" + filter);
+          if (button) button.classList.toggle("active", activeFilter === filter);
+        });
+      }
+
+      function normalize(value) {
+        return String(value || "").toLowerCase().trim();
+      }
+
+      function isCompleted(row) {
+        const stato = normalize(row.stato);
+        return stato === "completata" || stato === "completato";
+      }
+
+      function isWorking(row) {
+        const stato = normalize(row.stato);
+        return stato === "in lavorazione";
+      }
+
+      function isOpen(row) {
+        const stato = normalize(row.stato);
+        return stato && !isCompleted(row);
+      }
+
+      function applyFilter(rows) {
+        if (activeFilter === "open") {
+          return rows.filter(isOpen);
+        }
+
+        if (activeFilter === "working") {
+          return rows.filter(isWorking);
+        }
+
+        if (activeFilter === "completed") {
+          return rows.filter(isCompleted);
+        }
+
+        if (activeFilter === "quotes") {
+          return rows.filter((row) => {
+            return String(row.preventivo || "").trim() !== "";
+          });
+        }
+
+        return rows;
+      }
+
+      function buildRows(results) {
+        const seen = new Set();
+
+        return results
+          .map((item) => {
+            const row = item.row_data || {};
+            const data = row.new_row || row;
+
+            return {
+              tabella: item.table_name || "",
+              cliente: data.cliente || "",
+              descrizione: data.descrizione || "",
+              stato: data.statoPratica || "",
+              preventivo: data.preventivoStato || data.preventivo || "",
+              dataApertura: data.dataApertura || "",
+              dataArrivo: data.dataArrivo || "",
+              dataScadenza: data.dataScadenza || "",
+              dataCompletamento: data.dataCompletamento || "",
+              ddt: data.docTrasporto || "",
+              cassetto: data.cassetto || "",
+              importo: data.importoConcordato || "",
+              note: data.note || "",
+              scheda: data.scheda_url || "",
+              id: data.id || row.record_id || ""
+            };
+          })
+          .filter((row) => row.tabella === "records")
+          .filter((row) => {
+            const key = row.id || JSON.stringify(row);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+      }
+
+      function getSortValue(row, field) {
+        const value = row[field] || "";
+
+        if (
+          field === "dataArrivo" ||
+          field === "dataApertura" ||
+          field === "dataScadenza" ||
+          field === "dataCompletamento"
+        ) {
+          const time = Date.parse(value);
+          return Number.isNaN(time) ? 0 : time;
+        }
+
+        return String(value).toLowerCase();
+      }
+
+      function sortRows(rows) {
+        const field = document.getElementById("sortField").value;
+        const direction = document.getElementById("sortDirection").value;
+
+        return [...rows].sort((a, b) => {
+          const av = getSortValue(a, field);
+          const bv = getSortValue(b, field);
+
+          if (av < bv) return direction === "asc" ? -1 : 1;
+          if (av > bv) return direction === "asc" ? 1 : -1;
+          return 0;
+        });
+      }
+
+      function renderFilteredTable(query = "", clientName = "") {
+        const filteredRows = applyFilter(allRows);
+        const rows = sortRows(filteredRows);
+        const summary = document.getElementById("summary");
+
+        const filterLabel = {
+          all: "Tutte",
+          open: "Aperte",
+          working: "In lavorazione",
+          completed: "Completate",
+          quotes: "Preventivi"
+        }[activeFilter];
+
+        const sortFieldLabel = document.getElementById("sortField").selectedOptions[0].textContent;
+        const sortDirectionLabel = document.getElementById("sortDirection").selectedOptions[0].textContent;
+
+        summary.textContent =
+          (clientName ? "Cliente: " + clientName + " — " : "") +
+          "Ricerca: " +
+          (query || cleanSearchText(document.getElementById("message").value)) +
+          " — Filtro: " +
+          filterLabel +
+          " — Risultati: " +
+          rows.length +
+          " — Ordine: " +
+          sortFieldLabel +
+          ", " +
+          sortDirectionLabel;
+
+        renderTable(rows);
+      }
+
+      function renderTable(rows) {
+        const thead = document.querySelector("#resultsTable thead");
+        const tbody = document.querySelector("#resultsTable tbody");
+
+        clearTable();
+
+        if (rows.length === 0) {
+          tbody.innerHTML =
+            '<tr><td class="empty">Nessun risultato trovato con questo filtro.</td></tr>';
+          return;
+        }
+
+        const columns = [
+          ["cliente", "Cliente"],
+          ["descrizione", "Descrizione"],
+          ["stato", "Stato pratica"],
+          ["preventivo", "Preventivo"],
+          ["dataApertura", "Data apertura"],
+          ["dataArrivo", "Data arrivo"],
+          ["dataScadenza", "Data scadenza/consegna"],
+          ["dataCompletamento", "Data completamento"],
+          ["ddt", "DDT"],
+          ["cassetto", "Cassetto"],
+          ["importo", "Importo"],
+          ["note", "Note"],
+          ["scheda", "Scheda"]
+        ];
+
+        thead.innerHTML =
+          "<tr>" +
+          columns.map((col) => `<th>${escapeHtml(col[1])}</th>`).join("") +
+          "</tr>";
+
+        tbody.innerHTML = rows
+          .map((row) => {
+            return (
+              "<tr>" +
+              columns
+                .map(([key]) => {
+                  const value = row[key] ?? "";
+
+                  if (key === "scheda" && value) {
+                    return `<td><a href="${escapeHtml(value)}" target="_blank">Apri scheda</a></td>`;
+                  }
+
+                  return `<td>${escapeHtml(String(value || ""))}</td>`;
+                })
+                .join("") +
+              "</tr>"
+            );
+          })
+          .join("");
+      }
+
+      function clearTable() {
+        document.querySelector("#resultsTable thead").innerHTML = "";
+        document.querySelector("#resultsTable tbody").innerHTML = "";
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+    </script>
+  </body>
+</html>
