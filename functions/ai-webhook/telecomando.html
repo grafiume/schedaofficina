@@ -155,7 +155,7 @@
 
       <p>Scrivi cosa vuoi cercare nel database.</p>
 
-      <textarea id="message">cliente Rossi tutte le schede in lavorazione</textarea>
+      <textarea id="message">tutte le schede in lavorazione</textarea>
 
       <button class="main-button" onclick="sendWebhook()">Cerca nel database</button>
 
@@ -192,8 +192,8 @@
       </div>
 
       <p class="hint">
-        Esempi: <b>cliente Rossi tutte le schede in lavorazione</b>,
-        <b>cliente Rossi completate</b>, <b>cliente Rossi aperte</b>,
+        Esempi: <b>tutte le schede in lavorazione</b>,
+        <b>completate</b>, <b>aperte</b>,
         <b>tutte le schede in lavorazione</b>, oppure solo un nome cliente.
       </p>
 
@@ -456,7 +456,8 @@
               importo: data.importoConcordato || "",
               note: data.note || "",
               scheda: data.scheda_url || "",
-              id: data.id || row.record_id || ""
+              id: data.id || row.record_id || "",
+              editUrl: buildEditUrl(data.id || row.record_id || data.scheda_url || "")
             };
           })
           .filter((row) => row.tabella === "records")
@@ -466,6 +467,19 @@
             seen.add(key);
             return true;
           });
+      }
+
+      function buildEditUrl(value) {
+        const raw = String(value || "");
+        let id = raw;
+
+        if (raw.includes("id=")) {
+          id = raw.split("id=")[1].split("&")[0];
+        }
+
+        if (!id) return "";
+
+        return "https://grafiume.github.io/schedaofficina/index.html?edit=" + encodeURIComponent(id);
       }
 
       function getSortValue(row, field) {
@@ -555,7 +569,7 @@
           ["cassetto", "Cassetto"],
           ["importo", "Importo"],
           ["note", "Note"],
-          ["scheda", "Scheda"]
+          ["scheda", "Azioni"]
         ];
 
         thead.innerHTML =
@@ -572,7 +586,8 @@
                   const value = row[key] ?? "";
 
                   if (key === "scheda" && value) {
-                    return `<td><a href="${escapeHtml(value)}" target="_blank">Apri scheda</a></td>`;
+                    const url = row.editUrl || value;
+                    return `<td><a href="${escapeHtml(url)}" target="_blank">Apri</a></td>`;
                   }
 
                   return `<td>${escapeHtml(String(value || ""))}</td>`;
