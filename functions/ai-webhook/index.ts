@@ -24,14 +24,14 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => null);
 
-    if (!body) {
+    if (!body || typeof body !== "object") {
       return jsonResponse(
         { success: false, error: "Invalid JSON body" },
         400,
       );
     }
 
-    const mode = getMode(req, body);
+    const mode = getMode(req, body as Record<string, unknown>);
 
     if (mode === "webhook") {
       const authorized = verifyWebhookSecret(req);
@@ -55,24 +55,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    const inputText = extractInputText(body);
+    const inputText = extractInputText(body as Record<string, unknown>);
 
-    if (!inputText) {
-      return jsonResponse(
-        {
-          success: false,
-          error: "Missing text. Send `text`, `message`, or `payload.text`.",
-        },
-        400,
-      );
-    }
-
-    const aiResult = await runOpenAI(inputText, body);
+    const result = {
+      receivedAt: new Date().toISOString(),
+      mode,
+      text: inputText,
+      payload: body,
+      message:
+        mode === "webhook"
+          ? "Webhook ricevuto correttamente."
+          : "Richiesta frontend ricevuta correttamente.",
+    };
 
     return jsonResponse({
       success: true,
-      mode,
-      result: aiResult,
+      ...result,
     });
   } catch (error) {
     console.error("Function error:", error);
@@ -152,65 +150,6 @@ function extractInputText(body: Record<string, unknown>): string | null {
   }
 
   return null;
-}
-
-async function runOpenAI(
-  inputText: string,
-  originalPayload: Record<string, unknown>,
-): Promise<string> {
-  const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-
-  if (!openaiApiKey) {
-    throw new Error("Missing OPENAI_API_KEY");
-  }
-
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${openaiApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4.1-mini",
-      input: [
-        {
-          role: "system",
-          content:
-            "You process incoming webhook or frontend payloads. Return a concise and useful result in Italian.",
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            text: inputText,
-            payload: originalPayload,
-          }),
-        },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI error: ${errorText}`);
-  }
-
-  const data = await response.json();
-
-  return extractOpenAIText(data);
-}
-
-function extractOpenAIText(data: any): string {
-  if (typeof data.output_text === "string") {
-    return data.output_text;
-  }
-
-  const textParts =
-    data.output
-      ?.flatMap((item: any) => item.content ?? [])
-      ?.filter((content: any) => content.type === "output_text")
-      ?.map((content: any) => content.text) ?? [];
-
-  return textParts.join("\n").trim();
 }
 
 function jsonResponse(data: unknown, status = 200): Response {
