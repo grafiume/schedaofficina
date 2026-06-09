@@ -669,6 +669,31 @@ async function syncAutoQuoteForRecord(record, forcedAmount){
 }
 
 // ----------------- KPI + Home render -----------------
+function getAttesaRows(rows){
+  return (rows || []).filter(r => norm(r.statoPratica).includes('attesa'));
+}
+function getAttesaAgeDays(record){
+  return daysSince(record?.dataArrivo || record?.dataApertura);
+}
+function getAttesaBucket(record){
+  const d = getAttesaAgeDays(record);
+  if(d === null || d <= 7) return '0_7';
+  if(d <= 15) return '8_15';
+  return 'over15';
+}
+function renderDashboardAttese(rows){
+  try{
+    const attese = getAttesaRows(rows);
+    const b07 = attese.filter(r => getAttesaBucket(r) === '0_7').length;
+    const b815 = attese.filter(r => getAttesaBucket(r) === '8_15').length;
+    const over15 = attese.filter(r => getAttesaBucket(r) === 'over15').length;
+    const set=(id,val)=>{ const el=document.getElementById(id); if(el) el.textContent=val; };
+    set('dashAttTot', attese.length);
+    set('dashAtt07', b07);
+    set('dashAtt815', b815);
+    set('dashAttOver15', over15);
+  }catch(e){ console.warn('renderDashboardAttese failed', e); }
+}
 function renderKPIs(rows){
   try{
     const tot=rows.length;
@@ -677,7 +702,15 @@ function renderKPIs(rows){
     const comp=rows.filter(r=>norm(r.statoPratica).includes('completata')).length;
     const set=(id,val)=>{ const el=document.getElementById(id); if(el) el.textContent=val; };
     set('kpiTot',tot); set('kpiAttesa',att); set('kpiLav',lav); set('kpiComp',comp);
+    renderDashboardAttese(window.state?.all || rows);
   }catch{}
+}
+function filterAtteseByBucket(bucket){
+  const all = window.state?.all || [];
+  let rows = getAttesaRows(all);
+  if(bucket){ rows = rows.filter(r => getAttesaBucket(r) === bucket); }
+  renderHome(rows);
+  show('page-home');
 }
 
 window.renderHome=function(rows){
@@ -1176,6 +1209,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
   H('kpiAttesaBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('attesa'))));
   H('kpiLavBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('lavorazione'))));
   H('kpiCompBtn', ()=>renderHome(window.state.all.filter(r=>norm(r.statoPratica).includes('completata'))));
+  H('btnAtteseAll', ()=>filterAtteseByBucket(null));
+  H('atteseTotBox', ()=>filterAtteseByBucket(null));
+  H('attese07Box', ()=>filterAtteseByBucket('0_7'));
+  H('attese815Box', ()=>filterAtteseByBucket('8_15'));
+  H('atteseOver15Box', ()=>filterAtteseByBucket('over15'));
 
   // Salva scheda: chiudi dopo il salvataggio (come richiesto)
   const btnSave=document.getElementById('btnSave');
