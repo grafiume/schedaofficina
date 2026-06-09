@@ -1,1 +1,5 @@
+[functions.officina-query]
+verify_jwt = true
 
+[functions.ai-webhook]
+verify_jwt = true
