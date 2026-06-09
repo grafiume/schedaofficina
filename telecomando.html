@@ -168,6 +168,16 @@
         <button onclick="quickSearch('tutti i preventivi')">Tutti i preventivi</button>
       </div>
 
+      <div class="sorters">
+        <label for="maxResults"><b>Risultati da caricare:</b></label>
+        <select id="maxResults" onchange="sendWebhook()">
+          <option value="500">500</option>
+          <option value="1000">1000</option>
+          <option value="3000">3000</option>
+          <option value="10000" selected>Tutti / massimo 10000</option>
+        </select>
+      </div>
+
       <div class="filters">
         <button id="filter-all" class="active" onclick="setFilter('all')">Tutte</button>
         <button id="filter-open" onclick="setFilter('open')">Aperte</button>
@@ -215,7 +225,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="../../config.js"></script>
+    <script src="config.js"></script>
     <script>
       const OFFICINA_FUNCTION_URL = (window.SUPABASE_URL || "https://pedmdiljgjgswhfwedno.supabase.co") + "/functions/v1/officina-query";
       const officinaClient = (window.supabase && window.SUPABASE_URL && window.SUPABASE_ANON_KEY)
@@ -265,7 +275,8 @@
               },
               body: JSON.stringify({
                 text: message,
-                source: "telecomando-web"
+                source: "telecomando-web",
+                maxResults: Number(document.getElementById("maxResults")?.value || 10000)
               })
             }
           );
@@ -279,6 +290,10 @@
           }
 
           allRows = data.rows ? normalizeRows(data.rows) : buildRows(data.results || []);
+
+          if (data.totalCount && data.totalCount > allRows.length) {
+            rawResult.textContent = JSON.stringify(data, null, 2) + "\n\nATTENZIONE: visualizzati " + allRows.length + " risultati su " + data.totalCount + ". Aumenta il limite o restringi la ricerca.";
+          }
 
           if (parsed.clientName) {
             allRows = filterByClientName(allRows, parsed.clientName);
