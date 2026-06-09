@@ -85,25 +85,22 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const parsed = parseQuery(String(body?.text || body?.message || ""), String(body?.action || ""));
 
-    let query = db
-      .from("records")
-      .select("id,cliente,descrizione,modello,telefono,email,statoPratica,preventivoStato,docTrasporto,cassetto,dataApertura,dataArrivo,dataAccettazione,dataScadenza,dataCompletamento,importoConcordato,note,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte")
-      .order("dataApertura", { ascending: false })
-      .limit(1000);
+    const bodyMax = Number(body?.maxResults || body?.limit || 10000);
+    const maxResults = Number.isFinite(bodyMax) ? Math.max(1, Math.min(bodyMax, 50000)) : 10000;
 
-    const { data, error } = await query;
-    if (error) throw error;
-
-    const allRows = (data || []) as RecordRow[];
-    const rows = applyParsedQuery(allRows, parsed).slice(0, 200);
-
-    const responseRows = rows.map(formatRow);
+    const allRows = await fetchAllRecords(db, maxResults);
+    const filteredRows = applyParsedQuery(allRows, parsed);
+    const responseRows = filteredRows.map(formatRow);
 
     return json({
       success: true,
       receivedAt: new Date().toISOString(),
       query: parsed,
       count: responseRows.length,
+      totalCount: filteredRows.length,
+      loadedRecords: allRows.length,
+      maxResults,
+      limited: allRows.length >= maxResults,
       summary: buildSummary(parsed, responseRows),
       rows: responseRows,
       // Compatibilità con il vecchio telecomando.html
@@ -120,6 +117,27 @@ Deno.serve(async (req) => {
     }, 500);
   }
 });
+
+async function fetchAllRecords(db: ReturnType<typeof createClient>, maxResults: number): Promise<RecordRow[]> {
+  const pageSize = 1000;
+  const out: RecordRow[] = [];
+
+  for (let from = 0; from < maxResults; from += pageSize) {
+    const to = Math.min(from + pageSize - 1, maxResults - 1);
+    const { data, error } = await db
+      .from("records")
+      .select("id,cliente,descrizione,modello,telefono,email,statoPratica,preventivoStato,docTrasporto,cassetto,dataApertura,dataArrivo,dataAccettazione,dataScadenza,dataCompletamento,importoConcordato,note,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte")
+      .order("dataApertura", { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+    const page = (data || []) as RecordRow[];
+    out.push(...page);
+    if (page.length < pageSize) break;
+  }
+
+  return out;
+}
 
 function parseQuery(text: string, forcedAction: string): ParsedQuery {
   const original = text.trim();
