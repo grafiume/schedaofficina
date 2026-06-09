@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Telecomando Database</title>
+    <title>Telecomando Officina</title>
 
     <style>
       body {
@@ -151,16 +151,18 @@
 
   <body>
     <div class="card">
-      <h1>Telecomando Database</h1>
+      <h1>Telecomando Officina</h1>
 
-      <p>Scrivi cosa vuoi cercare nel database.</p>
+      <p>Scrivi cosa vuoi cercare nella Scheda Officina. Usa la stessa sessione Supabase dell'app, senza chiavi visibili nel telefono.</p>
 
-      <textarea id="message">tutte le schede in lavorazione</textarea>
+      <textarea id="message">motori in attesa oltre 15 giorni</textarea>
 
       <button class="main-button" onclick="sendWebhook()">Cerca nel database</button>
 
       <div class="quick">
         <button onclick="quickSearch('tutte le schede aperte')">Tutte aperte</button>
+        <button onclick="quickSearch('tutte le schede in attesa')">Tutte in attesa</button>
+        <button onclick="quickSearch('motori in attesa oltre 15 giorni')">Attesa &gt;15 gg</button>
         <button onclick="quickSearch('tutte le schede in lavorazione')">Tutte in lavorazione</button>
         <button onclick="quickSearch('tutte le schede completate')">Tutte completate</button>
         <button onclick="quickSearch('tutti i preventivi')">Tutti i preventivi</button>
@@ -212,7 +214,20 @@
       </details>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../../config.js"></script>
     <script>
+      const OFFICINA_FUNCTION_URL = (window.SUPABASE_URL || "https://pedmdiljgjgswhfwedno.supabase.co") + "/functions/v1/officina-query";
+      const officinaClient = (window.supabase && window.SUPABASE_URL && window.SUPABASE_ANON_KEY)
+        ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
+        : null;
+
+      async function getAccessToken() {
+        if (!officinaClient) return "";
+        const { data } = await officinaClient.auth.getSession();
+        return data && data.session ? data.session.access_token : "";
+      }
+
       let allRows = [];
       let activeFilter = "all";
 
@@ -233,16 +248,23 @@
         try {
           const parsed = parseSearch(message);
 
+          const token = await getAccessToken();
+          if (!token) {
+            summary.textContent = "Accesso richiesto: entra prima nella Scheda Officina con il pulsante Accedi.";
+            rawResult.textContent = "Sessione Supabase non trovata sul dispositivo.";
+            return;
+          }
+
           const response = await fetch(
-            "https://pedmdiljgjgswhfwedno.supabase.co/functions/v1/bright-worker",
+            OFFICINA_FUNCTION_URL,
             {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "x-webhook-secret": "whsec_FRKoCfmqz-36CqzqvaKlgD6foNfvA5sTC9ZitQHaSJw"
+                "Authorization": "Bearer " + token
               },
               body: JSON.stringify({
-                text: parsed.searchText,
+                text: message,
                 source: "telecomando-web"
               })
             }
@@ -256,7 +278,7 @@
             return;
           }
 
-          allRows = buildRows(data.results || []);
+          allRows = data.rows ? normalizeRows(data.rows) : buildRows(data.results || []);
 
           if (parsed.clientName) {
             allRows = filterByClientName(allRows, parsed.clientName);
@@ -433,6 +455,27 @@
         return rows;
       }
 
+      function normalizeRows(rows) {
+        return (rows || []).map((data) => ({
+          tabella: "records",
+          cliente: data.cliente || "",
+          descrizione: data.descrizione || "",
+          stato: data.statoPratica || data.stato || "",
+          preventivo: data.preventivoStato || data.preventivo || "",
+          dataApertura: data.dataApertura || "",
+          dataArrivo: data.dataArrivo || "",
+          dataScadenza: data.dataScadenza || "",
+          dataCompletamento: data.dataCompletamento || "",
+          ddt: data.docTrasporto || data.ddt || "",
+          cassetto: data.cassetto || "",
+          importo: data.importoConcordato || data.importo || "",
+          note: data.note || "",
+          giorniAttesa: data.giorniAttesa || "",
+          scheda: data.scheda_url || data.scheda || "",
+          id: data.id || ""
+        }));
+      }
+
       function buildRows(results) {
         const seen = new Set();
 
@@ -549,6 +592,7 @@
           ["preventivo", "Preventivo"],
           ["dataApertura", "Data apertura"],
           ["dataArrivo", "Data arrivo"],
+          ["giorniAttesa", "Giorni attesa"],
           ["dataScadenza", "Data scadenza/consegna"],
           ["dataCompletamento", "Data completamento"],
           ["ddt", "DDT"],
