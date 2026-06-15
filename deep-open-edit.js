@@ -12,16 +12,35 @@
   const targetId = getTargetId();
   if (!targetId) return;
 
+  function hasLoadedTarget() {
+    try {
+      return Array.isArray(window.state?.all) && window.state.all.some(function (r) {
+        return String(r && r.id) === String(targetId);
+      });
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function isEditVisible() {
+    const editPage = document.getElementById("page-edit");
+    return !!editPage && !editPage.classList.contains("d-none");
+  }
+
   function tryOpenEdit() {
     try {
+      // openEdit cerca il record dentro window.state.all: se i dati non sono ancora
+      // caricati bisogna aspettare, altrimenti resta la Home.
+      if (!hasLoadedTarget()) return false;
+
       if (typeof window.openEdit === "function") {
         window.openEdit(targetId);
-        return true;
+        return isEditVisible();
       }
 
       if (typeof openEdit === "function") {
         openEdit(targetId);
-        return true;
+        return isEditVisible();
       }
     } catch (error) {
       console.warn("[deep-open-edit] tentativo non riuscito:", error);
@@ -30,16 +49,29 @@
     return false;
   }
 
-  let attempts = 0;
-  const maxAttempts = 80;
+  function startPolling() {
+    let attempts = 0;
+    const maxAttempts = 160;
 
-  const timer = setInterval(function () {
-    attempts += 1;
+    const timer = setInterval(function () {
+      attempts += 1;
 
-    if (tryOpenEdit() || attempts >= maxAttempts) {
-      clearInterval(timer);
-    }
-  }, 250);
+      if (tryOpenEdit() || attempts >= maxAttempts) {
+        clearInterval(timer);
+        if (attempts >= maxAttempts && !isEditVisible()) {
+          console.warn("[deep-open-edit] scheda non aperta o record non trovato:", targetId);
+        }
+      }
+    }, 250);
+  }
 
-  document.addEventListener("DOMContentLoaded", tryOpenEdit);
+  document.addEventListener("DOMContentLoaded", function () {
+    tryOpenEdit();
+    startPolling();
+  }, { once: true });
+
+  if (document.readyState !== "loading") {
+    tryOpenEdit();
+    startPolling();
+  }
 })();
