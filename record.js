@@ -1,4 +1,4 @@
-// record.js – pagina pubblica di sola lettura per singolo record (?id=<uuid>)
+// record.js - pagina privata di sola lettura per singolo record (?id=<uuid>)
 // Usa config.js esistente (SUPABASE_URL, SUPABASE_ANON_KEY)
 (function(){
   'use strict';
@@ -16,7 +16,6 @@
   const qs = new URLSearchParams(location.search);
   const id = qs.get('id');
 
-  // ✅ Crea UN SOLO client DB e rendilo globale (così altri script possono usare .from())
   const sbns = window.supabase;
   const db = sbns?.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
   window.supabaseClient = db;
@@ -28,17 +27,34 @@
   const noImg = document.getElementById('noImg');
 
   function showAlert(type, msg){
+    if(loading) loading.classList.add('d-none');
+    if(!alertBox) return;
     alertBox.className = 'alert alert-' + type;
     alertBox.textContent = msg;
     alertBox.classList.remove('d-none');
   }
-  function L(elId, v){ const el=document.getElementById(elId); if(el) el.textContent = v ?? '—'; }
+
+  function L(elId, v){ const el=document.getElementById(elId); if(el) el.textContent = v ?? '-'; }
+
+  function redirectToLogin(){
+    const returnTo = encodeURIComponent(location.pathname + location.search);
+    location.href = 'index.html?returnTo=' + returnTo;
+  }
+
+  async function requireSession(){
+    if(!db || !db.auth) return null;
+    try{
+      const { data } = await db.auth.getSession();
+      return data?.session || null;
+    }catch(_e){
+      return null;
+    }
+  }
 
   // Risolve l'URL della prima foto: 1) tabella 'photos' -> path -> publicUrl; 2) storage list su 'records/<id>/*'
   async function resolveFirstPhoto(recordId){
     const bucket = 'photos';
 
-    // 1) prova dalla tabella 'photos'
     try{
       const { data: ph, error: perr } = await db
         .from('photos')
@@ -54,7 +70,6 @@
       }
     } catch(e){ /* ignore */ }
 
-    // 2) storage: prova lista in records/<id>/
     try{
       const prefix = 'records/' + recordId + '/';
       const { data: list, error } = await db.storage.from(bucket).list(prefix, { limit: 50, offset: 0 });
@@ -67,7 +82,6 @@
       }
     } catch(e){ /* ignore */ }
 
-    // 3) storage: fallback thumbs
     try{
       const prefix = 'records/' + recordId + '/thumb';
       const { data: list, error } = await db.storage.from(bucket).list(prefix, { limit: 50, offset: 0 });
@@ -88,7 +102,12 @@
     if(!id){ showAlert('warning','ID non specificato nell\'URL.'); return; }
     if(!db){ showAlert('danger','Supabase non inizializzato.'); return; }
 
-    // Colonne minime per la visualizzazione (+ preventivo_url per mostrare link)
+    const session = await requireSession();
+    if(!session){
+      redirectToLogin();
+      return;
+    }
+
     const cols = [
       'id','cliente','descrizione','modello','statoPratica','note',
       'battCollettore','lunghezzaAsse','lunghezzaPacco','larghezzaPacco',
@@ -100,44 +119,38 @@
     const { data, error } = await db.from('records').select(cols).eq('id', id).single();
 
     if(error){
-      loading.classList.add('d-none');
       console.error(error);
-      showAlert('danger', 'Record non trovato o non condiviso.');
+      showAlert('danger', 'Record non trovato o accesso non autorizzato.');
       return;
     }
 
-    // ✅ Rendiamo il record globale e notifichiamo altri script
     window.currentRecord = data;
     window.dispatchEvent(new CustomEvent('record:loaded', { detail: data }));
 
-    // Preventivo collegato
     try{
       const b=document.getElementById('btnQuote');
       if(b){ b.onclick=()=>{ location.href='preventivo.html?record_id=' + encodeURIComponent(id); }; }
     }catch(e){}
 
-    // Riempimento campi
-    L('fCliente', data.cliente || '—');
-    L('fDescrizione', data.descrizione || '—');
-    L('fModello', data.modello || '—');
-    L('fStato', data.statoPratica || '—');
-    L('fTelefono', data.telefono || '—');
-    L('fEmail', data.email || '—');
+    L('fCliente', data.cliente || '-');
+    L('fDescrizione', data.descrizione || '-');
+    L('fModello', data.modello || '-');
+    L('fStato', data.statoPratica || '-');
+    L('fTelefono', data.telefono || '-');
+    L('fEmail', data.email || '-');
 
-    L('fBatt', data.battCollettore ?? '—');
-    L('fAsse', data.lunghezzaAsse ?? '—');
-    L('fPacco', data.lunghezzaPacco ?? '—');
-    L('fLarg', data.larghezzaPacco ?? '—');
-    L('fPunta', data.punta ?? '—');
-    L('fNP', data.numPunte ?? '—');
+    L('fBatt', data.battCollettore ?? '-');
+    L('fAsse', data.lunghezzaAsse ?? '-');
+    L('fPacco', data.lunghezzaPacco ?? '-');
+    L('fLarg', data.larghezzaPacco ?? '-');
+    L('fPunta', data.punta ?? '-');
+    L('fNP', data.numPunte ?? '-');
 
     L('fApertura', fmt(data.dataApertura));
     L('fAccettazione', fmt(data.dataAccettazione));
     L('fScadenza', fmt(data.dataScadenza));
+    L('fNote', data.note || '-');
 
-    L('fNote', data.note || '—');
-
-    // Foto (DB 'photos' -> storage list fallback)
     const url = await resolveFirstPhoto(id);
     if (url){
       heroImg.src = url;
@@ -145,7 +158,6 @@
       noImg.classList.add('d-none');
     }
 
-    // Mostra contenuto
     loading.classList.add('d-none');
     content.classList.remove('d-none');
   }
