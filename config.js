@@ -121,3 +121,39 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
     bindSearchEnter();
   }
 })();
+
+// Ricerca: abilita Return/Invio su tutti i campi della schermata ricerca.
+(function patchAllSearchFieldsEnterKey(){
+  'use strict';
+
+  var mainSearchIds = ['q', 'cassettoSearch', 'noteExact'];
+  var technicalFilterIds = ['fBatt', 'fAsse', 'fPacco', 'fLarg', 'fPunta', 'fNP'];
+
+  function clickButton(buttonId){
+    var btn = document.getElementById(buttonId);
+    if (btn) btn.click();
+  }
+
+  function bindField(fieldId, buttonId){
+    var field = document.getElementById(fieldId);
+    if (!field || field.__elipReturnPatched) return;
+
+    Object.defineProperty(field, '__elipReturnPatched', { value: true });
+    field.addEventListener('keydown', function(ev){
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      clickButton(buttonId);
+    });
+  }
+
+  function bindAll(){
+    mainSearchIds.forEach(function(id){ bindField(id, 'btnDoSearch'); });
+    technicalFilterIds.forEach(function(id){ bindField(id, 'btnApply'); });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindAll, { once: true });
+  } else {
+    bindAll();
+  }
+})();
