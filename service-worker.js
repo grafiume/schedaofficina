@@ -1,5 +1,5 @@
 
-const STATIC_CACHE = 'so-static-v6';
+const STATIC_CACHE = 'so-static-v7';
 const IMG_CACHE = 'so-img-v1';
 
 self.addEventListener('install', (event) => {
@@ -47,6 +47,28 @@ function patchQuotePhoneText(text) {
   return String(text || '').replace(/080\s*887\s*675(?!6)/g, '080 887 6756');
 }
 
+function patchSearchEnterText(text) {
+  const source = String(text || '');
+  if (source.includes('__elipSearchEnterPatched')) return source;
+  return source + `
+
+// Patch: il tasto Invio nel campo Ricerca avvia il pulsante Cerca.
+(function(){
+  document.addEventListener('DOMContentLoaded', function(){
+    var q = document.getElementById('q');
+    if (!q || q.__elipSearchEnterPatched) return;
+    q.__elipSearchEnterPatched = true;
+    q.addEventListener('keydown', function(ev){
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      var btn = document.getElementById('btnDoSearch');
+      if (btn) btn.click();
+    });
+  });
+})();
+`;
+}
+
 async function fetchPatchedStatic(req, cache) {
   const fresh = await fetch(req);
   if (!fresh || !fresh.ok) return fresh;
@@ -54,6 +76,20 @@ async function fetchPatchedStatic(req, cache) {
   const url = new URL(req.url);
   if (/\/preventivo\.js$/i.test(url.pathname)) {
     const patched = patchQuotePhoneText(await fresh.clone().text());
+    const response = new Response(patched, {
+      status: fresh.status,
+      statusText: fresh.statusText,
+      headers: {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Cache-Control': 'no-cache'
+      }
+    });
+    cache.put(req, response.clone());
+    return response;
+  }
+
+  if (/\/app\.v25\.js$/i.test(url.pathname)) {
+    const patched = patchSearchEnterText(await fresh.clone().text());
     const response = new Response(patched, {
       status: fresh.status,
       statusText: fresh.statusText,
