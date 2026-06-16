@@ -97,3 +97,27 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
     if (patchJsPdf() || attempts > 80) window.clearInterval(timer);
   }, 50);
 })();
+
+// Ricerca: consente di premere Invio nel campo principale invece del pulsante Cerca.
+(function patchSearchEnterKey(){
+  'use strict';
+
+  function bindSearchEnter(){
+    var q = document.getElementById('q');
+    if (!q || q.__elipSearchEnterPatched) return;
+
+    q.__elipSearchEnterPatched = true;
+    q.addEventListener('keydown', function(ev){
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      var btn = document.getElementById('btnDoSearch');
+      if (btn) btn.click();
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindSearchEnter, { once: true });
+  } else {
+    bindSearchEnter();
+  }
+})();
