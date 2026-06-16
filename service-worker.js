@@ -1,5 +1,5 @@
 
-const STATIC_CACHE = 'so-static-v5';
+const STATIC_CACHE = 'so-static-v6';
 const IMG_CACHE = 'so-img-v1';
 
 self.addEventListener('install', (event) => {
@@ -14,6 +14,7 @@ self.addEventListener('install', (event) => {
       './preventivi.js',
       './preventivo.html',
       './preventivo.js',
+      './preventivo-phone-patch.js',
       './config.js',
       './styles.css',
       './app-core.js',
@@ -42,6 +43,33 @@ function isImageRequest(req) {
   return /storage\/v1\/object|supabase\.co.*(jpg|jpeg|png|webp|gif)$/i.test(url.href);
 }
 
+function patchQuotePhoneText(text) {
+  return String(text || '').replace(/080\s*887\s*675(?!6)/g, '080 887 6756');
+}
+
+async function fetchPatchedStatic(req, cache) {
+  const fresh = await fetch(req);
+  if (!fresh || !fresh.ok) return fresh;
+
+  const url = new URL(req.url);
+  if (/\/preventivo\.js$/i.test(url.pathname)) {
+    const patched = patchQuotePhoneText(await fresh.clone().text());
+    const response = new Response(patched, {
+      status: fresh.status,
+      statusText: fresh.statusText,
+      headers: {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Cache-Control': 'no-cache'
+      }
+    });
+    cache.put(req, response.clone());
+    return response;
+  }
+
+  cache.put(req, fresh.clone());
+  return fresh;
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
@@ -61,9 +89,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith((async () => {
       const cache = await caches.open(STATIC_CACHE);
       try {
-        const fresh = await fetch(req);
-        if (fresh && fresh.ok) cache.put(req, fresh.clone());
-        return fresh;
+        return await fetchPatchedStatic(req, cache);
       } catch(e) {
         return await caches.match(req) || new Response('', { status: 504 });
       }
