@@ -1,5 +1,5 @@
 
-const STATIC_CACHE = 'so-static-v4';
+const STATIC_CACHE = 'so-static-v5';
 const IMG_CACHE = 'so-img-v1';
 
 self.addEventListener('install', (event) => {
@@ -14,6 +14,7 @@ self.addEventListener('install', (event) => {
       './preventivi.js',
       './preventivo.html',
       './preventivo.js',
+      './config.js',
       './styles.css',
       './app-core.js',
       './app-supabase.js',
@@ -55,9 +56,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets: try cache, then network
+  // Static assets: network first, fallback to cache. This avoids stale app code after updates.
   if (url.origin === location.origin) {
-    event.respondWith(caches.match(req).then(r => r || fetch(req)));
+    event.respondWith((async () => {
+      const cache = await caches.open(STATIC_CACHE);
+      try {
+        const fresh = await fetch(req);
+        if (fresh && fresh.ok) cache.put(req, fresh.clone());
+        return fresh;
+      } catch(e) {
+        return await caches.match(req) || new Response('', { status: 504 });
+      }
+    })());
     return;
   }
 
