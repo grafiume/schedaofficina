@@ -1304,7 +1304,7 @@ async function generateQuotePdfBlob(){
     doc.setTextColor(102,112,133);
     doc.text('Via Conchia 54/E, Monopoli (BA)', pageW - margin, 29, { align:'right' });
     doc.text('Email: info@eliptagliente.it', pageW - margin, 33.5, { align:'right' });
-    doc.text('TEL: +39 080 777 090 - +39 080 887 675', pageW - margin, 38, { align:'right' });
+    doc.text('TEL: +39 080 777 090 - +39 080 887 6756', pageW - margin, 38, { align:'right' });
     y = 44;
 
     doc.setDrawColor(230,233,238);
@@ -1392,7 +1392,7 @@ async function generateQuotePdfBlob(){
     doc.setFontSize(8.7);
     doc.setTextColor(102,112,133);
     doc.text('Elip Tagliente Srl • Via Conchia 54/E, Monopoli (BA)', margin, footerY);
-    doc.text('info@eliptagliente.it • +39 080 777 090 - +39 080 887 675', pageW - margin, footerY, { align:'right' });
+    doc.text('info@eliptagliente.it • +39 080 777 090 - +39 080 887 6756', pageW - margin, footerY, { align:'right' });
 
     const blob = doc.output('blob');
     return {
