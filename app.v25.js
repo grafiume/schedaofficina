@@ -1161,14 +1161,14 @@ window.loadAll=async function(){
     if(!sb){ showError('Supabase non inizializzato'); return; }
     let { data, error } = await sb
       .from('records')
-      .select('id,descrizione,modello,cliente,telefono,statoPratica,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,cassetto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email,importoConcordato')
+      .select('id,descrizione,modello,cliente,telefono,statoPratica,note,dataApertura,dataAccettazione,dataScadenza,dataChiusura,docTrasporto,cassetto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email,importoConcordato')
       .order('dataApertura',{ascending:false});
     if(error){
       const msg = String(error.message || '');
       if (msg.includes('importoConcordato')){
         const retry = await sb
           .from('records')
-          .select('id,descrizione,modello,cliente,telefono,statoPratica,note,dataApertura,dataAccettazione,dataScadenza,docTrasporto,cassetto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
+          .select('id,descrizione,modello,cliente,telefono,statoPratica,note,dataApertura,dataAccettazione,dataScadenza,dataChiusura,docTrasporto,cassetto,battCollettore,lunghezzaAsse,lunghezzaPacco,larghezzaPacco,punta,numPunte,email')
           .order('dataApertura',{ascending:false});
         data = retry.data || [];
         error = retry.error;
