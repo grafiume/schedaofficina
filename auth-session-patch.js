@@ -71,9 +71,11 @@
   }
 })();
 
-// Patch data chiusura: salva automaticamente la data quando una scheda diventa Completata.
+// Patch data chiusura: salva automaticamente solo quando una scheda passa ora a Completata.
 (function(){
   'use strict';
+
+  window.__closureOpenedWasClosed = false;
 
   function norm(v){
     return (v ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -112,11 +114,16 @@
     const id = window.state?.editing?.id;
     return id ? (window.state?.all || []).find(r => r.id === id) || window.state.editing : null;
   }
-  function updateClosureUi(){
+  function updateClosureUi(autoFillNewCompletion){
     const isClosed = norm(val('eStato')).includes('completata');
     let closureDate = val('eChiusura');
+    const record = selectedRecord();
+
     if(isClosed && !closureDate){
-      closureDate = selectedRecord()?.dataChiusura || todayISO();
+      closureDate = record?.dataChiusura || '';
+      if(!closureDate && autoFillNewCompletion && !window.__closureOpenedWasClosed){
+        closureDate = todayISO();
+      }
       setV('eChiusura', closureDate);
     }
     if(!isClosed){
@@ -127,11 +134,11 @@
     const banner = document.getElementById('closedBanner');
     if(banner){
       banner.classList.toggle('d-none', !isClosed);
-      banner.textContent = isClosed ? 'Chiusa il ' + fmtIT(closureDate) : 'Chiusa';
+      banner.textContent = isClosed && closureDate ? 'Chiusa il ' + fmtIT(closureDate) : 'Chiusa';
     }
     const hint = document.getElementById('closedHint');
     if(hint){
-      hint.textContent = isClosed ? 'Data chiusura: ' + fmtIT(closureDate) : '';
+      hint.textContent = isClosed && closureDate ? 'Data chiusura: ' + fmtIT(closureDate) : '';
     }
   }
   async function saveClosureDate(){
@@ -140,7 +147,9 @@
     const db = getDb();
     if(!db) return;
     const isClosed = norm(val('eStato')).includes('completata');
-    const dataChiusura = isClosed ? (val('eChiusura') || record.dataChiusura || todayISO()) : null;
+    const dataChiusura = isClosed
+      ? (val('eChiusura') || record.dataChiusura || (window.__closureOpenedWasClosed ? null : todayISO()))
+      : null;
     setV('eChiusura', dataChiusura);
     try{
       const { error } = await db.from('records').update({ dataChiusura }).eq('id', record.id);
@@ -171,8 +180,9 @@
     window.openEdit = function(id){
       const result = originalOpenEdit.apply(this, arguments);
       const record = selectedRecord();
+      window.__closureOpenedWasClosed = norm(record?.statoPratica).includes('completata');
       setV('eChiusura', record?.dataChiusura || '');
-      updateClosureUi();
+      updateClosureUi(false);
       return result;
     };
   }
@@ -180,7 +190,7 @@
   const originalSaveEdit = window.saveEdit;
   if(typeof originalSaveEdit === 'function'){
     window.saveEdit = async function(closeAfter){
-      updateClosureUi();
+      updateClosureUi(true);
       await saveClosureDate();
       return originalSaveEdit.apply(this, arguments);
     };
@@ -197,6 +207,6 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     const stato = document.getElementById('eStato');
-    if(stato) stato.addEventListener('change', updateClosureUi);
+    if(stato) stato.addEventListener('change', () => updateClosureUi(true));
   });
 })();
