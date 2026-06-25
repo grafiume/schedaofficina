@@ -712,6 +712,20 @@ function filterAtteseByBucket(bucket){
   renderHome(rows);
   show('page-home');
 }
+function appendClosedStatusDetails(td, record){
+  const b=document.createElement('span');
+  b.className='badge badge-chiusa d-inline-block mt-1';
+  b.textContent='Chiusa';
+  td.appendChild(document.createElement('br'));
+  td.appendChild(b);
+
+  if(record?.dataChiusura){
+    const date=document.createElement('div');
+    date.className='small text-muted mt-1';
+    date.textContent=fmtIT(record.dataChiusura);
+    td.appendChild(date);
+  }
+}
 
 window.renderHome=function(rows){
   const tb=document.getElementById('homeRows'); if(!tb) return;
@@ -738,7 +752,7 @@ window.renderHome=function(rows){
     const closed=norm(r.statoPratica).includes('completata');
     const statoTxt=document.createElement('span'); statoTxt.textContent=(r.statoPratica??'');
     tdStato.appendChild(statoTxt);
-    if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
+    if(closed) appendClosedStatusDetails(tdStato, r);
     tr.appendChild(tdStato);
 
     const tdAz=document.createElement('td'); tdAz.className='text-end';
@@ -816,7 +830,7 @@ function doSearch(){
     const closed=norm(r.statoPratica).includes('completata');
     const statoTxt=document.createElement('span'); statoTxt.textContent=(r.statoPratica??'');
     tdStato.appendChild(statoTxt);
-    if(closed){ const b=document.createElement('span'); b.className='badge badge-chiusa ms-2'; b.textContent='Chiusa'; tdStato.appendChild(b); }
+    if(closed) appendClosedStatusDetails(tdStato, r);
     tr.appendChild(tdStato);
 
     const tdAz=document.createElement('td'); tdAz.className='text-end';
