@@ -119,16 +119,18 @@
     let closureDate = val('eChiusura');
     const record = selectedRecord();
 
+    if(!isClosed){
+      window.__closureOpenedWasClosed = false;
+      closureDate = '';
+      setV('eChiusura', '');
+    }
+
     if(isClosed && !closureDate){
       closureDate = record?.dataChiusura || '';
       if(!closureDate && autoFillNewCompletion && !window.__closureOpenedWasClosed){
         closureDate = todayISO();
       }
       setV('eChiusura', closureDate);
-    }
-    if(!isClosed){
-      closureDate = '';
-      setV('eChiusura', '');
     }
 
     const banner = document.getElementById('closedBanner');
