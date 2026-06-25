@@ -111,12 +111,18 @@
     const cols = [
       'id','cliente','descrizione','modello','statoPratica','note',
       'battCollettore','lunghezzaAsse','lunghezzaPacco','larghezzaPacco',
-      'punta','numPunte','dataApertura','dataAccettazione','dataScadenza',
+      'punta','numPunte','dataApertura','dataAccettazione','dataScadenza','dataChiusura',
       'telefono','email','docTrasporto',
       'preventivo_url'
     ].join(',');
 
-    const { data, error } = await db.from('records').select(cols).eq('id', id).single();
+    let { data, error } = await db.from('records').select(cols).eq('id', id).single();
+    if(error && String(error.message || '').includes('dataChiusura')){
+      const fallbackCols = cols.replace(',dataChiusura', '');
+      const retry = await db.from('records').select(fallbackCols).eq('id', id).single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if(error){
       console.error(error);
@@ -149,6 +155,7 @@
     L('fApertura', fmt(data.dataApertura));
     L('fAccettazione', fmt(data.dataAccettazione));
     L('fScadenza', fmt(data.dataScadenza));
+    L('fChiusura', fmt(data.dataChiusura));
     L('fNote', data.note || '-');
 
     const url = await resolveFirstPhoto(id);
