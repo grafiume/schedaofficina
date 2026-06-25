@@ -161,22 +161,6 @@
       }
     }catch(_e){}
   }
-  async function mergeClosureDates(){
-    const rows = window.state?.all || [];
-    if(!rows.length) return;
-    const db = getDb();
-    if(!db) return;
-    try{
-      const ids = rows.map(r => r.id).filter(Boolean);
-      const { data, error } = await db.from('records').select('id,dataChiusura').in('id', ids);
-      if(error || !Array.isArray(data)) return;
-      const byId = new Map(data.map(r => [r.id, r.dataChiusura || null]));
-      rows.forEach(r => {
-        if(byId.has(r.id)) r.dataChiusura = byId.get(r.id);
-      });
-    }catch(_e){}
-  }
-
   const originalOpenEdit = window.openEdit;
   if(typeof originalOpenEdit === 'function'){
     window.openEdit = function(id){
@@ -201,9 +185,7 @@
   const originalLoadAll = window.loadAll;
   if(typeof originalLoadAll === 'function'){
     window.loadAll = async function(){
-      const result = await originalLoadAll.apply(this, arguments);
-      await mergeClosureDates();
-      return result;
+      return originalLoadAll.apply(this, arguments);
     };
   }
 

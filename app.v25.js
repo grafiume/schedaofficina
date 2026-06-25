@@ -1017,7 +1017,7 @@ async function saveEdit(closeAfter=true){
   const localImportoConcordato = val('eImportoConcordato');
   const payload={
     descrizione:val('eDescrizione'), modello:val('eModello'),
-    dataApertura:val('eApertura')||null, dataAccettazione:val('eAcc')||null, dataScadenza:val('eScad')||null,
+    dataApertura:val('eApertura')||null, dataAccettazione:val('eAcc')||null, dataScadenza:val('eScad')||null, dataChiusura:val('eChiusura')||null,
     statoPratica:val('eStato'), docTrasporto:val('eDDT'), cassetto:sanitizeCassettoInput(val('eCassetto')),
     cliente:val('eCliente'), telefono:val('eTel'), email:val('eEmail'), importoConcordato:val('eImportoConcordato')||null,
     battCollettore:val('eBatt')||null, lunghezzaAsse:val('eAsse')||null, lunghezzaPacco:val('ePacco')||null, larghezzaPacco:val('eLarg')||null,
@@ -1027,6 +1027,12 @@ async function saveEdit(closeAfter=true){
   if(error && String(error.message || '').includes('importoConcordato')){
     const retryPayload = Object.assign({}, payload);
     delete retryPayload.importoConcordato;
+    const retry = await sb.from('records').update(retryPayload).eq('id', r.id).select().single();
+    data = retry.data; error = retry.error;
+  }
+  if(error && String(error.message || '').includes('dataChiusura')){
+    const retryPayload = Object.assign({}, payload);
+    delete retryPayload.dataChiusura;
     const retry = await sb.from('records').update(retryPayload).eq('id', r.id).select().single();
     data = retry.data; error = retry.error;
   }
