@@ -71,7 +71,7 @@
   }
 })();
 
-// Patch data chiusura: salva automaticamente solo quando una scheda passa ora a Completata.
+// Patch data chiusura e storico cassetto liberato.
 (function(){
   'use strict';
 
@@ -114,21 +114,45 @@
     const x = String(v || '').trim().toUpperCase().replace(/\s*❌.*$/, '');
     return x || null;
   }
-  function noteWithReleasedCassetto(note, cassetto){
-    const cass = sanitizeCassettoInput(cassetto);
-    const base = String(note || '').trim();
-    if(!cass) return base;
-    const marker = 'Cassetto liberato alla chiusura';
-    const already = norm(base).includes(norm(marker)) && norm(base).includes(norm(cass));
-    if(already) return base;
-    const line = `${marker} (${fmtIT(todayISO())}): ${cass}`;
-    return base ? `${base} | ${line}` : line;
+  function ensureReleasedCassHint(){
+    let hint = document.getElementById('releasedCassHint');
+    if(hint) return hint;
+    const cass = document.getElementById('eCassetto');
+    if(!cass || !cass.parentElement) return null;
+    hint = document.createElement('div');
+    hint.id = 'releasedCassHint';
+    hint.className = 'form-text text-muted';
+    cass.parentElement.appendChild(hint);
+    return hint;
+  }
+  function renderReleasedCassHint(record){
+    const hint = ensureReleasedCassHint();
+    if(!hint) return;
+    const storico = sanitizeCassettoInput(record?.cassetto_storico || record?.cassettoStorico || '');
+    const data = record?.data_liberazione_cassetto || record?.dataLiberazioneCassetto || '';
+    hint.textContent = storico ? `Storico cassetto liberato: ${storico}${data ? ' il ' + fmtIT(data) : ''}` : '';
+  }
+  async function loadReleasedCassHint(record){
+    renderReleasedCassHint(record);
+    const db = getDb();
+    if(!db || !record?.id) return;
+    try{
+      const { data, error } = await db
+        .from('records')
+        .select('cassetto_storico,data_liberazione_cassetto')
+        .eq('id', record.id)
+        .single();
+      if(!error && data){
+        record.cassetto_storico = data.cassetto_storico;
+        record.data_liberazione_cassetto = data.data_liberazione_cassetto;
+        renderReleasedCassHint(record);
+      }
+    }catch(_e){}
   }
   function releaseCassettoIfClosed(){
     const isClosed = norm(val('eStato')).includes('completata');
     const cass = sanitizeCassettoInput(val('eCassetto'));
     if(!isClosed || !cass) return;
-    setV('eNote', noteWithReleasedCassetto(val('eNote'), cass));
     setV('eCassetto', '');
     try{
       const record = selectedRecord();
@@ -139,6 +163,10 @@
           data_liberazione_cassetto: todayISO(),
           cassetto_occupato: false
         }).eq('id', record.id).then(()=>{});
+        record.cassetto_storico = cass;
+        record.data_liberazione_cassetto = todayISO();
+        record.cassetto_occupato = false;
+        renderReleasedCassHint(record);
       }
     }catch(_e){}
   }
@@ -201,6 +229,7 @@
       window.__closureOpenedWasClosed = norm(record?.statoPratica).includes('completata');
       setV('eChiusura', record?.dataChiusura || '');
       updateClosureUi(false);
+      loadReleasedCassHint(record);
       return result;
     };
   }
