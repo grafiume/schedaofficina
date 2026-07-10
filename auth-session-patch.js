@@ -110,6 +110,27 @@
     const el = document.getElementById(id);
     if(el) el.value = value || '';
   }
+  function sanitizeCassettoInput(v){
+    const x = String(v || '').trim().toUpperCase().replace(/\s*❌.*$/, '');
+    return x || null;
+  }
+  function noteWithReleasedCassetto(note, cassetto){
+    const cass = sanitizeCassettoInput(cassetto);
+    const base = String(note || '').trim();
+    if(!cass) return base;
+    const marker = 'Cassetto liberato alla chiusura';
+    const already = norm(base).includes(norm(marker)) && norm(base).includes(norm(cass));
+    if(already) return base;
+    const line = `${marker} (${fmtIT(todayISO())}): ${cass}`;
+    return base ? `${base}\n${line}` : line;
+  }
+  function releaseCassettoIfClosed(){
+    const isClosed = norm(val('eStato')).includes('completata');
+    const cass = sanitizeCassettoInput(val('eCassetto'));
+    if(!isClosed || !cass) return;
+    setV('eNote', noteWithReleasedCassetto(val('eNote'), cass));
+    setV('eCassetto', '');
+  }
   function selectedRecord(){
     const id = window.state?.editing?.id;
     return id ? (window.state?.all || []).find(r => r.id === id) || window.state.editing : null;
@@ -177,6 +198,7 @@
   if(typeof originalSaveEdit === 'function'){
     window.saveEdit = async function(closeAfter){
       updateClosureUi(true);
+      releaseCassettoIfClosed();
       await saveClosureDate();
       return originalSaveEdit.apply(this, arguments);
     };
