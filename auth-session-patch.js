@@ -90,7 +90,7 @@
     if(!v) return '';
     const s = String(v);
     if(/^\d{4}-\d{2}-\d{2}/.test(s)){
-      const [y,m,d] = s.split('-');
+      const [y,m,d] = s.slice(0, 10).split('-');
       return [d,m,y].join('/');
     }
     return s;
@@ -128,9 +128,9 @@
   function renderReleasedCassHint(record){
     const hint = ensureReleasedCassHint();
     if(!hint) return;
+    const isClosed = norm(val('eStato') || record?.statoPratica || '').includes('completata');
     const storico = sanitizeCassettoInput(record?.cassetto_storico || record?.cassettoStorico || '');
-    const data = record?.data_liberazione_cassetto || record?.dataLiberazioneCassetto || '';
-    hint.textContent = storico ? `Storico cassetto liberato: ${storico}${data ? ' il ' + fmtIT(data) : ''}` : '';
+    hint.textContent = (isClosed && storico) ? `Storico ${storico}` : '';
   }
   async function loadReleasedCassHint(record){
     renderReleasedCassHint(record);
@@ -202,6 +202,7 @@
     if(hint){
       hint.textContent = isClosed && closureDate ? 'Data chiusura: ' + fmtIT(closureDate) : '';
     }
+    renderReleasedCassHint(record);
   }
   async function saveClosureDate(){
     const record = selectedRecord();
