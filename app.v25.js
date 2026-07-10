@@ -1029,6 +1029,14 @@ function openEdit(id){
 async function saveEdit(closeAfter=true){
   const r=window.state.editing; if(!r) return;
   const localImportoConcordato = val('eImportoConcordato');
+  const wasClosed = norm(r.statoPratica).includes('completata');
+  const willClose = norm(val('eStato')).includes('completata');
+  const cassettoDaLiberare = sanitizeCassettoInput(val('eCassetto'));
+  const releaseCassettoOnClose = !wasClosed && willClose && !!cassettoDaLiberare;
+  if(releaseCassettoOnClose){
+    setV('eNote', noteWithReleasedCassetto(val('eNote'), cassettoDaLiberare));
+    setV('eCassetto', '');
+  }
   const payload={
     descrizione:val('eDescrizione'), modello:val('eModello'),
     dataApertura:val('eApertura')||null, dataAccettazione:val('eAcc')||null, dataScadenza:val('eScad')||null, dataChiusura:val('eChiusura')||null,
@@ -1070,6 +1078,17 @@ function toNull(s){ return s===''?null:s; }
 function sanitizeCassettoInput(v){
   const x = String(v || '').trim().toUpperCase().replace(/\s*❌.*$/, '');
   return x || null;
+}
+
+function noteWithReleasedCassetto(note, cassetto){
+  const cass = sanitizeCassettoInput(cassetto);
+  const base = String(note || '').trim();
+  if(!cass) return base;
+  const marker = 'Cassetto liberato alla chiusura';
+  const already = norm(base).includes(norm(marker)) && norm(base).includes(norm(cass));
+  if(already) return base;
+  const line = `${marker} (${fmtIT(todayISO())}): ${cass}`;
+  return base ? `${base}\n${line}` : line;
 }
 
 function previewNewFiles(){
