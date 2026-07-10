@@ -130,6 +130,17 @@
     if(!isClosed || !cass) return;
     setV('eNote', noteWithReleasedCassetto(val('eNote'), cass));
     setV('eCassetto', '');
+    try{
+      const record = selectedRecord();
+      const db = getDb();
+      if(record?.id && db){
+        db.from('records').update({
+          cassetto_storico: cass,
+          data_liberazione_cassetto: todayISO(),
+          cassetto_occupato: false
+        }).eq('id', record.id).then(()=>{});
+      }
+    }catch(_e){}
   }
   function selectedRecord(){
     const id = window.state?.editing?.id;
