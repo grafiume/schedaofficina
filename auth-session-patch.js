@@ -122,7 +122,7 @@
     const already = norm(base).includes(norm(marker)) && norm(base).includes(norm(cass));
     if(already) return base;
     const line = `${marker} (${fmtIT(todayISO())}): ${cass}`;
-    return base ? `${base}\n${line}` : line;
+    return base ? `${base} | ${line}` : line;
   }
   function releaseCassettoIfClosed(){
     const isClosed = norm(val('eStato')).includes('completata');
