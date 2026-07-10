@@ -214,5 +214,10 @@
   document.addEventListener('DOMContentLoaded', () => {
     const stato = document.getElementById('eStato');
     if(stato) stato.addEventListener('change', () => updateClosureUi(true));
+    const btnSave = document.getElementById('btnSave');
+    if(btnSave && !btnSave.__releasedCassettoCapture){
+      btnSave.__releasedCassettoCapture = true;
+      btnSave.addEventListener('click', releaseCassettoIfClosed, true);
+    }
   });
 })();
