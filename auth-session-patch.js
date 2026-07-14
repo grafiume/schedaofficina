@@ -76,6 +76,7 @@
   'use strict';
 
   window.__closureOpenedWasClosed = false;
+  window.__lastKnownEditCassetto = '';
 
   function norm(v){
     return (v ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -111,7 +112,7 @@
     if(el) el.value = value || '';
   }
   function sanitizeCassettoInput(v){
-    const x = String(v || '').trim().toUpperCase().replace(/\s*❌.*$/, '');
+    const x = String(v || '').trim().toUpperCase().replace(/\s*[\u2716\u274C].*$/, '');
     return x || null;
   }
   function ensureReleasedCassHint(){
@@ -132,6 +133,11 @@
     const storico = sanitizeCassettoInput(record?.cassetto_storico || record?.cassettoStorico || '');
     hint.textContent = (isClosed && storico) ? `Storico ${storico}` : '';
   }
+  function rememberEditCassetto(value){
+    const cass = sanitizeCassettoInput(value);
+    if(cass) window.__lastKnownEditCassetto = cass;
+    return cass;
+  }
   async function loadReleasedCassHint(record){
     renderReleasedCassHint(record);
     const db = getDb();
@@ -149,20 +155,20 @@
       }
     }catch(_e){}
   }
-  function releaseCassettoIfClosed(){
+  async function releaseCassettoIfClosed(){
     const isClosed = norm(val('eStato')).includes('completata');
-    const cass = sanitizeCassettoInput(val('eCassetto'));
+    const record = selectedRecord();
+    const cass = rememberEditCassetto(val('eCassetto')) || sanitizeCassettoInput(record?.cassetto || '') || sanitizeCassettoInput(window.__lastKnownEditCassetto || '');
     if(!isClosed || !cass) return;
     setV('eCassetto', '');
     try{
-      const record = selectedRecord();
       const db = getDb();
       if(record?.id && db){
-        db.from('records').update({
+        await db.from('records').update({
           cassetto_storico: cass,
           data_liberazione_cassetto: todayISO(),
           cassetto_occupato: false
-        }).eq('id', record.id).then(()=>{});
+        }).eq('id', record.id);
         record.cassetto_storico = cass;
         record.data_liberazione_cassetto = todayISO();
         record.cassetto_occupato = false;
@@ -228,6 +234,7 @@
       const result = originalOpenEdit.apply(this, arguments);
       const record = selectedRecord();
       window.__closureOpenedWasClosed = norm(record?.statoPratica).includes('completata');
+      window.__lastKnownEditCassetto = sanitizeCassettoInput(record?.cassetto || val('eCassetto') || '') || '';
       setV('eChiusura', record?.dataChiusura || '');
       updateClosureUi(false);
       loadReleasedCassHint(record);
@@ -239,9 +246,11 @@
   if(typeof originalSaveEdit === 'function'){
     window.saveEdit = async function(closeAfter){
       updateClosureUi(true);
-      releaseCassettoIfClosed();
+      await releaseCassettoIfClosed();
       await saveClosureDate();
-      return originalSaveEdit.apply(this, arguments);
+      const result = await originalSaveEdit.apply(this, arguments);
+      await loadReleasedCassHint(selectedRecord());
+      return result;
     };
   }
 
@@ -255,10 +264,16 @@
   document.addEventListener('DOMContentLoaded', () => {
     const stato = document.getElementById('eStato');
     if(stato) stato.addEventListener('change', () => updateClosureUi(true));
+    const cass = document.getElementById('eCassetto');
+    if(cass && !cass.__rememberCassettoInput){
+      cass.__rememberCassettoInput = true;
+      cass.addEventListener('input', () => rememberEditCassetto(cass.value));
+      cass.addEventListener('change', () => rememberEditCassetto(cass.value));
+    }
     const btnSave = document.getElementById('btnSave');
     if(btnSave && !btnSave.__releasedCassettoCapture){
       btnSave.__releasedCassettoCapture = true;
-      btnSave.addEventListener('click', releaseCassettoIfClosed, true);
+      btnSave.addEventListener('click', () => { releaseCassettoIfClosed(); }, true);
     }
   });
 })();
