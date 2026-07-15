@@ -1,4 +1,4 @@
-const STATIC_CACHE = 'so-static-v8';
+const STATIC_CACHE = 'so-static-v9';
 const IMG_CACHE = 'so-img-v1';
 
 self.addEventListener('install', (event) => {
@@ -32,7 +32,6 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
-/** Cache-first for images (including Supabase storage) with stale-while-revalidate */
 function isImageRequest(req) {
   const dest = req.destination;
   const url = new URL(req.url);
@@ -63,7 +62,8 @@ function patchSearchEnterText(text) {
 }
 
 async function fetchPatchedStatic(req, cache) {
-  const fresh = await fetch(req);
+  const noCacheReq = new Request(req, { cache: 'reload' });
+  const fresh = await fetch(noCacheReq);
   if (!fresh || !fresh.ok) return fresh;
 
   const url = new URL(req.url);
@@ -99,7 +99,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets: network first, fallback to cache. This avoids stale app code after updates.
   if (url.origin === location.origin) {
     event.respondWith((async () => {
       const cache = await caches.open(STATIC_CACHE);
@@ -112,7 +111,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Default: network first, fallback to cache.
   event.respondWith((async () => {
     try { return await fetch(req); }
     catch(e) { return await caches.match(req); }
