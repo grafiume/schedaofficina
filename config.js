@@ -3,9 +3,24 @@
 window.SUPABASE_URL = 'https://pedmdiljgjgswhfwedno.supabase.co';
 window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNjgxNTIsImV4cCI6MjA3NTY0NDE1Mn0.4p2T8BJHGjVsj1Bx22Mk1mbYmfh7MX5WpCwxhwi4CmQ';
 
-// Regola officina: dataArrivo deve sempre seguire dataApertura.
-(function patchDataArrivoFromApertura(){
+// Regole officina prima del salvataggio su records:
+// - dataArrivo segue dataApertura
+// - importoConcordato viene inviato come numero valido per Supabase, con punto decimale.
+(function patchRecordsPayload(){
   'use strict';
+
+  function normalizeMoney(value){
+    if (value == null || value === '') return null;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    var s = String(value).trim();
+    if (!s) return null;
+    s = s.replace(/\s+/g, '').replace(/[^\d,.-]/g, '');
+    if (!s) return null;
+    if (s.indexOf(',') >= 0 && s.indexOf('.') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+    else s = s.replace(',', '.');
+    var n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
 
   function syncPayload(payload){
     if (!payload || typeof payload !== 'object') return payload;
@@ -13,11 +28,14 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
     if (Object.prototype.hasOwnProperty.call(payload, 'dataApertura')) {
       payload.dataArrivo = payload.dataApertura || null;
     }
+    if (Object.prototype.hasOwnProperty.call(payload, 'importoConcordato')) {
+      payload.importoConcordato = normalizeMoney(payload.importoConcordato);
+    }
     return payload;
   }
 
   function wrapTable(table){
-    if (!table || table.__dataArrivoPatched) return table;
+    if (!table || table.__recordsPayloadPatched) return table;
     ['insert', 'upsert', 'update'].forEach(function(method){
       if (typeof table[method] !== 'function') return;
       var original = table[method].bind(table);
@@ -25,28 +43,28 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
         return original(syncPayload(payload));
       };
     });
-    Object.defineProperty(table, '__dataArrivoPatched', { value: true });
+    Object.defineProperty(table, '__recordsPayloadPatched', { value: true });
     return table;
   }
 
   function patchSupabaseFactory(){
     if (!window.supabase || typeof window.supabase.createClient !== 'function') return false;
-    if (window.supabase.__dataArrivoFactoryPatched) return true;
+    if (window.supabase.__recordsPayloadFactoryPatched) return true;
 
     var originalCreateClient = window.supabase.createClient.bind(window.supabase);
     window.supabase.createClient = function(){
       var client = originalCreateClient.apply(window.supabase, arguments);
-      if (!client || typeof client.from !== 'function' || client.__dataArrivoClientPatched) return client;
+      if (!client || typeof client.from !== 'function' || client.__recordsPayloadClientPatched) return client;
 
       var originalFrom = client.from.bind(client);
       client.from = function(tableName){
         var table = originalFrom(tableName);
         return tableName === 'records' ? wrapTable(table) : table;
       };
-      Object.defineProperty(client, '__dataArrivoClientPatched', { value: true });
+      Object.defineProperty(client, '__recordsPayloadClientPatched', { value: true });
       return client;
     };
-    Object.defineProperty(window.supabase, '__dataArrivoFactoryPatched', { value: true });
+    Object.defineProperty(window.supabase, '__recordsPayloadFactoryPatched', { value: true });
     return true;
   }
 
