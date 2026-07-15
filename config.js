@@ -144,6 +144,102 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
   else bind();
 })();
 
+// Preventivi: sincronizza tutti i preventivi con la relativa scheda.
+// Serve quando il preventivo e stato creato/gestito dalla lista preventivi.html
+// oppure quando il totale e presente nelle righe ma non ancora nella testata.
+(function patchPreventiviListImportoConcordato(){
+  'use strict';
+
+  function shouldRun(){
+    return /preventivi\.html$/i.test(location.pathname) || /index\.html$/i.test(location.pathname);
+  }
+  function db(){
+    if(!window.supabase || !window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) return null;
+    if(!window.__elipPreventiviListDb){
+      window.__elipPreventiviListDb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    }
+    return window.__elipPreventiviListDb;
+  }
+  function parseMoney(v){
+    if(v == null) return 0;
+    var s = String(v).trim();
+    if(!s) return 0;
+    s = s.replace(/\s+/g, '').replace(/[^\d,.-]/g, '');
+    if(s.indexOf(',') >= 0 && s.indexOf('.') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+    else s = s.replace(',', '.');
+    var n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+  function formatMoney(v){
+    var n = Number(v || 0);
+    return Number.isFinite(n) && n > 0 ? n.toFixed(2).replace('.', ',') : null;
+  }
+  async function sumQuoteItems(client, quoteId){
+    var selects = [
+      'qty,unit_price_ex_vat,line_total_ex_vat',
+      'quantity,unit_price,total',
+      'quantita,prezzo,totale'
+    ];
+    for(var i=0; i<selects.length; i++){
+      try{
+        var res = await client.from('quote_items').select(selects[i]).eq('quote_id', quoteId).limit(200);
+        if(res.error) continue;
+        var sum = (res.data || []).reduce(function(total, item){
+          var line = parseMoney(item.line_total_ex_vat ?? item.total ?? item.totale);
+          if(line > 0) return total + line;
+          var qty = parseMoney(item.qty ?? item.quantity ?? item.quantita) || 1;
+          var unit = parseMoney(item.unit_price_ex_vat ?? item.unit_price ?? item.prezzo);
+          return total + (qty * unit);
+        }, 0);
+        if(sum > 0) return sum;
+      }catch(_e){}
+    }
+    return 0;
+  }
+  async function syncAll(){
+    var client = db();
+    if(!client) return;
+    var quotesRes = await client
+      .from('quotes')
+      .select('id,record_id,subtotal_ex_vat,grand_total,created_at')
+      .not('record_id', 'is', null)
+      .order('created_at', { ascending:false })
+      .limit(1000);
+    if(quotesRes.error) return;
+
+    var byRecord = new Map();
+    for(var i=0; i<(quotesRes.data || []).length; i++){
+      var q = quotesRes.data[i];
+      if(!q.record_id || byRecord.has(q.record_id)) continue;
+      var amount = parseMoney(q.subtotal_ex_vat) || parseMoney(q.grand_total);
+      if(!(amount > 0)) amount = await sumQuoteItems(client, q.id);
+      if(amount > 0) byRecord.set(q.record_id, amount);
+    }
+
+    var entries = Array.from(byRecord.entries());
+    for(var j=0; j<entries.length; j++){
+      var recordId = entries[j][0];
+      var amountValue = entries[j][1];
+      try{
+        var current = await client.from('records').select('id,importoConcordato').eq('id', recordId).single();
+        if(!current.error && parseMoney(current.data && current.data.importoConcordato) > 0) continue;
+      }catch(_e){}
+      try{
+        await client.from('records').update({ importoConcordato: formatMoney(amountValue) }).eq('id', recordId);
+      }catch(_e){}
+    }
+  }
+  function bind(){
+    if(!shouldRun()) return;
+    [1000, 3500, 8000].forEach(function(ms){
+      window.setTimeout(function(){ syncAll().catch(function(){}); }, ms);
+    });
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind, { once:true });
+  else bind();
+})();
+
 // Scheda avanzamento: stampa senza &nbsp; visibili, con DDT/NOTE, e rende
 // "Salva avanzamento" equivalente al salvataggio della scheda.
 (function patchAvanzamentoStampaESalva(){
