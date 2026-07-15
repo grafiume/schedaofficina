@@ -71,6 +71,139 @@
   }
 })();
 
+// Patch importo concordato: se manca, lo compila dal totale del preventivo collegato.
+(function(){
+  'use strict';
+
+  function getDb(){
+    if(!window.supabase || !window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) return null;
+    if(!window.__quoteImportoDb){
+      window.__quoteImportoDb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    }
+    return window.__quoteImportoDb;
+  }
+  function selectedRecord(){
+    const id = window.state?.editing?.id;
+    return id ? (window.state?.all || []).find(r => r.id === id) || window.state.editing : null;
+  }
+  function parseMoney(v){
+    if(v == null) return null;
+    let s = String(v).trim();
+    if(!s) return null;
+    s = s.replace(/\s+/g, '').replace(/[^\d,.-]/g, '');
+    if(s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+    else s = s.replace(',', '.');
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  function formatMoney(v){
+    const n = Number(v || 0);
+    return Number.isFinite(n) && n > 0 ? n.toFixed(2).replace('.', ',') : '';
+  }
+  function setImporto(value, record){
+    const el = document.getElementById('eImportoConcordato');
+    if(el) el.value = value || '';
+    if(record) record.importoConcordato = value || null;
+    if(window.state?.editing) window.state.editing.importoConcordato = value || null;
+  }
+  async function selectQuotes(db, recordId){
+    const selects = [
+      'id,record_id,status,notes,subtotal_ex_vat,grand_total,accepted_at,created_at',
+      'id,record_id,status,notes,subtotal_ex_vat,accepted_at,created_at'
+    ];
+    for(const cols of selects){
+      try{
+        const res = await db.from('quotes').select(cols).eq('record_id', recordId).order('created_at', { ascending:false }).limit(20);
+        if(!res.error) return res.data || [];
+      }catch(_e){}
+    }
+    return [];
+  }
+  async function sumQuoteItems(db, quoteId){
+    const selects = [
+      'qty,unit_price_ex_vat,line_total_ex_vat',
+      'quantity,unit_price,total',
+      'quantita,prezzo,totale'
+    ];
+    for(const cols of selects){
+      try{
+        const res = await db.from('quote_items').select(cols).eq('quote_id', quoteId).limit(200);
+        if(res.error) continue;
+        const sum = (res.data || []).reduce(function(total, item){
+          const line = parseMoney(item.line_total_ex_vat ?? item.total ?? item.totale);
+          if(line && line > 0) return total + line;
+          const qty = parseMoney(item.qty ?? item.quantity ?? item.quantita) || 1;
+          const unit = parseMoney(item.unit_price_ex_vat ?? item.unit_price ?? item.prezzo) || 0;
+          return total + (qty * unit);
+        }, 0);
+        if(sum > 0) return sum;
+      }catch(_e){}
+    }
+    return null;
+  }
+  function quoteRank(q){
+    const st = String(q?.status || '').toUpperCase();
+    if(st === 'ACCETTATO' || q?.accepted_at) return 4;
+    if(st === 'INVIATO') return 3;
+    if(st === 'BOZZA') return 2;
+    return 1;
+  }
+  async function getQuoteTotal(recordId){
+    const db = getDb();
+    if(!db || !recordId) return null;
+    const quotes = await selectQuotes(db, recordId);
+    quotes.sort(function(a,b){
+      const ranked = quoteRank(b) - quoteRank(a);
+      return ranked || String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    });
+    for(const q of quotes){
+      const subtotal = parseMoney(q.subtotal_ex_vat);
+      if(subtotal && subtotal > 0) return subtotal;
+      const itemSum = await sumQuoteItems(db, q.id);
+      if(itemSum && itemSum > 0) return itemSum;
+      const grand = parseMoney(q.grand_total);
+      if(grand && grand > 0) return grand;
+    }
+    return null;
+  }
+  async function fillImportoFromQuote(persist){
+    const record = selectedRecord();
+    const input = document.getElementById('eImportoConcordato');
+    const current = parseMoney(input?.value || record?.importoConcordato);
+    if(current && current > 0) return current;
+    const amount = await getQuoteTotal(record?.id);
+    if(!(amount > 0)) return null;
+
+    const value = formatMoney(amount);
+    setImporto(value, record);
+
+    if(persist && record?.id){
+      const db = getDb();
+      try{ await db?.from('records').update({ importoConcordato:value }).eq('id', record.id); }catch(_e){}
+    }
+    return amount;
+  }
+
+  const originalOpenEdit = window.openEdit;
+  if(typeof originalOpenEdit === 'function' && !originalOpenEdit.__quoteImportoPatched){
+    window.openEdit = function(){
+      const result = originalOpenEdit.apply(this, arguments);
+      fillImportoFromQuote(true).catch(function(e){ console.warn('importo da preventivo non caricato', e); });
+      return result;
+    };
+    Object.defineProperty(window.openEdit, '__quoteImportoPatched', { value:true });
+  }
+
+  const originalSaveEdit = window.saveEdit;
+  if(typeof originalSaveEdit === 'function' && !originalSaveEdit.__quoteImportoPatched){
+    window.saveEdit = async function(){
+      await fillImportoFromQuote(false);
+      return originalSaveEdit.apply(this, arguments);
+    };
+    Object.defineProperty(window.saveEdit, '__quoteImportoPatched', { value:true });
+  }
+})();
+
 // Patch data chiusura e storico cassetto liberato.
 (function(){
   'use strict';
