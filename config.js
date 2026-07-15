@@ -73,6 +73,21 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
   }
 })();
 
+// Carica la nuova anteprima stampa della scheda avanzamento lavori.
+(function loadPhase2PrintFix(){
+  'use strict';
+  function load(){
+    if (document.querySelector('script[data-elip-phase2-print-fix]')) return;
+    var s = document.createElement('script');
+    s.src = './phase2-print-fix.js?v=1';
+    s.defer = true;
+    s.dataset.elipPhase2PrintFix = '1';
+    document.head.appendChild(s);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, { once:true });
+  else load();
+})();
+
 // Ricerca: Invio nei campi principali avvia il pulsante corretto.
 (function patchSearchEnterKeys(){
   'use strict';
