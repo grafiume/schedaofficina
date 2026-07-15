@@ -82,6 +82,8 @@
 
   const START = "<!--ELIP_PHASE2_JSON_START-->";
   const END = "<!--ELIP_PHASE2_JSON_END-->";
+  const EDIT_PASSWORD = "MIO";
+  let phase2Unlocked = false;
   const ROWS = [
     ["05","SMONTAGGIO COMPLETO DEL MOTORE SISTEMATICO"],
     ["29","LAVAGGIO COMPONENTI E TRATTAMENTO TERMICO AVVOLGIMENTI"],
@@ -145,7 +147,7 @@
     if(document.getElementById("phase2Style")) return;
     const s = document.createElement("style");
     s.id = "phase2Style";
-    s.textContent = "#phase2Card .table{min-width:1120px;margin-bottom:0}#phase2Card th{font-size:.78rem;white-space:nowrap;background:#fff6ef}#phase2Card td{vertical-align:middle}#phase2Card .phase-code{width:56px;text-align:center;font-weight:700}#phase2Card .phase-desc{min-width:310px;font-size:.86rem;line-height:1.2}#phase2Card .phase-check{width:38px;text-align:center}#phase2Card .phase-ore{width:82px}#phase2Card .phase-addetto{width:150px}#phase2Card .phase-date{width:150px}#phase2Card .phase-price{width:130px}#phase2Card input{font-size:.86rem}#phase2Card .phase-totals{display:flex;gap:.75rem;flex-wrap:wrap;justify-content:flex-end}#phase2Card .phase-total-box{border:1px solid #dee2e6;border-radius:6px;padding:.45rem .7rem;background:#f8f9fa;min-width:145px;text-align:right}#phase2Card .phase-total-box strong{display:block;font-size:1rem}@media print{#phase2Card .btn,#phase2Card .phase-save-status{display:none!important}}";
+    s.textContent = "#phase2Card .table{min-width:1120px;margin-bottom:0}#phase2Card th{font-size:.78rem;white-space:nowrap;background:#fff6ef}#phase2Card td{vertical-align:middle}#phase2Card .phase-code{width:56px;text-align:center;font-weight:700}#phase2Card .phase-desc{min-width:310px;font-size:.86rem;line-height:1.2}#phase2Card .phase-check{width:38px;text-align:center}#phase2Card .phase-ore{width:82px}#phase2Card .phase-addetto{width:150px}#phase2Card .phase-date{width:150px}#phase2Card .phase-price{width:130px}#phase2Card input{font-size:.86rem}#phase2Card .phase-totals{display:flex;gap:.75rem;flex-wrap:wrap;justify-content:flex-end}#phase2Card .phase-total-box{border:1px solid #dee2e6;border-radius:6px;padding:.45rem .7rem;background:#f8f9fa;min-width:145px;text-align:right}#phase2Card .phase-total-box strong{display:block;font-size:1rem}#phase2Card.phase-locked .phase-field{background:#f8f9fa;color:#6c757d}#phase2LockHint{font-weight:600}@media print{#phase2Card .btn,#phase2Card .phase-save-status{display:none!important}}";
     document.head.appendChild(s);
   }
   function rowHtml(rows){
@@ -162,12 +164,44 @@
     c = document.createElement("div");
     c.id = "phase2Card";
     c.className = "card mt-4 mb-4";
-    c.innerHTML = '<div class="card-header py-2 d-flex justify-content-between align-items-center gap-2 flex-wrap"><strong>Avanzamento lavori - Fase 2</strong><span class="small text-muted">Dati salvati sul preventivo collegato alla scheda</span></div><div class="card-body"><div class="table-responsive"><table class="table table-bordered table-sm align-middle"><thead><tr><th>COD</th><th>DESCRIZIONE LAVORI</th><th>X</th><th>ORE</th><th>ADDETTO</th><th>DATA ENTRATA</th><th>DATA USCITA</th><th>PREZZO</th></tr></thead><tbody id="phase2Rows"></tbody></table></div><div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mt-3"><div class="phase-save-status small text-muted" id="phase2Status">Apri una scheda per caricare l\'avanzamento.</div><div class="phase-totals"><div class="phase-total-box"><span class="small text-muted">Ore totali</span><strong id="phase2OreTot">0</strong></div><div class="phase-total-box"><span class="small text-muted">Totale prezzo</span><strong id="phase2PrezzoTot">0,00 EUR</strong></div></div><button type="button" class="btn btn-outline-primary" id="phase2SaveBtn">Salva avanzamento</button></div></div>';
+    c.innerHTML = '<div class="card-header py-2 d-flex justify-content-between align-items-center gap-2 flex-wrap"><strong>Avanzamento lavori - Fase 2</strong><span class="small text-muted" id="phase2LockHint">Bloccata: inserisci password per modificare</span></div><div class="card-body"><div class="table-responsive"><table class="table table-bordered table-sm align-middle"><thead><tr><th>COD</th><th>DESCRIZIONE LAVORI</th><th>X</th><th>ORE</th><th>ADDETTO</th><th>DATA ENTRATA</th><th>DATA USCITA</th><th>PREZZO</th></tr></thead><tbody id="phase2Rows"></tbody></table></div><div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mt-3"><div class="phase-save-status small text-muted" id="phase2Status">Apri una scheda per caricare l\\\'avanzamento.</div><div class="phase-totals"><div class="phase-total-box"><span class="small text-muted">Ore totali</span><strong id="phase2OreTot">0</strong></div><div class="phase-total-box"><span class="small text-muted">Totale prezzo</span><strong id="phase2PrezzoTot">0,00 EUR</strong></div></div><div class="d-flex gap-2 flex-wrap"><button type="button" class="btn btn-outline-secondary" id="phase2UnlockBtn">Sblocca modifiche</button><button type="button" class="btn btn-outline-primary" id="phase2SaveBtn">Salva avanzamento</button></div></div></div>';
     page.appendChild(c);
     c.addEventListener("input", totals);
     c.addEventListener("change", totals);
+    c.querySelector("#phase2UnlockBtn").addEventListener("click", unlockPhase2);
     c.querySelector("#phase2SaveBtn").addEventListener("click", save);
+    applyPhase2Lock();
     return c;
+  }
+  function applyPhase2Lock(){
+    const c = document.getElementById("phase2Card");
+    if(!c) return;
+    c.classList.toggle("phase-locked", !phase2Unlocked);
+    c.querySelectorAll(".phase-field").forEach(function(el){ el.disabled = !phase2Unlocked; });
+    const saveBtn = document.getElementById("phase2SaveBtn");
+    const unlockBtn = document.getElementById("phase2UnlockBtn");
+    const hint = document.getElementById("phase2LockHint");
+    if(saveBtn) saveBtn.disabled = !phase2Unlocked;
+    if(unlockBtn) unlockBtn.textContent = phase2Unlocked ? "Blocca modifiche" : "Sblocca modifiche";
+    if(hint) hint.textContent = phase2Unlocked ? "Sbloccata: puoi modificare e salvare" : "Bloccata: inserisci password per modificare";
+  }
+  function unlockPhase2(){
+    if(phase2Unlocked){
+      phase2Unlocked = false;
+      applyPhase2Lock();
+      return;
+    }
+    const pwd = window.prompt("Password per modificare avanzamento lavori:");
+    if(String(pwd || "").trim().toUpperCase() !== EDIT_PASSWORD){
+      const st = document.getElementById("phase2Status");
+      if(st) st.textContent = "Password errata: sezione ancora bloccata.";
+      applyPhase2Lock();
+      return;
+    }
+    phase2Unlocked = true;
+    const st = document.getElementById("phase2Status");
+    if(st) st.textContent = "Sezione sbloccata: ora puoi modificare.";
+    applyPhase2Lock();
   }
   function collect(){
     const rows = baseRows();
@@ -226,6 +260,7 @@
       const q = await findQuote(r);
       body.innerHTML = rowHtml(merge(dec(q && q.notes) || []));
       totals();
+      applyPhase2Lock();
       if(st) st.textContent = q ? "Avanzamento caricato." : "Nessun preventivo collegato: compila e premi Salva avanzamento.";
     }catch(e){
       if(st) st.textContent = "Non riesco a caricare l'avanzamento: " + (e.message || e);
@@ -235,6 +270,7 @@
     const r = rec(), client = db(), st = document.getElementById("phase2Status");
     if(!r || !r.id){ if(st) st.textContent = "Apri prima una scheda."; return; }
     if(!client){ if(st) st.textContent = "Supabase non pronto."; return; }
+    if(!phase2Unlocked){ if(st) st.textContent = "Inserisci prima la password per modificare questa sezione."; return; }
     const rows = collect();
     totals();
     if(st) st.textContent = "Salvataggio avanzamento...";
