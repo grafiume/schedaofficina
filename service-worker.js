@@ -1,5 +1,4 @@
-
-const STATIC_CACHE = 'so-static-v7';
+const STATIC_CACHE = 'so-static-v8';
 const IMG_CACHE = 'so-img-v1';
 
 self.addEventListener('install', (event) => {
@@ -10,16 +9,15 @@ self.addEventListener('install', (event) => {
       './index.html',
       './record.html',
       './record.js',
-      './preventivi.html',
-      './preventivi.js',
-      './preventivo.html',
-      './preventivo.js',
-      './preventivo-phone-patch.js',
       './config.js',
       './styles.css',
       './app-core.js',
       './app-supabase.js',
       './app.v25.js',
+      './auth-session-patch.js',
+      './deep-open-edit.js',
+      './scheda-only-preventivo.js',
+      './cassetti-integration.js',
       './manifest.json'
     ]);
     self.skipWaiting();
@@ -39,12 +37,7 @@ function isImageRequest(req) {
   const dest = req.destination;
   const url = new URL(req.url);
   if (dest === 'image') return true;
-  // Supabase storage/public buckets or images paths
   return /storage\/v1\/object|supabase\.co.*(jpg|jpeg|png|webp|gif)$/i.test(url.href);
-}
-
-function patchQuotePhoneText(text) {
-  return String(text || '').replace(/080\s*887\s*675(?!6)/g, '080 887 6756');
 }
 
 function patchSearchEnterText(text) {
@@ -74,20 +67,6 @@ async function fetchPatchedStatic(req, cache) {
   if (!fresh || !fresh.ok) return fresh;
 
   const url = new URL(req.url);
-  if (/\/preventivo\.js$/i.test(url.pathname)) {
-    const patched = patchQuotePhoneText(await fresh.clone().text());
-    const response = new Response(patched, {
-      status: fresh.status,
-      statusText: fresh.statusText,
-      headers: {
-        'Content-Type': 'application/javascript; charset=utf-8',
-        'Cache-Control': 'no-cache'
-      }
-    });
-    cache.put(req, response.clone());
-    return response;
-  }
-
   if (/\/app\.v25\.js$/i.test(url.pathname)) {
     const patched = patchSearchEnterText(await fresh.clone().text());
     const response = new Response(patched, {
@@ -133,7 +112,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Default: network first, fallback to cache
+  // Default: network first, fallback to cache.
   event.respondWith((async () => {
     try { return await fetch(req); }
     catch(e) { return await caches.match(req); }
