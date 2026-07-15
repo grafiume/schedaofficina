@@ -1,5 +1,5 @@
 // Gestione preventivo solo dalla scheda riparazione.
-// Disattiva l'uso operativo di preventivo.html e preventivi.html.
+// Disattiva l'uso operativo di preventivo.html e preventivi.html senza appesantire il caricamento.
 (function(){
   'use strict';
 
@@ -32,9 +32,8 @@
     });
     return sum;
   }
-  function importoInput(){ return document.getElementById('eImportoConcordato'); }
   function currentImporto(){
-    var input = importoInput();
+    var input = document.getElementById('eImportoConcordato');
     var amount = parseMoney(input && input.value);
     if(amount > 0) return amount;
     amount = phase2Total();
@@ -90,8 +89,7 @@
       }
 
       setStatus('Preventivo salvato nella scheda. Importo concordato aggiornato.');
-      if(typeof window.loadAll === 'function') window.loadAll();
-      alert('Preventivo salvato nella scheda. Non serve aprire preventivo.html o preventivi.html.');
+      alert('Preventivo salvato nella scheda.');
     }catch(e){
       alert('Errore salvataggio preventivo nella scheda: ' + (e.message || e));
     }
@@ -99,7 +97,7 @@
   function prepareButtons(){
     var nav = document.getElementById('btnPreventivi');
     if(nav){
-      nav.classList.add('d-none');
+      nav.style.display = 'none';
       nav.disabled = true;
       nav.title = 'I preventivi ora si gestiscono dalla scheda cliente';
     }
@@ -113,8 +111,8 @@
   }
   function bind(){
     prepareButtons();
-    var mo = new MutationObserver(prepareButtons);
-    if(document.body) mo.observe(document.body, { childList:true, subtree:true });
+    window.setTimeout(prepareButtons, 1000);
+    window.setTimeout(prepareButtons, 3000);
 
     document.addEventListener('click', function(ev){
       var target = ev.target;
@@ -127,12 +125,6 @@
         ev.preventDefault();
         ev.stopImmediatePropagation();
         alert('Ora i preventivi si gestiscono direttamente dalla scheda cliente.');
-        return;
-      }
-      if(badge && !document.getElementById('page-edit')?.classList.contains('d-none')){
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-        savePreventivoInsideScheda();
         return;
       }
       if(badge){
