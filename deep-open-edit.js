@@ -143,6 +143,38 @@
     const block = START + enc(rows) + END;
     return clean ? clean + "\n" + block : block;
   }
+  function storageKey(r){
+    return r && r.id ? "ELIP_PHASE2_ROWS_" + r.id : "";
+  }
+  function saveLocalRows(r, rows){
+    try{
+      const key = storageKey(r);
+      if(key) localStorage.setItem(key, JSON.stringify({ rows:rows, savedAt:new Date().toISOString() }));
+    }catch(_e){}
+  }
+  function loadLocalRows(r){
+    try{
+      const key = storageKey(r);
+      if(!key) return null;
+      const parsed = JSON.parse(localStorage.getItem(key) || "null");
+      return parsed && Array.isArray(parsed.rows) ? parsed.rows : null;
+    }catch(_e){
+      return null;
+    }
+  }
+  function textOf(id){
+    const el = document.getElementById(id);
+    return el ? (el.value || el.textContent || "").trim() : "";
+  }
+  function fmtDate(v){
+    if(!v) return "";
+    const s = String(v);
+    if(/^\d{4}-\d{2}-\d{2}/.test(s)){
+      const parts = s.slice(0, 10).split("-");
+      return parts[2] + "/" + parts[1] + "/" + parts[0];
+    }
+    return s;
+  }
   function style(){
     if(document.getElementById("phase2Style")) return;
     const s = document.createElement("style");
@@ -164,12 +196,13 @@
     c = document.createElement("div");
     c.id = "phase2Card";
     c.className = "card mt-4 mb-4";
-    c.innerHTML = '<div class="card-header py-2 d-flex justify-content-between align-items-center gap-2 flex-wrap"><strong>Avanzamento lavori - Fase 2</strong><span class="small text-muted" id="phase2LockHint">Bloccata: inserisci password per modificare</span></div><div class="card-body"><div class="table-responsive"><table class="table table-bordered table-sm align-middle"><thead><tr><th>COD</th><th>DESCRIZIONE LAVORI</th><th>X</th><th>ORE</th><th>ADDETTO</th><th>DATA ENTRATA</th><th>DATA USCITA</th><th>PREZZO</th></tr></thead><tbody id="phase2Rows"></tbody></table></div><div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mt-3"><div class="phase-save-status small text-muted" id="phase2Status">Apri una scheda per caricare l\\\'avanzamento.</div><div class="phase-totals"><div class="phase-total-box"><span class="small text-muted">Ore totali</span><strong id="phase2OreTot">0</strong></div><div class="phase-total-box"><span class="small text-muted">Totale prezzo</span><strong id="phase2PrezzoTot">0,00 EUR</strong></div></div><div class="d-flex gap-2 flex-wrap"><button type="button" class="btn btn-outline-secondary" id="phase2UnlockBtn">Sblocca modifiche</button><button type="button" class="btn btn-outline-primary" id="phase2SaveBtn">Salva avanzamento</button></div></div></div>';
+    c.innerHTML = '<div class="card-header py-2 d-flex justify-content-between align-items-center gap-2 flex-wrap"><strong>Avanzamento lavori - Fase 2</strong><span class="small text-muted" id="phase2LockHint">Bloccata: inserisci password per modificare</span></div><div class="card-body"><div class="table-responsive"><table class="table table-bordered table-sm align-middle"><thead><tr><th>COD</th><th>DESCRIZIONE LAVORI</th><th>X</th><th>ORE</th><th>ADDETTO</th><th>DATA ENTRATA</th><th>DATA USCITA</th><th>PREZZO</th></tr></thead><tbody id="phase2Rows"></tbody></table></div><div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mt-3"><div class="phase-save-status small text-muted" id="phase2Status">Apri una scheda per caricare l\\\'avanzamento.</div><div class="phase-totals"><div class="phase-total-box"><span class="small text-muted">Ore totali</span><strong id="phase2OreTot">0</strong></div><div class="phase-total-box"><span class="small text-muted">Totale prezzo</span><strong id="phase2PrezzoTot">0,00 EUR</strong></div></div><div class="d-flex gap-2 flex-wrap"><button type="button" class="btn btn-outline-secondary" id="phase2UnlockBtn">Sblocca modifiche</button><button type="button" class="btn btn-outline-primary" id="phase2SaveBtn">Salva avanzamento</button><button type="button" class="btn btn-outline-dark" id="phase2PrintBtn">Stampa scheda lavoro</button></div></div></div>';
     page.appendChild(c);
     c.addEventListener("input", totals);
     c.addEventListener("change", totals);
     c.querySelector("#phase2UnlockBtn").addEventListener("click", unlockPhase2);
     c.querySelector("#phase2SaveBtn").addEventListener("click", save);
+    c.querySelector("#phase2PrintBtn").addEventListener("click", printPhase2);
     applyPhase2Lock();
     return c;
   }
@@ -258,7 +291,7 @@
     if(st) st.textContent = "Caricamento avanzamento...";
     try{
       const q = await findQuote(r);
-      body.innerHTML = rowHtml(merge(dec(q && q.notes) || []));
+      body.innerHTML = rowHtml(merge(dec(q && q.notes) || loadLocalRows(r) || []));
       totals();
       applyPhase2Lock();
       if(st) st.textContent = q ? "Avanzamento caricato." : "Nessun preventivo collegato: compila e premi Salva avanzamento.";
@@ -266,23 +299,43 @@
       if(st) st.textContent = "Non riesco a caricare l'avanzamento: " + (e.message || e);
     }
   }
-  async function save(){
+  async function save(options){
+    options = options || {};
     const r = rec(), client = db(), st = document.getElementById("phase2Status");
     if(!r || !r.id){ if(st) st.textContent = "Apri prima una scheda."; return; }
     if(!client){ if(st) st.textContent = "Supabase non pronto."; return; }
     if(!phase2Unlocked){ if(st) st.textContent = "Inserisci prima la password per modificare questa sezione."; return; }
     const rows = collect();
     totals();
-    if(st) st.textContent = "Salvataggio avanzamento...";
+    saveLocalRows(r, rows);
+    if(st && !options.silent) st.textContent = "Salvataggio avanzamento...";
     try{
       const q = await findOrCreateQuote(r);
       if(!q || !q.id) throw new Error("preventivo collegato non disponibile");
       const res = await client.from("quotes").update({notes:withData(q.notes || "", rows)}).eq("id", q.id);
       if(res.error) throw res.error;
-      if(st) st.textContent = "Avanzamento salvato. Totali aggiornati.";
+      if(st && !options.silent) st.textContent = "Avanzamento salvato. Totali aggiornati.";
+      return true;
     }catch(e){
-      if(st) st.textContent = "Errore salvataggio avanzamento: " + (e.message || e);
+      if(st) st.textContent = "Errore salvataggio avanzamento online, copia locale salvata: " + (e.message || e);
+      return false;
     }
+  }
+  function printableCell(v){ return esc(v || "&nbsp;"); }
+  function printPhase2(){
+    const r = rec() || {};
+    const rows = collect();
+    const ore = rows.reduce(function(s,row){ return s + num(row.ore); }, 0);
+    const prezzo = rows.reduce(function(s,row){ return s + num(row.prezzo); }, 0);
+    const htmlRows = rows.map(function(row){
+      return "<tr><td>"+printableCell(row.code)+"</td><td>"+printableCell(row.description)+"</td><td>"+(row.checked ? "X" : "")+"</td><td>"+printableCell(row.ore)+"</td><td>"+printableCell(row.addetto)+"</td><td>"+printableCell(fmtDate(row.dataEntrata))+"</td><td>"+printableCell(fmtDate(row.dataUscita))+"</td><td>"+printableCell(row.prezzo)+"</td></tr>";
+    }).join("");
+    const doc = '<!doctype html><html><head><meta charset="utf-8"><title>Scheda avanzamento lavori</title><style>@page{size:A4;margin:10mm}body{font-family:Arial,sans-serif;color:#111;font-size:11px}.head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;border-bottom:3px solid #ff6b00;padding-bottom:8px;margin-bottom:10px}.brand{font-size:24px;font-weight:800}.brand span{display:block;color:#ff6b00;font-size:13px;letter-spacing:4px}.title{font-size:24px;font-weight:800;text-align:center}.info{font-size:10px;line-height:1.45}.grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:0;border:1px solid #111;border-bottom:0}.box{border-right:1px solid #111;border-bottom:1px solid #111;padding:7px;min-height:34px}.box:nth-child(3n){border-right:0}.lbl{font-weight:700;display:block;margin-bottom:5px}.desc{border:1px solid #111;border-top:0;padding:7px;min-height:34px}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #111;padding:5px;vertical-align:middle}th{background:#fff3e8;font-weight:800;text-align:center}td:nth-child(1),td:nth-child(3),td:nth-child(4),td:nth-child(8){text-align:center}.tot{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}.tot div{border:1px solid #111;padding:8px 14px;font-weight:800}.sign{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.sign div{border:1px solid #111;min-height:64px;padding:7px}.foot{text-align:center;font-weight:800;margin-top:12px;border-top:2px solid #ff6b00;padding-top:8px}</style></head><body><div class="head"><div class="brand">ELIP TAGLIENTE<span>MOTORI ELETTRICI</span></div><div class="title">SCHEDA RIPARAZIONE /<br>AVANZAMENTO LAVORI</div><div class="info">Via Conchia, 54/E - 70043 Monopoli (BA)<br>080.777.090 - 080.887.67.56<br>info@eliptagliente.it<br>www.eliptagliente.it</div></div><div class="grid"><div class="box"><span class="lbl">CLIENTE</span>'+printableCell(textOf("eCliente") || r.cliente)+'</div><div class="box"><span class="lbl">TELEFONO</span>'+printableCell(textOf("eTel") || r.telefono)+'</div><div class="box"><span class="lbl">DATA</span>'+printableCell(fmtDate(textOf("eApertura") || r.dataApertura))+'</div><div class="box"><span class="lbl">CASSETTO</span>'+printableCell(textOf("eCassetto") || r.cassetto || r.cassetto_storico)+'</div><div class="box"><span class="lbl">N. PREVENTIVO</span></div><div class="box"><span class="lbl">Q.TA</span></div></div><div class="desc"><span class="lbl">DESCRIZIONE/TIPO</span>'+printableCell(textOf("eDescrizione") || r.descrizione)+'</div><table><thead><tr><th>COD</th><th>DESCRIZIONE LAVORI</th><th>X</th><th>ORE</th><th>ADDETTO</th><th>DATA ENTRATA</th><th>DATA USCITA</th><th>PREZZO</th></tr></thead><tbody>'+htmlRows+'</tbody></table><div class="tot"><div>ORE TOTALI: '+ore.toLocaleString("it-IT",{maximumFractionDigits:2})+'</div><div>TOTALE PREZZO: '+euro(prezzo)+'</div></div><div class="sign"><div><strong>ESITO COLLAUDO</strong><br><br>□ POSITIVO &nbsp;&nbsp; □ NEGATIVO</div><div><strong>FIRMA RESPONSABILE</strong><br><br><br>DATA ____________________</div></div><div class="foot">GRAZIE PER AVER SCELTO LA NOSTRA OFFICINA</div><script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>';
+    const w = window.open("", "_blank");
+    if(!w) return;
+    w.document.open();
+    w.document.write(doc);
+    w.document.close();
   }
 
   const originalOpenEdit = window.openEdit;
@@ -293,6 +346,14 @@
       return out;
     };
     Object.defineProperty(window.openEdit, "__phase2Patched", {value:true});
+  }
+  const originalSaveEdit = window.saveEdit;
+  if(typeof originalSaveEdit === "function" && !originalSaveEdit.__phase2SavePatched){
+    window.saveEdit = async function(){
+      if(phase2Unlocked) await save({ silent:true });
+      return originalSaveEdit.apply(this, arguments);
+    };
+    Object.defineProperty(window.saveEdit, "__phase2SavePatched", {value:true});
   }
 
   if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", card, {once:true});
