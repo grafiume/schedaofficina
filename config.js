@@ -73,13 +73,27 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
   }
 })();
 
+// Fase 2: la colonna X non serve piu, resta solo compatibilita dati nascosta.
+(function hidePhase2XColumn(){
+  'use strict';
+  function addStyle(){
+    if (document.getElementById('phase2NoXStyle')) return;
+    var s = document.createElement('style');
+    s.id = 'phase2NoXStyle';
+    s.textContent = '#phase2Card th:nth-child(3),#phase2Card td:nth-child(3){display:none!important}#phase2Card .table{min-width:1040px!important}#phase2Card .phase-desc{min-width:360px!important}';
+    document.head.appendChild(s);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addStyle, { once:true });
+  else addStyle();
+})();
+
 // Carica la nuova anteprima stampa della scheda avanzamento lavori.
 (function loadPhase2PrintFix(){
   'use strict';
   function load(){
     if (document.querySelector('script[data-elip-phase2-print-fix]')) return;
     var s = document.createElement('script');
-    s.src = './phase2-print-fix.js?v=1';
+    s.src = './phase2-print-fix.js?v=2';
     s.defer = true;
     s.dataset.elipPhase2PrintFix = '1';
     document.head.appendChild(s);
