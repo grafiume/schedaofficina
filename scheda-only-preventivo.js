@@ -23,7 +23,7 @@
   }
   function formatMoney(n){
     var v = Number(n || 0);
-    return Number.isFinite(v) && v > 0 ? v.toFixed(2).replace('.', ',') : '';
+    return Number.isFinite(v) && v > 0 ? v.toFixed(2) : '';
   }
   function phase2Total(){
     var sum = 0;
@@ -69,7 +69,7 @@
     }
     var amountText = formatMoney(amount);
     try{
-      await client.from('records').update({ importoConcordato: amountText }).eq('id', r.id);
+      await client.from('records').update({ importoConcordato: amount }).eq('id', r.id);
       r.importoConcordato = amountText;
 
       if(typeof window.syncAutoQuoteForRecord === 'function'){
