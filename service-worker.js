@@ -1,4 +1,4 @@
-const STATIC_CACHE = 'so-static-v10';
+const STATIC_CACHE = 'so-static-v11';
 const IMG_CACHE = 'so-img-v1';
 
 self.addEventListener('install', (event) => {
@@ -17,6 +17,7 @@ self.addEventListener('install', (event) => {
       './auth-session-patch.js',
       './deep-open-edit.js',
       './scheda-only-preventivo.js',
+      './phase2-print-fix.js',
       './cassetti-integration.js',
       './manifest.json'
     ]);
