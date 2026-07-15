@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ripristino Scheda Officina</title>
+  <style>
+    body{font-family:Arial,sans-serif;margin:40px;color:#111;line-height:1.45}
+    .box{max-width:560px;margin:auto;border:1px solid #ddd;border-radius:8px;padding:24px}
+    h1{font-size:22px;margin:0 0 12px}
+    .muted{color:#666}
+    .ok{color:#198754;font-weight:700}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Ripristino scheda officina</h1>
+    <p id="msg">Pulizia cache in corso...</p>
+    <p class="muted">Tra pochi secondi verrai riportato alla scheda riparazioni.</p>
+  </div>
+  <script>
+    (async function(){
+      const msg = document.getElementById('msg');
+      try{
+        if('serviceWorker' in navigator){
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+        if(window.caches && caches.keys){
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+        try{ localStorage.removeItem('ELIP_CACHE_RESET_PENDING'); }catch(_e){}
+        msg.textContent = 'Cache pulita correttamente.';
+        msg.className = 'ok';
+      }catch(e){
+        msg.textContent = 'Pulizia completata parzialmente. Procedo comunque con il riavvio.';
+      }
+      setTimeout(function(){
+        location.replace('./index.html?fresh=' + Date.now());
+      }, 1200);
+    })();
+  </script>
+</body>
+</html>
