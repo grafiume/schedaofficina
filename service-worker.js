@@ -1,4 +1,4 @@
-const STATIC_CACHE = 'so-static-v9';
+const STATIC_CACHE = 'so-static-v10';
 const IMG_CACHE = 'so-img-v1';
 
 self.addEventListener('install', (event) => {
@@ -39,49 +39,9 @@ function isImageRequest(req) {
   return /storage\/v1\/object|supabase\.co.*(jpg|jpeg|png|webp|gif)$/i.test(url.href);
 }
 
-function patchSearchEnterText(text) {
-  const source = String(text || '');
-  if (source.includes('__elipSearchEnterPatched')) return source;
-  return source + `
-
-// Patch: il tasto Invio nel campo Ricerca avvia il pulsante Cerca.
-(function(){
-  document.addEventListener('DOMContentLoaded', function(){
-    var q = document.getElementById('q');
-    if (!q || q.__elipSearchEnterPatched) return;
-    q.__elipSearchEnterPatched = true;
-    q.addEventListener('keydown', function(ev){
-      if (ev.key !== 'Enter') return;
-      ev.preventDefault();
-      var btn = document.getElementById('btnDoSearch');
-      if (btn) btn.click();
-    });
-  });
-})();
-`;
-}
-
-async function fetchPatchedStatic(req, cache) {
-  const noCacheReq = new Request(req, { cache: 'reload' });
-  const fresh = await fetch(noCacheReq);
-  if (!fresh || !fresh.ok) return fresh;
-
-  const url = new URL(req.url);
-  if (/\/app\.v25\.js$/i.test(url.pathname)) {
-    const patched = patchSearchEnterText(await fresh.clone().text());
-    const response = new Response(patched, {
-      status: fresh.status,
-      statusText: fresh.statusText,
-      headers: {
-        'Content-Type': 'application/javascript; charset=utf-8',
-        'Cache-Control': 'no-cache'
-      }
-    });
-    cache.put(req, response.clone());
-    return response;
-  }
-
-  cache.put(req, fresh.clone());
+async function fetchStatic(req, cache) {
+  const fresh = await fetch(new Request(req, { cache: 'reload' }));
+  if (fresh && fresh.ok) cache.put(req, fresh.clone());
   return fresh;
 }
 
@@ -103,7 +63,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith((async () => {
       const cache = await caches.open(STATIC_CACHE);
       try {
-        return await fetchPatchedStatic(req, cache);
+        return await fetchStatic(req, cache);
       } catch(e) {
         return await caches.match(req) || new Response('', { status: 504 });
       }
