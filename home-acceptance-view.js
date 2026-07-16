@@ -72,9 +72,15 @@
       '.btn-sort{border:1px solid #adb5bd;background:#fff;color:#495057;border-radius:999px;padding:.25rem .8rem;font-size:.88rem;line-height:1.35}',
       '.btn-sort.active{background:#263238;border-color:#263238;color:#fff;font-weight:700}',
       '.table-app th{white-space:normal;text-align:center;line-height:1.15}',
-      '#tblHome td:nth-child(2),#tblHome td:nth-child(3),#tblHome td:nth-child(4),#tblHome td:nth-child(7),#tblHome td:nth-child(8),#tblSearch td:nth-child(2),#tblSearch td:nth-child(3),#tblSearch td:nth-child(4),#tblSearch td:nth-child(7),#tblSearch td:nth-child(8){text-align:center}',
+      '#tblHome td:nth-child(2),#tblHome td:nth-child(3),#tblHome td:nth-child(4),#tblHome td:nth-child(7),#tblHome td:nth-child(8),#tblHome td:nth-child(9),#tblSearch td:nth-child(2),#tblSearch td:nth-child(3),#tblSearch td:nth-child(4),#tblSearch td:nth-child(7),#tblSearch td:nth-child(8),#tblSearch td:nth-child(9){text-align:center}',
       '.table-app th,.table-app td{border-right:1px solid #e1e5e8}',
-      '.table-app th:last-child,.table-app td:last-child{border-right:0}'
+      '.table-app th:last-child,.table-app td:last-child{border-right:0}',
+      '.status-compact{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:54px}',
+      '.status-dot{width:14px;height:14px;border-radius:50%;display:inline-block}',
+      '.status-label{font-size:11px;line-height:1.05;color:#495057;text-align:center;max-width:68px}',
+      '.status-attesa{background:#9aa0a6}',
+      '.status-lavorazione{background:#f28c28}',
+      '.status-completata{background:#2eaf61}'
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -82,7 +88,30 @@
   function header(tableId){
     var tr = document.querySelector('#' + tableId + ' thead tr');
     if(!tr) return;
-    tr.innerHTML = '<th class="thumb-cell">Foto</th><th class="text-center">Data<br>ing.</th><th class="text-center">Data<br>acc.</th><th>Cassetto</th><th>Cliente</th><th>Descrizione</th><th>Modello</th><th class="text-end">Azioni</th>';
+    tr.innerHTML = '<th class="thumb-cell">Foto</th><th class="text-center">Data<br>ing.</th><th class="text-center">Data<br>acc.</th><th>Cassetto</th><th>Cliente</th><th>Descrizione</th><th>Modello</th><th>Stato</th><th class="text-end">Azioni</th>';
+  }
+
+  function statusMeta(record){
+    var s = norm(record && record.statoPratica);
+    if(s.indexOf('completata') >= 0) return { cls:'status-completata', lines:['Completata'] };
+    if(s.indexOf('lavorazione') >= 0) return { cls:'status-lavorazione', lines:['In','lavorazione'] };
+    return { cls:'status-attesa', lines:['In','attesa'] };
+  }
+
+  function renderStatusCell(td, record){
+    if(!td) return;
+    var meta = statusMeta(record);
+    td.innerHTML = '';
+    var wrap = document.createElement('div');
+    wrap.className = 'status-compact';
+    var dot = document.createElement('span');
+    dot.className = 'status-dot ' + meta.cls;
+    var label = document.createElement('span');
+    label.className = 'status-label';
+    label.innerHTML = meta.lines.map(function(x){ return String(x); }).join('<br>');
+    wrap.appendChild(dot);
+    wrap.appendChild(label);
+    td.appendChild(wrap);
   }
 
   function quoteInfo(record){
@@ -127,7 +156,7 @@
       } else {
         tr.children[2].textContent = fmtShort(record.dataAccettazione);
       }
-      if(tr.children.length >= 9) tr.deleteCell(7);
+      renderStatusCell(tr.children[7], record);
       recolorP(tr, record);
     });
   }
@@ -210,7 +239,7 @@
       ensureSortbar();
       sortButtonState();
       var empty = document.querySelector('#homeRows td[colspan]');
-      if(empty) empty.setAttribute('colspan','8');
+      if(empty) empty.setAttribute('colspan','9');
     };
     window.renderHome.__acceptancePatched = true;
     return true;
@@ -229,7 +258,7 @@
         }catch(e){}
         transformRows('searchRows', rows);
         var empty = document.querySelector('#searchRows td[colspan]');
-        if(empty) empty.setAttribute('colspan','8');
+        if(empty) empty.setAttribute('colspan','9');
       }, 0);
     }
     ['btnDoSearch','btnApply'].forEach(function(id){
