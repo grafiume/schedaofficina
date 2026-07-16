@@ -203,6 +203,19 @@
     document.getElementById('sortDecr').addEventListener('click', function(){ sortState.dir='desc'; renderCurrent(); });
   }
 
+  function bindHomeReload(){
+    var btn = document.getElementById('btnHome');
+    if(!btn || btn.__homeReloadAllPatched) return;
+    btn.__homeReloadAllPatched = true;
+    btn.addEventListener('click', function(){
+      currentHomeRows = [];
+      setTimeout(function(){
+        if(typeof window.loadAll === 'function') window.loadAll();
+        else if(window.state && Array.isArray(window.state.all) && typeof window.renderHome === 'function') window.renderHome(window.state.all);
+      }, 0);
+    });
+  }
+
   function sortButtonState(){
     function on(id, active){ var el=document.getElementById(id); if(el) el.classList.toggle('active', !!active); }
     on('sortDataIng', sortState.field === 'dataApertura');
@@ -237,6 +250,7 @@
       ensureKpiAcc();
       updateKpiAcc(currentHomeRows);
       ensureSortbar();
+      bindHomeReload();
       sortButtonState();
       var empty = document.querySelector('#homeRows td[colspan]');
       if(empty) empty.setAttribute('colspan','9');
@@ -274,6 +288,7 @@
     injectStyle();
     ensureKpiAcc();
     ensureSortbar();
+    bindHomeReload();
     header('tblHome');
     header('tblSearch');
     patchSearch();
