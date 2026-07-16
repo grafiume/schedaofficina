@@ -124,25 +124,16 @@
     td.appendChild(wrap);
   }
 
-  function quoteInfo(record){
-    var q = window.state && window.state.quoteMap ? window.state.quoteMap[record.id] : null;
-    var st = String(q && q.status || '').toUpperCase();
-    return {
-      exists: !!(q && q.id),
-      accepted: st === 'ACCETTATO' || !!(q && q.accepted_at)
-    };
-  }
-
   function recolorP(tr, record){
     var badge = tr && tr.querySelector('.badge-p');
     if(!badge || !record) return;
-    var q = quoteInfo(record);
-    var accepted = !!(record.dataAccettazione || q.accepted);
+    var accepted = !!record.dataAccettazione;
+    var sent = !!record.dataScadenza;
     badge.classList.remove('p-gray','p-yellow','p-blue','p-orange','p-green','p-red');
     if(accepted){
       badge.classList.add('p-green');
       badge.title = 'Preventivo accettato';
-    } else if(q.exists){
+    } else if(sent){
       badge.classList.add('p-orange');
       badge.title = 'Preventivo emesso/inviato';
     } else {
