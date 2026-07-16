@@ -44,7 +44,6 @@
   }
 
   function maybeSetEditSentDate(){
-    copyAcceptedDateIfNeeded();
     if(phase2HasWork()) ensureSentDate('eScad');
   }
 
