@@ -7,7 +7,8 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 // - dataArrivo segue dataApertura
 // - importoConcordato viene inviato come numero valido per Supabase, con punto decimale.
 // - se viene inserito un importo concordato e manca la data accettazione, usa la data di oggi.
-// - se la Fase 2 e' compilata e manca data invio prev., usa la data di oggi.
+// - se la scheda e' accettata e manca data invio P., copia la data accettazione.
+// - se la Fase 2 e' compilata e manca data invio P., usa la data di oggi.
 (function patchRecordsPayload(){
   'use strict';
 
@@ -49,14 +50,18 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
     if (Object.prototype.hasOwnProperty.call(payload, 'dataApertura')) {
       payload.dataArrivo = payload.dataApertura || null;
     }
-    if (Object.prototype.hasOwnProperty.call(payload, 'dataScadenza') && !payload.dataScadenza && phase2HasWork()) {
-      payload.dataScadenza = todayISO();
+    if (Object.prototype.hasOwnProperty.call(payload, 'dataScadenza') && !payload.dataScadenza) {
+      if (payload.dataAccettazione) payload.dataScadenza = payload.dataAccettazione;
+      else if (phase2HasWork()) payload.dataScadenza = todayISO();
     }
     if (Object.prototype.hasOwnProperty.call(payload, 'importoConcordato')) {
       var amount = normalizeMoney(payload.importoConcordato);
       payload.importoConcordato = amount;
       if (amount > 0 && Object.prototype.hasOwnProperty.call(payload, 'dataAccettazione') && !payload.dataAccettazione) {
         payload.dataAccettazione = todayISO();
+        if (Object.prototype.hasOwnProperty.call(payload, 'dataScadenza') && !payload.dataScadenza) {
+          payload.dataScadenza = payload.dataAccettazione;
+        }
       }
     }
     return payload;
@@ -136,7 +141,7 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
   function load(){
     if (document.querySelector('script[data-elip-sent-date-phase2]')) return;
     var s = document.createElement('script');
-    s.src = './sent-date-phase2.js?v=1';
+    s.src = './sent-date-phase2.js?v=2';
     s.async = false;
     s.dataset.elipSentDatePhase2 = '1';
     document.head.appendChild(s);
@@ -151,7 +156,7 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
   function load(){
     if (document.querySelector('script[data-elip-home-acceptance-view]')) return;
     var s = document.createElement('script');
-    s.src = './home-acceptance-view.js?v=5';
+    s.src = './home-acceptance-view.js?v=6';
     s.async = false;
     s.dataset.elipHomeAcceptanceView = '1';
     document.head.appendChild(s);
