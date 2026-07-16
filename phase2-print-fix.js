@@ -1,5 +1,5 @@
 // Anteprima stampa corretta per scheda avanzamento lavori.
-// DDT/NOTE presenti, celle vuote pulite, senza colonna X, collaudo o firma.
+// Logo ELIP, date arrivo/invio/accettazione, DDT/NOTE, celle vuote pulite.
 (function(){
   'use strict';
 
@@ -18,12 +18,20 @@
   }
   function fmtDate(v){
     if(!v) return '';
-    var s = String(v);
+    var s = String(v).trim();
+    if(!s) return '';
     if(/^\d{4}-\d{2}-\d{2}/.test(s)){
       var p = s.slice(0,10).split('-');
       return p[2] + '/' + p[1] + '/' + p[0];
     }
     return s;
+  }
+  function first(){
+    for(var i=0;i<arguments.length;i++){
+      var v = arguments[i];
+      if(v != null && String(v).trim() !== '') return v;
+    }
+    return '';
   }
   function num(v){
     var n = Number(String(v || '').replace(',', '.'));
@@ -50,6 +58,9 @@
     var rows = collectRows();
     var ore = rows.reduce(function(s,row){ return s + num(row.ore); }, 0);
     var prezzo = rows.reduce(function(s,row){ return s + num(row.prezzo); }, 0);
+    var dataArrivo = fmtDate(first(textOf('eApertura'), r.dataArrivo, r.dataApertura));
+    var dataInvio = fmtDate(first(textOf('eScad'), r.dataScadenza));
+    var dataAcc = fmtDate(first(textOf('eAcc'), r.dataAccettazione));
     var htmlRows = rows.map(function(row){
       return '<tr>'+
         '<td>'+cell(row.code)+'</td>'+
@@ -63,8 +74,8 @@
     }).join('');
 
     return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Scheda avanzamento lavori</title><style>'+css()+'</style></head><body>'+toolbar()+
-      '<main class="sheet" id="sheet"><div class="head"><div class="brand">ELIP TAGLIENTE<span>MOTORI ELETTRICI</span></div><div class="title">SCHEDA RIPARAZIONE /<br>AVANZAMENTO LAVORI</div><div class="info">Via Conchia, 54/E - 70043 Monopoli (BA)<br>080.777.090 - 080.887.67.56<br>info@eliptagliente.it<br>www.eliptagliente.it</div></div>'+ 
-      '<div class="grid"><div class="box"><span class="lbl">CLIENTE</span>'+cell(textOf('eCliente') || r.cliente)+'</div><div class="box"><span class="lbl">TELEFONO</span>'+cell(textOf('eTel') || r.telefono)+'</div><div class="box"><span class="lbl">DATA</span>'+cell(fmtDate(textOf('eApertura') || r.dataApertura))+'</div><div class="box"><span class="lbl">CASSETTO</span>'+cell(textOf('eCassetto') || r.cassetto || r.cassetto_storico)+'</div><div class="box"><span class="lbl">N. PREVENTIVO</span></div><div class="box"><span class="lbl">Q.TA</span></div></div>'+ 
+      '<main class="sheet" id="sheet"><div class="head"><div class="brand"><img src="logo-elip.jpg" alt="ELIP TAGLIENTE"></div><div class="title">SCHEDA RIPARAZIONE /<br>AVANZAMENTO LAVORI</div><div class="info">Via Conchia, 54/E - 70043 Monopoli (BA)<br>080.777.090 - 080.887.67.56<br>info@eliptagliente.it<br>www.eliptagliente.it</div></div>'+ 
+      '<div class="grid"><div class="box"><span class="lbl">CLIENTE</span>'+cell(textOf('eCliente') || r.cliente)+'</div><div class="box"><span class="lbl">TELEFONO</span>'+cell(textOf('eTel') || r.telefono)+'</div><div class="box"><span class="lbl">DATA ARRIVO</span>'+cell(dataArrivo)+'</div><div class="box"><span class="lbl">CASSETTO</span>'+cell(textOf('eCassetto') || r.cassetto || r.cassetto_storico)+'</div><div class="box"><span class="lbl">DATA INVIO P.</span>'+cell(dataInvio)+'</div><div class="box"><span class="lbl">DATA ACCETTAZIONE</span>'+cell(dataAcc)+'</div></div>'+ 
       '<div class="desc"><span class="lbl">DESCRIZIONE/TIPO</span>'+cell(textOf('eDescrizione') || r.descrizione)+'</div>'+ 
       '<div class="extra"><div><span class="lbl">DDT</span>'+cell(textOf('eDDT') || r.docTrasporto)+'</div><div><span class="lbl">NOTE</span>'+cell(textOf('eNote') || r.note)+'</div></div>'+ 
       '<table><thead><tr><th>COD</th><th>DESCRIZIONE LAVORI</th><th>ORE</th><th>ADDETTO</th><th>DATA ENTRATA</th><th>DATA USCITA</th><th>PREZZO</th></tr></thead><tbody>'+htmlRows+'</tbody></table>'+ 
@@ -75,7 +86,7 @@
     return '<div class="toolbar"><button id="printBtn">Stampa</button><button id="shareBtn">Condividi</button><button id="closeBtn">Chiudi anteprima</button></div>';
   }
   function css(){
-    return '@page{size:A4;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111;font-size:11px;margin:0;background:#f3f4f6}.toolbar{position:sticky;top:0;z-index:5;display:flex;gap:8px;justify-content:center;padding:10px;background:#fff;border-bottom:1px solid #ddd}.toolbar button{border:1px solid #333;background:#fff;border-radius:6px;padding:8px 14px;font-weight:700}.toolbar button:first-child{background:#ff6b00;border-color:#ff6b00;color:#fff}.sheet{width:210mm;min-height:297mm;margin:12px auto;padding:10mm;background:#fff}.head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;border-bottom:3px solid #ff6b00;padding-bottom:8px;margin-bottom:10px}.brand{font-size:24px;font-weight:800}.brand span{display:block;color:#ff6b00;font-size:13px;letter-spacing:4px}.title{font-size:24px;font-weight:800;text-align:center}.info{font-size:10px;line-height:1.45}.grid{display:grid;grid-template-columns:2fr 1fr 1fr;border:1px solid #111;border-bottom:0}.box{border-right:1px solid #111;border-bottom:1px solid #111;padding:7px;min-height:34px}.box:nth-child(3n){border-right:0}.lbl{font-weight:700;display:block;margin-bottom:5px}.desc{border:1px solid #111;border-top:0;padding:7px;min-height:34px}.extra{display:grid;grid-template-columns:1fr 2fr;border-left:1px solid #111;border-right:1px solid #111}.extra div{border-bottom:1px solid #111;padding:7px;min-height:30px}.extra div:first-child{border-right:1px solid #111}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #111;padding:5px;vertical-align:middle;height:23px}th{background:#fff3e8;font-weight:800;text-align:center}td:nth-child(1),td:nth-child(3),td:nth-child(7){text-align:center}.tot{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}.tot div{border:1px solid #111;padding:8px 14px;font-weight:800}.foot{text-align:center;font-weight:800;margin-top:12px;border-top:2px solid #ff6b00;padding-top:8px}@media print{body{background:#fff}.toolbar{display:none}.sheet{margin:0;padding:0;width:auto;min-height:auto}}';
+    return '@page{size:A4;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111;font-size:11px;margin:0;background:#f3f4f6}.toolbar{position:sticky;top:0;z-index:5;display:flex;gap:8px;justify-content:center;padding:10px;background:#fff;border-bottom:1px solid #ddd}.toolbar button{border:1px solid #333;background:#fff;border-radius:6px;padding:8px 14px;font-weight:700}.toolbar button:first-child{background:#ff6b00;border-color:#ff6b00;color:#fff}.sheet{width:210mm;min-height:297mm;margin:12px auto;padding:10mm;background:#fff}.head{display:grid;grid-template-columns:1.2fr 1.25fr .95fr;gap:14px;align-items:start;border-bottom:3px solid #ff6b00;padding-bottom:8px;margin-bottom:10px}.brand img{width:100%;max-width:245px;height:auto;display:block}.title{font-size:24px;font-weight:800;text-align:center;line-height:1.18}.info{font-size:10px;line-height:1.45;text-align:left}.grid{display:grid;grid-template-columns:2fr 1fr 1fr;border:1px solid #111;border-bottom:0}.box{border-right:1px solid #111;border-bottom:1px solid #111;padding:7px;min-height:36px}.box:nth-child(3n){border-right:0}.lbl{font-weight:700;display:block;margin-bottom:5px}.desc{border:1px solid #111;border-top:0;padding:7px;min-height:34px}.extra{display:grid;grid-template-columns:1fr 2fr;border-left:1px solid #111;border-right:1px solid #111}.extra div{border-bottom:1px solid #111;padding:7px;min-height:30px}.extra div:first-child{border-right:1px solid #111}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #111;padding:5px;vertical-align:middle;height:23px}th{background:#fff3e8;font-weight:800;text-align:center}td:nth-child(1),td:nth-child(3),td:nth-child(7){text-align:center}.tot{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}.tot div{border:1px solid #111;padding:8px 14px;font-weight:800}.foot{text-align:center;font-weight:800;margin-top:12px;border-top:2px solid #ff6b00;padding-top:8px;letter-spacing:.2px}@media print{body{background:#fff}.toolbar{display:none}.sheet{margin:0;padding:0;width:auto;min-height:auto}}';
   }
   function script(){
     return '<script>(function(){function htmlFile(){return new File([document.documentElement.outerHTML],"scheda-avanzamento-lavori.html",{type:"text/html"})}document.getElementById("printBtn").onclick=function(){window.print()};document.getElementById("closeBtn").onclick=function(){window.close();setTimeout(function(){history.back()},150)};document.getElementById("shareBtn").onclick=async function(){try{var f=htmlFile();if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({title:document.title,files:[f]});return}if(navigator.share){await navigator.share({title:document.title,text:"Scheda avanzamento lavori"});return}}catch(e){}window.print()}})()<\/script>';
