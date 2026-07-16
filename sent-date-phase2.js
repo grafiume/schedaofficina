@@ -1,13 +1,6 @@
 (function(){
   'use strict';
 
-  function todayISO(){
-    var d = new Date();
-    var m = String(d.getMonth() + 1).padStart(2, '0');
-    var day = String(d.getDate()).padStart(2, '0');
-    return d.getFullYear() + '-' + m + '-' + day;
-  }
-
   function labelFor(inputId){
     var input = document.getElementById(inputId);
     if(!input) return null;
@@ -22,29 +15,10 @@
     if(n) n.textContent = 'Data invio P.';
   }
 
-  function phase2HasWork(){
-    var rows = document.getElementById('phase2Rows');
-    if(!rows) return false;
-    var fields = rows.querySelectorAll('input,textarea,select');
-    for(var i=0; i<fields.length; i++){
-      if(String(fields[i].value || '').trim()) return true;
-    }
-    return false;
-  }
-
-  function ensureSentDate(fieldId){
-    var field = document.getElementById(fieldId);
-    if(field && !field.value) field.value = todayISO();
-  }
-
   function copyAcceptedDateIfNeeded(){
     var sent = document.getElementById('eScad');
     var acc = document.getElementById('eAcc');
     if(sent && acc && !sent.value && acc.value) sent.value = acc.value;
-  }
-
-  function maybeSetEditSentDate(){
-    if(phase2HasWork()) ensureSentDate('eScad');
   }
 
   function bind(){
@@ -55,19 +29,6 @@
       acc.addEventListener('change', copyAcceptedDateIfNeeded, true);
       acc.addEventListener('input', copyAcceptedDateIfNeeded, true);
     }
-    var phase2 = document.getElementById('phase2Rows') || document.getElementById('phase2Card');
-    if(phase2 && !phase2.__sentDatePhase2Patched){
-      phase2.__sentDatePhase2Patched = true;
-      phase2.addEventListener('input', maybeSetEditSentDate, true);
-      phase2.addEventListener('change', maybeSetEditSentDate, true);
-    }
-    ['btnSave','phase2SaveBtn','btnPhase2Save'].forEach(function(id){
-      var btn = document.getElementById(id);
-      if(btn && !btn.__sentDatePhase2Patched){
-        btn.__sentDatePhase2Patched = true;
-        btn.addEventListener('click', maybeSetEditSentDate, true);
-      }
-    });
   }
 
   function init(){
