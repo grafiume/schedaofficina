@@ -7,7 +7,6 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 // - dataArrivo segue dataApertura
 // - importoConcordato viene inviato come numero valido per Supabase, con punto decimale.
 // - se viene inserito un importo concordato e manca la data accettazione, usa la data di oggi.
-// - se la Fase 2 e' compilata e manca data invio P., usa la data di oggi.
 // - se l'operatore cancella manualmente data invio P., resta vuota.
 (function patchRecordsPayload(){
   'use strict';
@@ -17,18 +16,6 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
     var m = String(d.getMonth() + 1).padStart(2, '0');
     var day = String(d.getDate()).padStart(2, '0');
     return d.getFullYear() + '-' + m + '-' + day;
-  }
-
-  function phase2HasWork(){
-    try{
-      var rows = document.getElementById('phase2Rows');
-      if(!rows) return false;
-      var fields = rows.querySelectorAll('input,textarea,select');
-      for(var i = 0; i < fields.length; i++){
-        if(String(fields[i].value || '').trim()) return true;
-      }
-    }catch(e){}
-    return false;
   }
 
   function normalizeMoney(value){
@@ -49,9 +36,6 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
     if (Array.isArray(payload)) return payload.map(syncPayload);
     if (Object.prototype.hasOwnProperty.call(payload, 'dataApertura')) {
       payload.dataArrivo = payload.dataApertura || null;
-    }
-    if (Object.prototype.hasOwnProperty.call(payload, 'dataScadenza') && !payload.dataScadenza && phase2HasWork()) {
-      payload.dataScadenza = todayISO();
     }
     if (Object.prototype.hasOwnProperty.call(payload, 'importoConcordato')) {
       var amount = normalizeMoney(payload.importoConcordato);
@@ -131,13 +115,13 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
   else load();
 })();
 
-// Fase 2/Data invio preventivo: etichetta e data automatica se manca.
+// Fase 2/Data invio preventivo: etichetta e copia dalla data accettazione solo quando viene inserita.
 (function loadSentDatePhase2(){
   'use strict';
   function load(){
     if (document.querySelector('script[data-elip-sent-date-phase2]')) return;
     var s = document.createElement('script');
-    s.src = './sent-date-phase2.js?v=3';
+    s.src = './sent-date-phase2.js?v=4';
     s.async = false;
     s.dataset.elipSentDatePhase2 = '1';
     document.head.appendChild(s);
