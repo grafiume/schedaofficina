@@ -4,7 +4,6 @@
   var sortState = { field: 'dataApertura', dir: 'desc' };
   var currentHomeRows = [];
   var originalRenderHome = null;
-  var originalDoSearch = null;
 
   function norm(v){
     return (v == null ? '' : String(v)).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
@@ -187,13 +186,23 @@
     if(originalRenderHome) window.renderHome(currentHomeRows.length ? currentHomeRows : (window.state && window.state.all || []));
   }
 
+  function callOriginalRenderHome(sorted){
+    var previous = window.byHomeOrder;
+    window.byHomeOrder = function(){ return 0; };
+    try { originalRenderHome(sorted); }
+    finally {
+      if(previous) window.byHomeOrder = previous;
+      else { try { delete window.byHomeOrder; } catch(e) {} }
+    }
+  }
+
   function patchRenderHome(){
     if(typeof window.renderHome !== 'function' || window.renderHome.__acceptancePatched) return false;
     originalRenderHome = window.renderHome;
     window.renderHome = function(rows){
       currentHomeRows = Array.isArray(rows) ? rows.slice() : [];
       var sorted = sortRows(currentHomeRows);
-      originalRenderHome(sorted);
+      callOriginalRenderHome(sorted);
       header('tblHome');
       transformRows('homeRows', sorted);
       ensureKpiAcc();
