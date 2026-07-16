@@ -1,4 +1,4 @@
-const STATIC_CACHE = 'so-static-v16';
+const STATIC_CACHE = 'so-static-v17';
 const IMG_CACHE = 'so-img-v1';
 
 self.addEventListener('install', (event) => {
@@ -22,6 +22,7 @@ self.addEventListener('install', (event) => {
       './cassetti-integration.js',
       './home-acceptance-view.js',
       './accepted-open-filter.js',
+      './mobile-table-fix.js',
       './manifest.json'
     ]);
     self.skipWaiting();
