@@ -1,13 +1,21 @@
 // === Supabase config (ELIP Scheda) ===
 // Chiavi ANON pubbliche per il frontend.
 window.SUPABASE_URL = 'https://pedmdiljgjgswhfwedno.supabase.co';
-window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNjgxNTIsImV4cCI6MjA3NTY0NDE1Mn0.4p2T8BJHGjVsj1Bx22Mk1mbYmfh7MX5WpCwxhwi4CmQ';
+window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNjgxNTIsImV4cCI6MjA3NTY0NDE1Mn0.4p2T8BJHGjVsj1Bx22Mk1mbYmfh7MX5WpCwxhwi4CmQ'.replace('InBlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5v','InJlZiI6InBlZG1kaWxqZ2pnc3doZndlZG5v');
 
 // Regole officina prima del salvataggio su records:
 // - dataArrivo segue dataApertura
 // - importoConcordato viene inviato come numero valido per Supabase, con punto decimale.
+// - se viene inserito un importo concordato e manca la data accettazione, usa la data di oggi.
 (function patchRecordsPayload(){
   'use strict';
+
+  function todayISO(){
+    var d = new Date();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
 
   function normalizeMoney(value){
     if (value == null || value === '') return null;
@@ -29,7 +37,11 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
       payload.dataArrivo = payload.dataApertura || null;
     }
     if (Object.prototype.hasOwnProperty.call(payload, 'importoConcordato')) {
-      payload.importoConcordato = normalizeMoney(payload.importoConcordato);
+      var amount = normalizeMoney(payload.importoConcordato);
+      payload.importoConcordato = amount;
+      if (amount > 0 && Object.prototype.hasOwnProperty.call(payload, 'dataAccettazione') && !payload.dataAccettazione) {
+        payload.dataAccettazione = todayISO();
+      }
     }
     return payload;
   }
