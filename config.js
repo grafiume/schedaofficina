@@ -102,6 +102,21 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
   else load();
 })();
 
+// Home/Ricerca: data accettazione in lista, ordinamento date e colori P preventivo.
+(function loadHomeAcceptanceView(){
+  'use strict';
+  function load(){
+    if (document.querySelector('script[data-elip-home-acceptance-view]')) return;
+    var s = document.createElement('script');
+    s.src = './home-acceptance-view.js?v=1';
+    s.async = false;
+    s.dataset.elipHomeAcceptanceView = '1';
+    document.head.appendChild(s);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, { once:true });
+  else load();
+})();
+
 // Ricerca: Invio nei campi principali avvia il pulsante corretto.
 (function patchSearchEnterKeys(){
   'use strict';
