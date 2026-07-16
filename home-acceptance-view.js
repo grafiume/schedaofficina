@@ -96,7 +96,7 @@
   function header(tableId){
     var tr = document.querySelector('#' + tableId + ' thead tr');
     if(!tr) return;
-    tr.innerHTML = '<th class="thumb-cell">Foto</th><th class="text-center">Data<br>ing.</th><th class="text-center">Data invio<br>prev.</th><th class="text-center">Data<br>acc.</th><th>Cassetto</th><th>Cliente</th><th>Descrizione</th><th>Modello</th><th>Stato</th><th class="text-end">Azioni</th>';
+    tr.innerHTML = '<th class="thumb-cell">Foto</th><th class="text-center">Data<br>ing.</th><th class="text-center">Data invio<br>P.</th><th class="text-center">Data<br>acc.</th><th>Cassetto</th><th>Cliente</th><th>Descrizione</th><th>Modello</th><th>Stato</th><th class="text-end">Azioni</th>';
   }
 
   function statusMeta(record){
@@ -206,10 +206,11 @@
     var bar = document.createElement('div');
     bar.className = 'table-sortbar mb-2';
     bar.id = 'homeSortbar';
-    bar.innerHTML = '<span class="sortbar-label">Ordina:</span><button class="btn-sort" type="button" id="sortDataIng">Data ing.</button><button class="btn-sort" type="button" id="sortDataAcc">Data acc.</button><button class="btn-sort" type="button" id="sortCresc">Cresc.</button><button class="btn-sort" type="button" id="sortDecr">Decr.</button>';
+    bar.innerHTML = '<span class="sortbar-label">Ordina:</span><button class="btn-sort" type="button" id="sortDataIng">Data ing.</button><button class="btn-sort" type="button" id="sortDataInvioP">Data invio P.</button><button class="btn-sort" type="button" id="sortDataAcc">Data acc.</button><button class="btn-sort" type="button" id="sortCresc">Cresc.</button><button class="btn-sort" type="button" id="sortDecr">Decr.</button>';
     anchor.parentNode.insertBefore(bar, anchor.nextSibling);
 
     document.getElementById('sortDataIng').addEventListener('click', function(){ sortState.field='dataApertura'; renderCurrent(); });
+    document.getElementById('sortDataInvioP').addEventListener('click', function(){ sortState.field='dataScadenza'; renderCurrent(); });
     document.getElementById('sortDataAcc').addEventListener('click', function(){ sortState.field='dataAccettazione'; renderCurrent(); });
     document.getElementById('sortCresc').addEventListener('click', function(){ sortState.dir='asc'; renderCurrent(); });
     document.getElementById('sortDecr').addEventListener('click', function(){ sortState.dir='desc'; renderCurrent(); });
@@ -231,6 +232,7 @@
   function sortButtonState(){
     function on(id, active){ var el=document.getElementById(id); if(el) el.classList.toggle('active', !!active); }
     on('sortDataIng', sortState.field === 'dataApertura');
+    on('sortDataInvioP', sortState.field === 'dataScadenza');
     on('sortDataAcc', sortState.field === 'dataAccettazione');
     on('sortCresc', sortState.dir === 'asc');
     on('sortDecr', sortState.dir === 'desc');
