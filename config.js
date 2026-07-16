@@ -120,7 +120,7 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
   function load(){
     if (document.querySelector('script[data-elip-home-acceptance-view]')) return;
     var s = document.createElement('script');
-    s.src = './home-acceptance-view.js?v=2';
+    s.src = './home-acceptance-view.js?v=3';
     s.async = false;
     s.dataset.elipHomeAcceptanceView = '1';
     document.head.appendChild(s);
