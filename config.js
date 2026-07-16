@@ -106,7 +106,7 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
   function load(){
     if (document.querySelector('script[data-elip-phase2-print-fix]')) return;
     var s = document.createElement('script');
-    s.src = './phase2-print-fix.js?v=3';
+    s.src = './phase2-print-fix.js?v=4';
     s.defer = true;
     s.dataset.elipPhase2PrintFix = '1';
     document.head.appendChild(s);
