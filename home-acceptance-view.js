@@ -71,8 +71,16 @@
       '.sortbar-label{font-weight:700;color:#222;margin-right:.2rem}',
       '.btn-sort{border:1px solid #adb5bd;background:#fff;color:#495057;border-radius:999px;padding:.25rem .8rem;font-size:.88rem;line-height:1.35}',
       '.btn-sort.active{background:#263238;border-color:#263238;color:#fff;font-weight:700}',
-      '.table-app th{white-space:normal;text-align:center;line-height:1.15}',
-      '#tblHome td:nth-child(2),#tblHome td:nth-child(3),#tblHome td:nth-child(4),#tblHome td:nth-child(7),#tblHome td:nth-child(8),#tblHome td:nth-child(9),#tblSearch td:nth-child(2),#tblSearch td:nth-child(3),#tblSearch td:nth-child(4),#tblSearch td:nth-child(7),#tblSearch td:nth-child(8),#tblSearch td:nth-child(9){text-align:center}',
+      '.table-app{table-layout:fixed;width:100%}',
+      '.table-app th{white-space:normal;text-align:center;line-height:1.12;font-size:.92rem}',
+      '.table-app td{white-space:normal;word-break:break-word;overflow-wrap:anywhere;line-height:1.22}',
+      '#tblHome th:nth-child(1),#tblSearch th:nth-child(1){width:12%}',
+      '#tblHome th:nth-child(2),#tblHome th:nth-child(3),#tblHome th:nth-child(4),#tblSearch th:nth-child(2),#tblSearch th:nth-child(3),#tblSearch th:nth-child(4){width:7%}',
+      '#tblHome th:nth-child(5),#tblSearch th:nth-child(5){width:6%}',
+      '#tblHome th:nth-child(6),#tblHome th:nth-child(7),#tblHome th:nth-child(8),#tblSearch th:nth-child(6),#tblSearch th:nth-child(7),#tblSearch th:nth-child(8){width:14%}',
+      '#tblHome th:nth-child(9),#tblSearch th:nth-child(9){width:8%}',
+      '#tblHome th:nth-child(10),#tblSearch th:nth-child(10){width:7%}',
+      '#tblHome td:nth-child(2),#tblHome td:nth-child(3),#tblHome td:nth-child(4),#tblHome td:nth-child(5),#tblHome td:nth-child(8),#tblHome td:nth-child(9),#tblHome td:nth-child(10),#tblSearch td:nth-child(2),#tblSearch td:nth-child(3),#tblSearch td:nth-child(4),#tblSearch td:nth-child(5),#tblSearch td:nth-child(8),#tblSearch td:nth-child(9),#tblSearch td:nth-child(10){text-align:center}',
       '.table-app th,.table-app td{border-right:1px solid #e1e5e8}',
       '.table-app th:last-child,.table-app td:last-child{border-right:0}',
       '.status-compact{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:54px}',
@@ -88,7 +96,7 @@
   function header(tableId){
     var tr = document.querySelector('#' + tableId + ' thead tr');
     if(!tr) return;
-    tr.innerHTML = '<th class="thumb-cell">Foto</th><th class="text-center">Data<br>ing.</th><th class="text-center">Data<br>acc.</th><th>Cassetto</th><th>Cliente</th><th>Descrizione</th><th>Modello</th><th>Stato</th><th class="text-end">Azioni</th>';
+    tr.innerHTML = '<th class="thumb-cell">Foto</th><th class="text-center">Data<br>ing.</th><th class="text-center">Data invio<br>prev.</th><th class="text-center">Data<br>acc.</th><th>Cassetto</th><th>Cliente</th><th>Descrizione</th><th>Modello</th><th>Stato</th><th class="text-end">Azioni</th>';
   }
 
   function statusMeta(record){
@@ -150,13 +158,17 @@
       if(!record || tr.children.length < 8) return;
       tr.children[1].textContent = fmtShort(record.dataApertura);
       if(tr.children.length === 8){
+        var tdInvio = document.createElement('td');
+        tdInvio.textContent = fmtShort(record.dataScadenza);
+        tr.insertBefore(tdInvio, tr.children[2]);
         var tdAcc = document.createElement('td');
         tdAcc.textContent = fmtShort(record.dataAccettazione);
-        tr.insertBefore(tdAcc, tr.children[2]);
+        tr.insertBefore(tdAcc, tr.children[3]);
       } else {
-        tr.children[2].textContent = fmtShort(record.dataAccettazione);
+        tr.children[2].textContent = fmtShort(record.dataScadenza);
+        tr.children[3].textContent = fmtShort(record.dataAccettazione);
       }
-      renderStatusCell(tr.children[7], record);
+      renderStatusCell(tr.children[8], record);
       recolorP(tr, record);
     });
   }
@@ -253,7 +265,7 @@
       bindHomeReload();
       sortButtonState();
       var empty = document.querySelector('#homeRows td[colspan]');
-      if(empty) empty.setAttribute('colspan','9');
+      if(empty) empty.setAttribute('colspan','10');
     };
     window.renderHome.__acceptancePatched = true;
     return true;
@@ -272,7 +284,7 @@
         }catch(e){}
         transformRows('searchRows', rows);
         var empty = document.querySelector('#searchRows td[colspan]');
-        if(empty) empty.setAttribute('colspan','9');
+        if(empty) empty.setAttribute('colspan','10');
       }, 0);
     }
     ['btnDoSearch','btnApply'].forEach(function(id){
