@@ -18,8 +18,8 @@
   function relabel(){
     var e = labelFor('eScad');
     var n = labelFor('nScad');
-    if(e) e.textContent = 'Data invio prev.';
-    if(n) n.textContent = 'Data invio prev.';
+    if(e) e.textContent = 'Data invio P.';
+    if(n) n.textContent = 'Data invio P.';
   }
 
   function phase2HasWork(){
@@ -37,12 +37,25 @@
     if(field && !field.value) field.value = todayISO();
   }
 
+  function copyAcceptedDateIfNeeded(){
+    var sent = document.getElementById('eScad');
+    var acc = document.getElementById('eAcc');
+    if(sent && acc && !sent.value && acc.value) sent.value = acc.value;
+  }
+
   function maybeSetEditSentDate(){
+    copyAcceptedDateIfNeeded();
     if(phase2HasWork()) ensureSentDate('eScad');
   }
 
   function bind(){
     relabel();
+    var acc = document.getElementById('eAcc');
+    if(acc && !acc.__sentDatePhase2Patched){
+      acc.__sentDatePhase2Patched = true;
+      acc.addEventListener('change', copyAcceptedDateIfNeeded, true);
+      acc.addEventListener('input', copyAcceptedDateIfNeeded, true);
+    }
     var phase2 = document.getElementById('phase2Rows') || document.getElementById('phase2Card');
     if(phase2 && !phase2.__sentDatePhase2Patched){
       phase2.__sentDatePhase2Patched = true;
