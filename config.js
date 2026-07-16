@@ -129,6 +129,21 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
   else load();
 })();
 
+// Accettate: mostra solo schede accettate ancora aperte/in corso.
+(function loadAcceptedOpenFilter(){
+  'use strict';
+  function load(){
+    if (document.querySelector('script[data-elip-accepted-open-filter]')) return;
+    var s = document.createElement('script');
+    s.src = './accepted-open-filter.js?v=1';
+    s.async = false;
+    s.dataset.elipAcceptedOpenFilter = '1';
+    document.head.appendChild(s);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, { once:true });
+  else load();
+})();
+
 // Ricerca: Invio nei campi principali avvia il pulsante corretto.
 (function patchSearchEnterKeys(){
   'use strict';
