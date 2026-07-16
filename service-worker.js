@@ -1,4 +1,4 @@
-const STATIC_CACHE = 'so-static-v13';
+const STATIC_CACHE = 'so-static-v14';
 const IMG_CACHE = 'so-img-v1';
 
 self.addEventListener('install', (event) => {
@@ -19,6 +19,7 @@ self.addEventListener('install', (event) => {
       './scheda-only-preventivo.js',
       './phase2-print-fix.js',
       './cassetti-integration.js',
+      './home-acceptance-view.js',
       './manifest.json'
     ]);
     self.skipWaiting();
