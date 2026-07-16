@@ -74,10 +74,12 @@
       '.table-app{table-layout:fixed;width:100%}',
       '.table-app th{white-space:normal;text-align:center;line-height:1.12;font-size:.92rem}',
       '.table-app td{white-space:normal;word-break:break-word;overflow-wrap:anywhere;line-height:1.22}',
+      '.nowrap-head{white-space:nowrap}',
       '#tblHome th:nth-child(1),#tblSearch th:nth-child(1){width:12%}',
-      '#tblHome th:nth-child(2),#tblHome th:nth-child(3),#tblHome th:nth-child(4),#tblSearch th:nth-child(2),#tblSearch th:nth-child(3),#tblSearch th:nth-child(4){width:7%}',
+      '#tblHome th:nth-child(2),#tblHome th:nth-child(4),#tblSearch th:nth-child(2),#tblSearch th:nth-child(4){width:7%}',
+      '#tblHome th:nth-child(3),#tblSearch th:nth-child(3){width:8%}',
       '#tblHome th:nth-child(5),#tblSearch th:nth-child(5){width:6%}',
-      '#tblHome th:nth-child(6),#tblHome th:nth-child(7),#tblHome th:nth-child(8),#tblSearch th:nth-child(6),#tblSearch th:nth-child(7),#tblSearch th:nth-child(8){width:14%}',
+      '#tblHome th:nth-child(6),#tblHome th:nth-child(7),#tblHome th:nth-child(8),#tblSearch th:nth-child(6),#tblSearch th:nth-child(7),#tblSearch th:nth-child(8){width:13.5%}',
       '#tblHome th:nth-child(9),#tblSearch th:nth-child(9){width:8%}',
       '#tblHome th:nth-child(10),#tblSearch th:nth-child(10){width:7%}',
       '#tblHome td:nth-child(2),#tblHome td:nth-child(3),#tblHome td:nth-child(4),#tblHome td:nth-child(5),#tblHome td:nth-child(8),#tblHome td:nth-child(9),#tblHome td:nth-child(10),#tblSearch td:nth-child(2),#tblSearch td:nth-child(3),#tblSearch td:nth-child(4),#tblSearch td:nth-child(5),#tblSearch td:nth-child(8),#tblSearch td:nth-child(9),#tblSearch td:nth-child(10){text-align:center}',
@@ -96,7 +98,7 @@
   function header(tableId){
     var tr = document.querySelector('#' + tableId + ' thead tr');
     if(!tr) return;
-    tr.innerHTML = '<th class="thumb-cell">Foto</th><th class="text-center">Data<br>ing.</th><th class="text-center">Data invio<br>P.</th><th class="text-center">Data<br>acc.</th><th>Cassetto</th><th>Cliente</th><th>Descrizione</th><th>Modello</th><th>Stato</th><th class="text-end">Azioni</th>';
+    tr.innerHTML = '<th class="thumb-cell">Foto</th><th class="text-center">Data<br>ing.</th><th class="text-center">Data<br><span class="nowrap-head">invio P.</span></th><th class="text-center">Data<br>acc.</th><th>Cassetto</th><th>Cliente</th><th>Descrizione</th><th>Modello</th><th>Stato</th><th class="text-end">Azioni</th>';
   }
 
   function statusMeta(record){
