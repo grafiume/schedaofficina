@@ -121,6 +121,21 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
   else load();
 })();
 
+// Click sulla P preventivo: grigia apre scheda, arancione/verde apre anteprima.
+(function loadPBadgeActions(){
+  'use strict';
+  function load(){
+    if (document.querySelector('script[data-elip-p-badge-actions]')) return;
+    var s = document.createElement('script');
+    s.src = './p-badge-actions.js?v=1';
+    s.async = false;
+    s.dataset.elipPBadgeActions = '1';
+    document.head.appendChild(s);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, { once:true });
+  else load();
+})();
+
 // Fase 2/Data invio preventivo: etichetta e copia dalla data accettazione solo quando viene inserita.
 (function loadSentDatePhase2(){
   'use strict';
