@@ -1,4 +1,4 @@
-const STATIC_CACHE = 'so-static-v21';
+const STATIC_CACHE = 'so-static-v22';
 const IMG_CACHE = 'so-img-v1';
 
 self.addEventListener('install', (event) => {
