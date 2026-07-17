@@ -7,7 +7,8 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 // - dataArrivo segue dataApertura
 // - importoConcordato viene inviato come numero valido per Supabase, con punto decimale.
 // - se viene inserito un importo concordato e manca la data accettazione, usa la data di oggi.
-// - se l'operatore cancella manualmente data invio P., resta vuota.
+// - quando l'importo concordato crea l'accettazione automatica, crea anche Data invio P. uguale.
+// - se l'operatore cancella manualmente data invio P. su schede gia accettate, resta vuota.
 (function patchRecordsPayload(){
   'use strict';
 
@@ -39,9 +40,14 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
     }
     if (Object.prototype.hasOwnProperty.call(payload, 'importoConcordato')) {
       var amount = normalizeMoney(payload.importoConcordato);
+      var autoAccepted = false;
       payload.importoConcordato = amount;
       if (amount > 0 && Object.prototype.hasOwnProperty.call(payload, 'dataAccettazione') && !payload.dataAccettazione) {
         payload.dataAccettazione = todayISO();
+        autoAccepted = true;
+      }
+      if (amount > 0 && autoAccepted && !payload.dataScadenza) {
+        payload.dataScadenza = payload.dataAccettazione;
       }
     }
     return payload;
