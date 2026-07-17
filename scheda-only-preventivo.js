@@ -119,18 +119,11 @@
       if(!target || !target.closest) return;
       var nav = target.closest('#btnPreventivi');
       var quoteBtn = target.closest('#btnQuoteOpen');
-      var badge = target.closest('.badge-p');
 
       if(nav){
         ev.preventDefault();
         ev.stopImmediatePropagation();
         alert('Ora i preventivi si gestiscono direttamente dalla scheda cliente.');
-        return;
-      }
-      if(badge){
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-        alert('Apri la scheda con il pulsante Apri: il preventivo ora si gestisce da li.');
         return;
       }
       if(quoteBtn){
