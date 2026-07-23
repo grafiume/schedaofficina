@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const CASSETTI = Array.from({ length: 80 }, (_,i)=>`A${i+1}`);
+  const CASSETTI = Array.from({ length: 100 }, (_,i)=>`A${i+1}`);
   const CHIUSI = new Set(['completata','chiusa','chiuso','consegnata']);
 
   function wait(ms){ return new Promise(r=>setTimeout(r, ms)); }
@@ -10,7 +10,7 @@
   function normCass(v){
     const x = s(v).toUpperCase();
     if (!x) return '';
-    if (!/^A([1-9]|[1-7][0-9]|80)$/.test(x)) throw new Error('Cassetto non valido. Usa A1-A80.');
+    if (!/^A([1-9]|[1-9][0-9]|100)$/.test(x)) throw new Error('Cassetto non valido. Usa A1-A100.');
     return x;
   }
 
@@ -29,6 +29,12 @@
 
   function currentId(){
     return window.currentRecordId || window.recordId || window.editRecordId || window.selectedRecordId || window.state?.editing?.id || null;
+  }
+
+  function patchVisibleTitles(){
+    document.querySelectorAll('.cass-map-card strong').forEach(function(el){
+      if (String(el.textContent || '').includes('A1-A80')) el.textContent = 'Mappa cassetti A1-A100';
+    });
   }
 
   async function getOccupied(sb, excludeId){
@@ -100,10 +106,12 @@
   }
 
   async function renderAllMaps(){
+    patchVisibleTitles();
     const eInput = document.getElementById('eCassetto');
     const nInput = document.getElementById('nCassetto');
     await renderMap(document.getElementById('editCassMap'), eInput, currentId());
     await renderMap(document.getElementById('newCassMap'), nInput, null);
+    patchVisibleTitles();
   }
 
   async function validateBeforeSave(input, stato, excludeId){
@@ -128,6 +136,7 @@
   }
 
   function bind(){
+    patchVisibleTitles();
     const eInput = document.getElementById('eCassetto');
     const nInput = document.getElementById('nCassetto');
     const eStato = document.getElementById('eStato');
