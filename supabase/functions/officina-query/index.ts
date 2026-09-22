@@ -2,7 +2,7 @@
 // Edge Function Supabase per interrogare in modo controllato il database Scheda Officina.
 // Autenticazione applicativa: x-officina-key verificata contro OFFICINA_SHORTCUT_KEY.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
