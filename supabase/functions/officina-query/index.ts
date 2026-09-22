@@ -245,13 +245,19 @@ function parseQuery(text: string, forcedAction: string): ParsedQuery {
     return { action: "ricerca", text: original, search: cleanFreeText(original) };
   }
 
-  if (action) return { action, text: original, search: cleanFreeText(original) };
-
+  // Anche quando il client forza una ricerca, riconosci i prefissi parlati
+  // "cliente Coppola", "cliente: Coppola", "cassetto A12", ecc.
   const cassetto = extractCassetto(original);
   if (cassetto) return { action: "cerca_cassetto", text: original, cassetto };
 
   const cliente = extractCliente(original);
   if (cliente) return { action: "cerca_cliente", text: original, cliente };
+
+  if (action && ["ricerca", "cerca_scheda", "cerca"].includes(action)) {
+    return { action: "ricerca", text: original, search: cleanFreeText(original) };
+  }
+
+  if (action) return { action, text: original, search: cleanFreeText(original) };
 
   if (q.includes("oltre 15") || q.includes("piu di 15") || q.includes("più di 15") || q.includes(">15")) {
     return { action: "attese_oltre_giorni", text: original, days: 15 };
