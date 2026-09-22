@@ -143,7 +143,7 @@ function normalizeStatus(value: unknown) {
 function validCassetto(value: unknown) {
   const s = cleanString(value, 8).replace(/\s+/g, "").toUpperCase();
   if (!s) return null;
-  if (!/^A(?:[1-9]|[1-7]\d|80)$/.test(s)) throw new Error("Cassetto non valido: usare A1-A80");
+  if (!/^A(?:[1-9]|[1-9]\d|100)$/.test(s)) throw new Error("Cassetto non valido: usare A1-A100");
   return s;
 }
 async function createRecord(db: ReturnType<typeof createClient>, body: any): Promise<RecordRow> {
