@@ -1,5 +1,5 @@
 [functions.officina-query]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-webhook]
 verify_jwt = true
