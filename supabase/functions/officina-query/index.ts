@@ -83,7 +83,21 @@ Deno.serve(async (req) => {
       : { global: { headers: { Authorization: `Bearer ${jwt}` } } });
 
     const body = await req.json().catch(() => ({}));
-    const parsed = parseQuery(String(body?.text || body?.message || ""), String(body?.action || ""));
+    const rawAction = String(body?.action || "").trim();
+    const parsed = parseQuery(String(body?.text || body?.message || ""), rawAction);
+
+    if (["crea_scheda", "nuova_scheda", "create_record"].includes(norm(rawAction))) {
+      const created = await createRecord(db, body);
+      return json({ success: true, action: "crea_scheda", message: `Scheda creata: ${created.descrizione || created.id}`, row: formatRow(created) });
+    }
+    if (["cambia_stato", "update_status"].includes(norm(rawAction))) {
+      const updated = await updateStatus(db, body);
+      return json({ success: true, action: "cambia_stato", message: `Stato aggiornato: ${updated.statoPratica || ""}`, row: formatRow(updated) });
+    }
+    if (["aggiungi_nota", "add_note"].includes(norm(rawAction))) {
+      const updated = await appendNote(db, body);
+      return json({ success: true, action: "aggiungi_nota", message: "Nota aggiunta", row: formatRow(updated) });
+    }
 
     const bodyMax = Number(body?.maxResults || body?.limit || 10000);
     const maxResults = Number.isFinite(bodyMax) ? Math.max(1, Math.min(bodyMax, 50000)) : 10000;
@@ -117,6 +131,72 @@ Deno.serve(async (req) => {
     }, 500);
   }
 });
+
+function cleanString(value: unknown, max = 2000) { return String(value ?? "").trim().slice(0, max); }
+function nullable(value: unknown) { const s = cleanString(value); return s ? s : null; }
+function normalizeStatus(value: unknown) {
+  const s = norm(value);
+  if (s.includes("lavorazione")) return "In lavorazione";
+  if (s.includes("complet")) return "Completata";
+  return "In attesa";
+}
+function validCassetto(value: unknown) {
+  const s = cleanString(value, 8).replace(/\s+/g, "").toUpperCase();
+  if (!s) return null;
+  if (!/^A(?:[1-9]|[1-7]\d|80)$/.test(s)) throw new Error("Cassetto non valido: usare A1-A80");
+  return s;
+}
+async function createRecord(db: ReturnType<typeof createClient>, body: any): Promise<RecordRow> {
+  const src = body?.record && typeof body.record === "object" ? body.record : body;
+  const descrizione = cleanString(src?.descrizione, 500);
+  if (!descrizione) throw new Error("Descrizione obbligatoria");
+  const today = new Date().toISOString().slice(0, 10);
+  const rawAmount = src?.importoConcordato;
+  const amount = rawAmount === "" || rawAmount == null ? null : Number(String(rawAmount).replace(",", "."));
+  if (amount !== null && !Number.isFinite(amount)) throw new Error("Importo concordato non valido");
+  const payload = {
+    descrizione, modello: cleanString(src?.modello, 300), dataApertura: nullable(src?.dataApertura) || today,
+    dataAccettazione: nullable(src?.dataAccettazione), dataScadenza: nullable(src?.dataScadenza),
+    statoPratica: normalizeStatus(src?.statoPratica || src?.stato), docTrasporto: cleanString(src?.docTrasporto || src?.ddt, 300),
+    cassetto: validCassetto(src?.cassetto), cliente: cleanString(src?.cliente, 500), telefono: cleanString(src?.telefono, 100),
+    email: cleanString(src?.email, 300), importoConcordato: amount, battCollettore: nullable(src?.battCollettore),
+    lunghezzaAsse: nullable(src?.lunghezzaAsse), lunghezzaPacco: nullable(src?.lunghezzaPacco),
+    larghezzaPacco: nullable(src?.larghezzaPacco), punta: cleanString(src?.punta, 100), numPunte: nullable(src?.numPunte),
+    note: cleanString(src?.note, 5000),
+  };
+  const { data, error } = await db.from("records").insert(payload).select("*").single();
+  if (error) throw error;
+  return data as RecordRow;
+}
+async function getRecordById(db: ReturnType<typeof createClient>, id: string): Promise<RecordRow> {
+  if (!id) throw new Error("ID scheda obbligatorio");
+  const { data, error } = await db.from("records").select("*").eq("id", id).single();
+  if (error) throw error;
+  return data as RecordRow;
+}
+async function updateStatus(db: ReturnType<typeof createClient>, body: any): Promise<RecordRow> {
+  const id = cleanString(body?.id || body?.record_id, 100);
+  if (!id) throw new Error("ID scheda obbligatorio");
+  const statoPratica = normalizeStatus(body?.statoPratica || body?.stato);
+  const patch: Record<string, unknown> = { statoPratica };
+  if (statoPratica === "Completata") patch.dataCompletamento = new Date().toISOString().slice(0, 10);
+  const { data, error } = await db.from("records").update(patch).eq("id", id).select("*").single();
+  if (error) throw error;
+  return data as RecordRow;
+}
+async function appendNote(db: ReturnType<typeof createClient>, body: any): Promise<RecordRow> {
+  const id = cleanString(body?.id || body?.record_id, 100);
+  const note = cleanString(body?.note || body?.text, 3000);
+  if (!id) throw new Error("ID scheda obbligatorio");
+  if (!note) throw new Error("Nota vuota");
+  const current = await getRecordById(db, id);
+  const existing = cleanString(current.note, 10000);
+  const stamp = new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome" });
+  const merged = existing ? `${existing}\n[${stamp}] ${note}` : `[${stamp}] ${note}`;
+  const { data, error } = await db.from("records").update({ note: merged }).eq("id", id).select("*").single();
+  if (error) throw error;
+  return data as RecordRow;
+}
 
 async function fetchAllRecords(db: ReturnType<typeof createClient>, maxResults: number): Promise<RecordRow[]> {
   const pageSize = 1000;
