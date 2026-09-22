@@ -179,7 +179,10 @@ async function updateStatus(db: ReturnType<typeof createClient>, body: any): Pro
   if (!id) throw new Error("ID scheda obbligatorio");
   const statoPratica = normalizeStatus(body?.statoPratica || body?.stato);
   const patch: Record<string, unknown> = { statoPratica };
-  if (statoPratica === "Completata") {\n    patch.dataCompletamento = new Date().toISOString().slice(0, 10);\n    patch.dataChiusura = new Date().toISOString().slice(0, 10);\n    patch.dataScadenza = null;\n  }
+  if (statoPratica === "Completata") {
+    patch.dataChiusura = new Date().toISOString().slice(0, 10);
+    patch.dataScadenza = null;
+  }
   const { data, error } = await db.from("records").update(patch).eq("id", id).select("*").single();
   if (error) throw error;
   return data as RecordRow;
