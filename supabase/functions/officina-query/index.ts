@@ -1,12 +1,12 @@
 // ELIP TAGLIENTE • officina-query
 // Edge Function Supabase per interrogare in modo controllato il database Scheda Officina.
-// Richiede chiamata autenticata con JWT Supabase: Authorization: Bearer <access_token>
+// Autenticazione applicativa: x-officina-key verificata contro OFFICINA_SHORTCUT_KEY.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-officina-key",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -53,34 +53,22 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization") || "";
-    if (!authHeader.startsWith("Bearer ")) {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const shortcutKey = Deno.env.get("OFFICINA_SHORTCUT_KEY");
+
+    if (!supabaseUrl || !serviceRoleKey || !shortcutKey) {
+      return json({ success: false, error: "Configurazione server incompleta" }, 500);
+    }
+
+    // Autenticazione dedicata per il Comando Rapido.
+    // La service-role key resta esclusivamente sul server e non viene mai inviata al client.
+    const suppliedKey = (req.headers.get("x-officina-key") || "").trim();
+    if (!suppliedKey || suppliedKey !== shortcutKey) {
       return json({ success: false, error: "Accesso richiesto" }, 401);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-
-    if (!supabaseUrl || !anonKey) {
-      return json({ success: false, error: "Variabili Supabase mancanti" }, 500);
-    }
-
-    const jwt = authHeader.replace("Bearer ", "").trim();
-
-    // Verifica utente con anon key.
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${jwt}` } },
-    });
-    const { data: userData, error: userError } = await authClient.auth.getUser(jwt);
-    if (userError || !userData?.user) {
-      return json({ success: false, error: "Sessione non valida" }, 401);
-    }
-
-    // Usa service role se disponibile, altrimenti usa il JWT utente.
-    const db = createClient(supabaseUrl, serviceRoleKey || anonKey, serviceRoleKey
-      ? undefined
-      : { global: { headers: { Authorization: `Bearer ${jwt}` } } });
+    const db = createClient(supabaseUrl, serviceRoleKey);
 
     const body = await req.json().catch(() => ({}));
     const rawAction = String(body?.action || "").trim();
