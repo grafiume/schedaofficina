@@ -237,6 +237,14 @@ function parseQuery(text: string, forcedAction: string): ParsedQuery {
   const q = norm(original);
   const action = norm(forcedAction);
 
+  if (["ricerca", "cerca_scheda", "cerca", "search"].includes(action)) {
+    const cassetto = extractCassetto(original);
+    if (cassetto) return { action: "cerca_cassetto", text: original, cassetto };
+    const cliente = extractCliente(original);
+    if (cliente) return { action: "cerca_cliente", text: original, cliente };
+    return { action: "ricerca", text: original, search: cleanFreeText(original) };
+  }
+
   if (action) return { action, text: original, search: cleanFreeText(original) };
 
   const cassetto = extractCassetto(original);
