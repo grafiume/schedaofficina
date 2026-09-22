@@ -91,6 +91,28 @@ Deno.serve(async (req) => {
     const maxResults = Number.isFinite(bodyMax) ? Math.max(1, Math.min(bodyMax, 50000)) : 10000;
 
     const allRows = await fetchAllRecords(db, maxResults);
+
+    if (norm(rawAction) === "situazione") {
+      const inLavorazione = allRows.filter((r) => norm(r.statoPratica).includes("lavorazione")).length;
+      const completate = allRows.filter(isCompleted).length;
+      const aperte = allRows.filter((r) => !isCompleted(r)).length;
+      const scadute = allRows.filter((r) => !isCompleted(r) && isExpired(r.dataScadenza)).length;
+      const preventivi = allRows.filter((r) => !!String(r.preventivoStato || "").trim() || Number(r.importoConcordato || 0) > 0).length;
+
+      return json({
+        success: true,
+        action: "situazione",
+        receivedAt: new Date().toISOString(),
+        totaleSchede: allRows.length,
+        aperte,
+        inLavorazione,
+        completate,
+        scadute,
+        preventivi,
+        summary: `Situazione officina — Totale: ${allRows.length} | Aperte: ${aperte} | In lavorazione: ${inLavorazione} | Completate: ${completate} | Scadute: ${scadute} | Preventivi: ${preventivi}`,
+      });
+    }
+
     const filteredRows = applyParsedQuery(allRows, parsed);
     const responseRows = filteredRows.map(formatRow);
 
