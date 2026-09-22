@@ -1286,7 +1286,24 @@ document.addEventListener('DOMContentLoaded', ()=>{
       updateAuthButtons(session || null);
       if(session) window.loadAll();
     });
-    requireAuthenticatedSession().then(session=>{ if(session) window.loadAll(); });
+    requireAuthenticatedSession().then(async session=>{
+      if(!session) return;
+      await window.loadAll();
+
+      // Apertura diretta della ricerca da Siri/Comandi Rapidi: ?q=Coppola
+      const params = new URLSearchParams(window.location.search);
+      const quickSearch = (params.get('q') || params.get('search') || '').trim();
+      if(quickSearch){
+        const cleanedSearch = quickSearch
+          .replace(/^\s*(?:cerca\s+)?cliente\s*:\s*/i, '')
+          .replace(/^\s*(?:cerca\s+)?cliente\s+/i, '')
+          .trim();
+        const q = document.getElementById('q');
+        if(q) q.value = cleanedSearch || quickSearch;
+        show('page-search');
+        doSearch();
+      }
+    });
   }catch(e){ showError(e.message||String(e)); }
 });
 // ===== PREVENTIVO BADGE =====
