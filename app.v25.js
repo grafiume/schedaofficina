@@ -1216,6 +1216,23 @@ window.loadAll=async function(){
     await refreshQuoteCache();
     window.state.all = window.state.all.map(r => Object.assign({}, r, enrichPriority(r, getQuoteInfo(r.id))));
     renderHome(window.state.all);
+
+    // Ogni caricamento dati rispetta il link diretto ?q=...
+    // Funziona anche subito dopo login/ripristino sessione.
+    try{
+      const params = new URLSearchParams(window.location.search);
+      const quickSearch = (params.get('q') || params.get('search') || '').trim();
+      if(quickSearch){
+        const cleanedSearch = quickSearch
+          .replace(/^\s*(?:cerca\s+)?cliente\s*:\s*/i, '')
+          .replace(/^\s*(?:cerca\s+)?cliente\s+/i, '')
+          .trim();
+        const q = document.getElementById('q');
+        if(q) q.value = cleanedSearch || quickSearch;
+        show('page-search');
+        doSearch();
+      }
+    }catch(_e){}
   }catch(e){ showError('Eccezione loadAll: '+(e?.message||e)); renderHome([]); }
 };
 
