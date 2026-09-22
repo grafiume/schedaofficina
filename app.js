@@ -662,6 +662,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   window.loadAll().then(() => {
     const params = new URLSearchParams(window.location.search);
     const editId = params.get("edit") || params.get("id");
+    const quickSearch = (params.get("q") || params.get("search") || "").trim();
 
     if (editId) {
       setTimeout(() => {
@@ -671,6 +672,16 @@ document.addEventListener('DOMContentLoaded', ()=>{
           console.error("Errore apertura scheda da link:", error);
         }
       }, 300);
+    } else if (quickSearch) {
+      // Link diretto da Siri/Comandi Rapidi: apre la pagina Ricerca già filtrata.
+      const cleanedSearch = quickSearch
+        .replace(/^\s*(?:cerca\s+)?cliente\s*:\s*/i, "")
+        .replace(/^\s*(?:cerca\s+)?cliente\s+/i, "")
+        .trim();
+      const q = document.getElementById("q");
+      if (q) q.value = cleanedSearch || quickSearch;
+      show("page-search");
+      doSearch();
     }
   });
 } catch(e) {
