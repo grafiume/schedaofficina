@@ -8,10 +8,12 @@
 import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6';
 let reader;
 window.officinaLeggi=async(image)=>{
- if(!reader) reader=await pipeline('image-to-text','Xenova/trocr-small-handwritten');
- const r=await reader(image);
- const raw=Array.isArray(r)?(r[0]?.generated_text||''):'';
- return {ok:true,data:{cliente:'',telefono:'',descrizione:raw,ddt:'',note:''}};
+ if(!reader) reader=await pipeline('image-text-to-text','HuggingFaceTB/SmolVLM-256M-Instruct',{device:'webgpu'});
+ const q=[{role:'user',content:[{type:'image',url:image},{type:'text',text:'Read this Italian workshop intake form including handwriting. Return only one line: CLIENTE=... | TELEFONO=... | TIPO=... | DDT=... | NOTE=... . Never guess; leave blank if unreadable.'}]}];
+ const r=await reader(q,{max_new_tokens:120});
+ const s=JSON.stringify(r);
+ const get=k=>{const m=s.match(new RegExp(k+'=([^|\\\\"]*)','i'));return m?m[1].trim():''};
+ return {ok:true,data:{cliente:get('CLIENTE'),telefono:get('TELEFONO'),descrizione:get('TIPO'),ddt:get('DDT'),note:get('NOTE')}};
 };
 </script><script>
 const sb=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);function today(){const d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),x=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+x}$('dataApertura').value=today();
