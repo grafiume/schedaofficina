@@ -4,7 +4,30 @@
 .row label.txt{display:block;margin:12px 0 6px;line-height:18px;white-space:nowrap}
 .row input,.row select{box-sizing:border-box;display:block;width:100%;max-width:100%;min-width:0;height:54px;margin:0;padding:0 12px;border:1px solid #ccc;border-radius:12px;font-size:16px;background:#fff}
 .row input[type="date"]{-webkit-appearance:auto;appearance:auto}
-@media(max-width:430px){.row{gap:14px}}.btn{width:100%;border:0;border-radius:15px;padding:16px;font-size:17px;font-weight:800;margin-top:12px}.scan{background:#1769e0;color:#fff}.create{background:#ef7d00;color:#fff}.btn:disabled{opacity:.5}.msg{display:none;border-radius:12px;padding:12px;margin-top:12px;font-weight:700}.ok{background:#e9f8ee;color:#176b36}.err{background:#fff0f0;color:#9d2222}.small{font-size:12px;color:#777;margin-top:7px}.open{display:none;text-align:center;margin-top:12px}.fields{display:none}.progress{font-size:13px;text-align:center;color:#555;margin-top:8px}
+@media(max-width:430px){.row{gap:14px}}
+/* iPhone: date fields must render as complete rounded boxes like every other field */
+.row input[type="date"]{
+  -webkit-appearance:none !important;
+  appearance:none !important;
+  box-sizing:border-box !important;
+  display:block !important;
+  width:100% !important;
+  height:54px !important;
+  margin:0 !important;
+  padding:0 12px !important;
+  border:1px solid #ccc !important;
+  border-radius:12px !important;
+  background:#fff !important;
+  font:inherit;
+  font-size:16px !important;
+  line-height:54px !important;
+  color:#111 !important;
+}
+.row input[type="date"]::-webkit-date-and-time-value{
+  text-align:center;
+  min-height:54px;
+  line-height:54px;
+}.btn{width:100%;border:0;border-radius:15px;padding:16px;font-size:17px;font-weight:800;margin-top:12px}.scan{background:#1769e0;color:#fff}.create{background:#ef7d00;color:#fff}.btn:disabled{opacity:.5}.msg{display:none;border-radius:12px;padding:12px;margin-top:12px;font-weight:700}.ok{background:#e9f8ee;color:#176b36}.err{background:#fff0f0;color:#9d2222}.small{font-size:12px;color:#777;margin-top:7px}.open{display:none;text-align:center;margin-top:12px}.fields{display:none}.progress{font-size:13px;text-align:center;color:#555;margin-top:8px}
 </style></head><body><div class="wrap"><div class="head"><img src="logo-elip.jpg"><h1>Ingresso Officina</h1><p>Scansiona oppure compila → crea</p></div>
 <div id="loginCard" class="card" style="display:none"><div class="step">Accesso Officina</div><div class="small">Accedi una volta su questo iPhone. La sessione resterà salvata.</div><label class="txt">Email</label><input id="loginEmail" type="email" autocomplete="username"><label class="txt">Password</label><input id="loginPassword" type="password" autocomplete="current-password"><button id="loginBtn" class="btn scan">ACCEDI</button><div id="loginMsg" class="progress"></div></div><div id="docCard" class="card"><div class="step">1. Documento cliente — facoltativo</div><label class="pick">📄 Scatta foto o scegli dalla libreria<input id="doc" type="file" accept="image/*"></label><img id="docPrev" class="preview"><button id="scan" class="btn scan" disabled>LEGGI DOCUMENTO</button><div id="scanProgress" class="progress"></div><div class="small">La foto del documento serve solo per estrarre i dati e non viene allegata alla scheda.</div></div>
 <div id="fields" class="card fields" style="display:block"><div class="step">2. Dati scheda — manuale o automatico</div><label class="txt">Cliente</label><input id="cliente"><label class="txt">Telefono</label><input id="telefono" inputmode="tel"><label class="txt">Tipo macchina / ricambio</label><input id="descrizione"><div class="row"><div><label class="txt">Data apertura</label><input id="dataApertura" type="date"></div><div><label class="txt">Stato</label><select id="stato"><option selected>In lavorazione</option><option>In attesa</option></select></div></div><div class="row"><div><label class="txt">N. DDT / riferimento</label><input id="ddt"></div><div><label class="txt">Data DDT</label><input id="dataDdt" type="date"></div></div><label class="txt">Note</label><textarea id="note" rows="2"></textarea></div>
