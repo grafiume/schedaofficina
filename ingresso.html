@@ -4,18 +4,7 @@
 <div class="card"><div class="step">1. Documento cliente</div><label class="pick">📄 Scatta foto o scegli dalla libreria<input id="doc" type="file" accept="image/*"></label><img id="docPrev" class="preview"><button id="scan" class="btn scan" disabled>LEGGI DOCUMENTO</button><div id="scanProgress" class="progress"></div><div class="small">La foto del documento serve solo per estrarre i dati e non viene allegata alla scheda.</div></div>
 <div id="fields" class="card fields"><div class="step">2. Dati letti — correggi solo se serve</div><label class="txt">Cliente</label><input id="cliente"><label class="txt">Telefono</label><input id="telefono" inputmode="tel"><label class="txt">Tipo macchina / ricambio</label><input id="descrizione"><div class="row"><div><label class="txt">Data apertura</label><input id="dataApertura" type="date"></div><div><label class="txt">Stato</label><select id="stato"><option selected>In lavorazione</option><option>In attesa</option></select></div></div><label class="txt">DDT / riferimento</label><input id="ddt"><label class="txt">Note</label><textarea id="note" rows="2"></textarea></div>
 <div id="partCard" class="card fields"><div class="step">3. Foto ricambio</div><label class="pick">⚙️ Scatta foto o scegli dalla libreria<input id="part" type="file" accept="image/*"></label><img id="partPrev" class="preview"><div class="small">Solo questa foto verrà allegata alla scheda.</div><button id="create" class="btn create">CREA SCHEDA</button><div id="msg" class="msg"></div><div id="open" class="open"></div></div></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script type="module">
-import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6';
-let reader;
-window.officinaLeggi=async(image)=>{
- if(!reader) reader=await pipeline('image-text-to-text','HuggingFaceTB/SmolVLM-256M-Instruct',{device:'webgpu'});
- const q=[{role:'user',content:[{type:'image',url:image},{type:'text',text:'Read this Italian workshop intake form including handwriting. Return only one line: CLIENTE=... | TELEFONO=... | TIPO=... | DDT=... | NOTE=... . Never guess; leave blank if unreadable.'}]}];
- const r=await reader(q,{max_new_tokens:120});
- const s=JSON.stringify(r);
- const get=k=>{const m=s.match(new RegExp(k+'=([^|\\\\"]*)','i'));return m?m[1].trim():''};
- return {ok:true,data:{cliente:get('CLIENTE'),telefono:get('TELEFONO'),descrizione:get('TIPO'),ddt:get('DDT'),note:get('NOTE')}};
-};
-</script><script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script>
 const sb=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);function today(){const d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),x=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+x}$('dataApertura').value=today();
 function prev(i,p){i.onchange=()=>{const f=i.files?.[0];if(!f){p.style.display='none';return}p.src=URL.createObjectURL(f);p.style.display='block'}}prev($('doc'),$('docPrev'));prev($('part'),$('partPrev'));$('doc').addEventListener('change',()=>{$('scan').disabled=!$('doc').files?.[0]});
 function toDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error('Lettura foto fallita'));r.readAsDataURL(file)})}
