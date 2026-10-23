@@ -86,6 +86,10 @@ Deno.serve(async (req) => {
       const updated = await appendNote(db, body);
       return json({ success: true, action: "aggiungi_nota", message: "Nota aggiunta", row: formatRow(updated) });
     }
+    if (["allega_foto", "upload_photo", "add_photo"].includes(norm(rawAction))) {
+      const photo = await uploadPhoto(db, body);
+      return json({ success: true, action: "allega_foto", message: "Foto allegata", photo });
+    }
 
     const bodyMax = Number(body?.maxResults || body?.limit || 10000);
     const maxResults = Number.isFinite(bodyMax) ? Math.max(1, Math.min(bodyMax, 50000)) : 10000;
@@ -209,6 +213,60 @@ async function appendNote(db: ReturnType<typeof createClient>, body: any): Promi
   const { data, error } = await db.from("records").update({ note: merged }).eq("id", id).select("*").single();
   if (error) throw error;
   return data as RecordRow;
+}
+
+async function uploadPhoto(db: ReturnType<typeof createClient>, body: any) {
+  const recordId = cleanString(body?.id || body?.record_id, 100);
+  if (!recordId) throw new Error("ID scheda obbligatorio");
+
+  // Impedisce di creare foto orfane e mantiene la regola: ogni modifica avviene per ID univoco.
+  await getRecordById(db, recordId);
+
+  const mime = cleanString(body?.mime_type || body?.content_type || "image/jpeg", 100).toLowerCase();
+  const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
+  if (!allowed.has(mime)) throw new Error("Formato foto non consentito");
+
+  let encoded = cleanString(body?.base64 || body?.data, 20_000_000);
+  const dataUrl = encoded.match(/^data:([^;]+);base64,(.+)$/s);
+  if (dataUrl) {
+    if (!allowed.has(dataUrl[1].toLowerCase())) throw new Error("Formato foto non consentito");
+    encoded = dataUrl[2];
+  }
+  encoded = encoded.replace(/\s+/g, "");
+  if (!encoded) throw new Error("Foto mancante");
+  if (encoded.length > 16_000_000) throw new Error("Foto troppo grande");
+
+  let bytes: Uint8Array;
+  try {
+    const binary = atob(encoded);
+    bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  } catch {
+    throw new Error("Contenuto foto non valido");
+  }
+  if (!bytes.length || bytes.length > 12_000_000) throw new Error("Foto troppo grande");
+
+  const extByMime: Record<string, string> = {
+    "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+    "image/heic": "heic", "image/heif": "heif",
+  };
+  const ext = extByMime[mime] || "jpg";
+  const safeLabel = cleanString(body?.label || body?.filename || "foto", 80)
+    .toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "foto";
+  const path = `${recordId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safeLabel}.${ext}`;
+
+  const { error: uploadError } = await db.storage.from("photos").upload(path, bytes, {
+    contentType: mime, cacheControl: "0", upsert: false,
+  });
+  if (uploadError) throw uploadError;
+
+  const { error: rowError } = await db.from("photos").insert({ record_id: recordId, path });
+  if (rowError) {
+    await db.storage.from("photos").remove([path]);
+    throw rowError;
+  }
+
+  const { data: publicData } = db.storage.from("photos").getPublicUrl(path);
+  return { record_id: recordId, path, url: publicData?.publicUrl || "" };
 }
 
 async function fetchAllRecords(db: ReturnType<typeof createClient>, maxResults: number): Promise<RecordRow[]> {
