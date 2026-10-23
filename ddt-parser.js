@@ -1,0 +1,1 @@
+window.elipDDT=function(x){x=x||{};var c=String(x.cliente||'');if(c.toUpperCase()==='ELIP TAGLIENTE SRL')c='';return {cliente:c,telefono:x.telefono||'',descrizione:x.descrizione||'',ddt:x.ddt||'',dataDdt:x.dataDdt||'',note:x.note||''};};
