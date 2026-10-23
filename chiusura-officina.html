@@ -32,7 +32,7 @@ async function findLegacyPhoto(id){
  return "";
 }
 async function loadVisiblePhotos(){
- const imgs=[...document.querySelectorAll('img[data-photo]')].slice(0,24);
+ const imgs=[...document.querySelectorAll('img[data-photo]')];
  let pos=0;
  async function worker(){while(pos<imgs.length){const im=imgs[pos++];if(!im||!document.body.contains(im))continue;const u=photoMap[im.dataset.photo]?publicPhoto(photoMap[im.dataset.photo]):await findLegacyPhoto(im.dataset.photo);if(u&&document.body.contains(im)){im.src=u;im.classList.remove('empty')}}}
  await Promise.all([worker(),worker(),worker()]);
