@@ -23,7 +23,7 @@ function publicPhoto(path){if(!path)return "";return sb.storage.from('photos').g
 async function findLegacyPhoto(id){
  if(photoMap[id])return publicPhoto(photoMap[id]);
  for(const folder of ['records/'+id,id]){
-   const ls=await sb.storage.from('photos').list(folder,{limit:5,sortBy:{column:'created_at',order:'desc'}});
+   const ls=await sb.storage.from('photos').list(folder,{limit:20});
    if(!ls.error){
      const file=(ls.data||[]).find(x=>x.name&&/\.(jpg|jpeg|png|webp|heic)$/i.test(x.name));
      if(file){photoMap[id]=folder+'/'+file.name;return publicPhoto(photoMap[id])}
