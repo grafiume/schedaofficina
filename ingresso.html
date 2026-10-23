@@ -11,7 +11,9 @@ function toDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileR
 $('scan').onclick=async()=>{const f=$('doc').files?.[0];if(!f)return;const b=$('scan');b.disabled=true;$('scanProgress').textContent='Analisi intelligente del documento…';try{
  const {data:{session}}=await sb.auth.getSession();if(!session)throw new Error('Apri prima la Scheda Officina ed effettua l’accesso su questo iPhone.');
  const image=await toDataUrl(f);
- const {data,error}=await sb.functions.invoke('officina-vision',{body:{image}});
+ const ctl=new AbortController(); const timer=setTimeout(()=>ctl.abort(),15000);
+ const res=await fetch('https://pedmdiljgjgswhfwedno.supabase.co/functions/v1/officina-vision',{method:'POST',headers:{'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY||'', 'Authorization':'Bearer '+session.access_token},body:JSON.stringify({image}),signal:ctl.signal}).finally(()=>clearTimeout(timer));
+ const data=await res.json().catch(()=>({})); const error=res.ok?null:new Error(data.detail||data.error||('HTTP '+res.status));
  if(error)throw new Error('Lettura automatica non disponibile: '+(error.message||'errore server'));
  if(error)throw error;if(!data?.ok)throw new Error(data?.error==='AI_NOT_CONFIGURED'?'Lettura AI non ancora configurata sul server.':(data?.detail||data?.error||'Lettura AI fallita.'));
  const x=data.data||{};$('cliente').value=x.cliente||'';$('telefono').value=x.telefono||'';$('descrizione').value=x.descrizione||'';$('ddt').value=x.ddt||'';$('note').value=x.note||'';
