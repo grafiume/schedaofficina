@@ -15,7 +15,7 @@ $('scan').onclick=async()=>{const f=$('doc').files?.[0];if(!f)return;const b=$('
  const res=await fetch('https://pedmdiljgjgswhfwedno.supabase.co/functions/v1/officina-vision',{method:'POST',headers:{'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY||'', 'Authorization':'Bearer '+session.access_token},body:JSON.stringify({image}),signal:ctl.signal}).finally(()=>clearTimeout(timer));
  const data=await res.json().catch(()=>({})); const error=res.ok?null:new Error(data.detail||data.error||('HTTP '+res.status));
  if(error)throw new Error('Lettura automatica non disponibile: '+(error.message||'errore server'));
- if(error)throw error;if(!data?.ok)throw new Error(data?.error==='AI_NOT_CONFIGURED'?'Lettura AI non ancora configurata sul server.':(data?.detail||data?.error||'Lettura AI fallita.'));
+ if(error)throw error;if(!data?.ok)throw new Error(data?.error==='AI_NOT_CONFIGURED'?'Lettura AI non ancora configurata sul server.':(data?.detail||data?.error||'Lettura AI fallita.')); const q=data.data||{};if(!String(q.cliente||'').trim()&&!String(q.telefono||'').trim()&&!String(q.descrizione||'').trim()&&!String(q.ddt||'').trim()&&!String(q.note||'').trim())throw new Error('Nessun dato riconosciuto nel documento.');
  const x=data.data||{};$('cliente').value=x.cliente||'';$('telefono').value=x.telefono||'';$('descrizione').value=x.descrizione||'';$('ddt').value=x.ddt||'';$('note').value=x.note||'';
  $('fields').style.display='block';$('partCard').style.display='block';$('scanProgress').textContent='✓ Dati letti dall’AI. Controlla e correggi solo se necessario.';
 }catch(e){$('fields').style.display='none';$('partCard').style.display='none';$('scanProgress').textContent='Errore lettura AI: '+(e.message||e)}finally{b.disabled=false}};
