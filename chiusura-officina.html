@@ -16,36 +16,38 @@ async function load(){
    const ids=rows.map(r=>r.id);
    const pr=await sb.from('photos').select('record_id,path').in('record_id',ids);
    if(!pr.error)(pr.data||[]).forEach(p=>{if(!photoMap[p.record_id])photoMap[p.record_id]=p.path});
-   await Promise.all(rows.map(async r=>{
-     if(photoMap[r.id])return;
-     for(const folder of ['records/'+r.id,r.id]){
-       const ls=await sb.storage.from('photos').list(folder,{limit:10,sortBy:{column:'created_at',order:'desc'}});
-       if(!ls.error){
-         const file=(ls.data||[]).find(x=>x.name&&/\.(jpg|jpeg|png|webp|heic)$/i.test(x.name));
-         if(file){photoMap[r.id]=folder+'/'+file.name;break}
-       }
-     }
-   }));
  }
  render();
 }
-function photoUrl(id){
- const path=photoMap[id];if(!path)return "";
- return sb.storage.from('photos').getPublicUrl(path).data.publicUrl||"";
+function publicPhoto(path){if(!path)return "";return sb.storage.from('photos').getPublicUrl(path).data.publicUrl||""}
+async function findLegacyPhoto(id){
+ if(photoMap[id])return publicPhoto(photoMap[id]);
+ for(const folder of ['records/'+id,id]){
+   const ls=await sb.storage.from('photos').list(folder,{limit:5,sortBy:{column:'created_at',order:'desc'}});
+   if(!ls.error){
+     const file=(ls.data||[]).find(x=>x.name&&/\.(jpg|jpeg|png|webp|heic)$/i.test(x.name));
+     if(file){photoMap[id]=folder+'/'+file.name;return publicPhoto(photoMap[id])}
+   }
+ }
+ return "";
+}
+async function loadVisiblePhotos(){
+ const imgs=[...document.querySelectorAll('img[data-photo]')].slice(0,24);
+ let pos=0;
+ async function worker(){while(pos<imgs.length){const im=imgs[pos++];if(!im||!document.body.contains(im))continue;const u=photoMap[im.dataset.photo]?publicPhoto(photoMap[im.dataset.photo]):await findLegacyPhoto(im.dataset.photo);if(u&&document.body.contains(im)){im.src=u;im.classList.remove('empty')}}}
+ await Promise.all([worker(),worker(),worker()]);
 }
 function render(){
  const q=norm($('q').value),a=rows.filter(r=>!q||norm([r.cliente,r.descrizione,r.docTrasporto,r.id,r.telefono].join(' ')).includes(q));
  $('count').textContent=a.length+' lavorazioni in corso';
  $('jobs').innerHTML=a.length?a.map(r=>{
-   const u=photoUrl(r.id);
-   return '<div class="job" role="button" tabindex="0" data-id="'+esc(r.id)+'"><div class="jobtop"><div class="jobmain"><div class="thumbbox">'+(u?'<img class="thumb" src="'+esc(u)+'" alt="Foto ricambio">':'')+'</div><div class="jobtext"><div class="cliente">'+esc(r.cliente||'SENZA CLIENTE')+'</div><div class="desc">'+esc(r.descrizione||'NESSUNA DESCRIZIONE')+'</div><span class="badge">IN LAVORAZIONE</span><div class="meta">'+(r.docTrasporto?'DDT: '+esc(r.docTrasporto)+'<br>':'')+'Aperta: '+esc(fmt(r.dataApertura))+'</div></div></div><div class="arrow">›</div></div></div>'
+   const u=photoMap[r.id]?publicPhoto(photoMap[r.id]):"";
+   return '<div class="job" role="button" tabindex="0" data-id="'+esc(r.id)+'"><div class="jobtop"><div class="jobmain"><div class="thumbbox"><img class="thumb '+(u?'':'empty')+'" data-photo="'+esc(r.id)+'" '+(u?'src="'+esc(u)+'"':'')+' alt=""></div><div class="jobtext"><div class="cliente">'+esc(r.cliente||'SENZA CLIENTE')+'</div><div class="desc">'+esc(r.descrizione||'NESSUNA DESCRIZIONE')+'</div><span class="badge">IN LAVORAZIONE</span><div class="meta">'+(r.docTrasporto?'DDT: '+esc(r.docTrasporto)+'<br>':'')+'Aperta: '+esc(fmt(r.dataApertura))+'</div></div></div><div class="arrow">›</div></div></div>'
  }).join(''):'<div class="card empty">Nessuna scheda trovata.</div>';
- document.querySelectorAll('.job').forEach(el=>{
-   el.addEventListener('click',()=>openJob(el.dataset.id));
-   el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openJob(el.dataset.id)}})
- });
+ document.querySelectorAll('.job').forEach(el=>el.addEventListener('click',()=>openJob(el.dataset.id)));
+ setTimeout(loadVisiblePhotos,0);
 }
 $('q').addEventListener('input',render);
-function openJob(id){selected=rows.find(r=>r.id===id);if(!selected)return;$('dCliente').textContent=selected.cliente||'SENZA CLIENTE';$('dDesc').textContent=selected.descrizione||'NESSUNA DESCRIZIONE';$('dApertura').textContent=fmt(selected.dataApertura);$('dDdt').textContent=selected.docTrasporto||'—';$('dNote').textContent=selected.note||'—';const dp=$('dPhoto'),pu=photoUrl(id);if(pu){dp.src=pu;dp.style.display='block'}else{dp.removeAttribute('src');dp.style.display='none'};$('original').href=selected.scheda_url||('record.html?id='+encodeURIComponent(id));$('finalNote').value='';$('msg').className='msg';$('listView').classList.add('hidden');$('detailView').classList.remove('hidden');scrollTo(0,0)}$('back').onclick=()=>{$('detailView').classList.add('hidden');$('listView').classList.remove('hidden');selected=null;scrollTo(0,0)};$('finalNote').addEventListener('blur',()=>$('finalNote').value=norm($('finalNote').value));
+async function openJob(id){selected=rows.find(r=>r.id===id);if(!selected)return;$('dCliente').textContent=selected.cliente||'SENZA CLIENTE';$('dDesc').textContent=selected.descrizione||'NESSUNA DESCRIZIONE';$('dApertura').textContent=fmt(selected.dataApertura);$('dDdt').textContent=selected.docTrasporto||'—';$('dNote').textContent=selected.note||'—';const dp=$('dPhoto'),pu=photoMap[id]?publicPhoto(photoMap[id]):await findLegacyPhoto(id);if(pu){dp.src=pu;dp.style.display='block'}else{dp.removeAttribute('src');dp.style.display='none'};$('original').href=selected.scheda_url||('record.html?id='+encodeURIComponent(id));$('finalNote').value='';$('msg').className='msg';$('listView').classList.add('hidden');$('detailView').classList.remove('hidden');scrollTo(0,0)}$('back').onclick=()=>{$('detailView').classList.add('hidden');$('listView').classList.remove('hidden');selected=null;scrollTo(0,0)};$('finalNote').addEventListener('blur',()=>$('finalNote').value=norm($('finalNote').value));
 $('complete').onclick=async()=>{if(!selected)return;const b=$('complete');b.disabled=true;$('msg').className='msg ok';$('msg').textContent='Aggiornamento in corso…';try{const note=norm($('finalNote').value);let merged=selected.note||'';if(note)merged=(merged?merged.trim()+'\n\n':'')+'CHIUSURA '+fmt(today())+': '+note;const patch={statoPratica:'Completata',dataChiusura:today(),updated_at:new Date().toISOString()};if(note)patch.note=merged;const{data,error}=await sb.from('records').update(patch).eq('id',selected.id).eq('statoPratica','In lavorazione').select('id,statoPratica,dataChiusura,note').single();if(error)throw error;if(!data||data.statoPratica!=='Completata'||data.dataChiusura!==today())throw new Error('Verifica aggiornamento non riuscita');$('msg').className='msg ok';$('msg').textContent='✓ LAVORAZIONE COMPLETATA';rows=rows.filter(r=>r.id!==selected.id);setTimeout(()=>{$('detailView').classList.add('hidden');$('listView').classList.remove('hidden');selected=null;render();scrollTo(0,0)},900)}catch(e){$('msg').className='msg err';$('msg').textContent='Errore: '+e.message}finally{b.disabled=false}};authUI();sb.auth.onAuthStateChange((_e,s)=>{if(s)authUI()});
 </script></body></html>
