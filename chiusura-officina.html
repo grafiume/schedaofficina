@@ -7,9 +7,45 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script>
 const sb=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}),$=id=>document.getElementById(id);let rows=[],selected=null,photoMap={};const norm=v=>String(v||'').trim().toUpperCase();function today(){const d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),x=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+x}function fmt(v){if(!v)return"—";const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?m[3]+'/'+m[2]+'/'+m[1]:v}function esc(v){return String(v||'').replace(/[&<>"']/g,x=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[x]))}
 async function authUI(){const{data:{session}}=await sb.auth.getSession();$('login').classList.toggle('hidden',!!session);$('listView').classList.toggle('hidden',!session);if(session)await load();return session}$('loginBtn').onclick=async()=>{try{$('loginMsg').textContent='Accesso…';const{error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;$('loginMsg').textContent='';await authUI()}catch(e){$('loginMsg').textContent='Errore: '+e.message}};
-async function load(){$('count').textContent='Caricamento lavorazioni…';const{data,error}=await sb.from('records').select('id,cliente,telefono,descrizione,statoPratica,dataApertura,docTrasporto,note,scheda_url').eq('statoPratica','In lavorazione').order('updated_at',{ascending:false}).limit(500);if(error){$('count').textContent='Errore: '+error.message;return}rows=data||[];photoMap={};if(rows.length){const ids=rows.map(r=>r.id);const pr=await sb.from('photos').select('record_id,path').in('record_id',ids);if(!pr.error)(pr.data||[]).forEach(p=>{if(!photoMap[p.record_id])photoMap[p.record_id]=p.path})}render()}async function resolvePhotoPath(id){if(photoMap[id])return photoMap[id];const tries=['records/'+id,id];for(const folder of tries){const ls=await sb.storage.from('photos').list(folder,{limit:20,sortBy:{column:'created_at',order:'desc'}});if(!ls.error){const file=(ls.data||[]).find(x=>x.name&&!x.name.endsWith('/'));if(file){photoMap[id]=folder+'/'+file.name;return photoMap[id]}}}return ""}
-async function photoUrl(id){const path=await resolvePhotoPath(id);if(!path)return "";const s=await sb.storage.from('photos').createSignedUrl(path,3600);return s.data?.signedUrl||""}
-function render(){const q=norm($('q').value),a=rows.filter(r=>!q||norm([r.cliente,r.descrizione,r.docTrasporto,r.id,r.telefono].join(' ')).includes(q));$('count').textContent=a.length+' lavorazioni in corso';$('jobs').innerHTML=a.length?a.map(r=>'<div class="job" data-id="'+esc(r.id)+'"><div class="jobtop"><div class="jobmain"><div class="thumbbox"><img class="thumb empty" data-photo="'+esc(r.id)+'" alt=""></div><div class="jobtext"><div class="cliente">'+esc(r.cliente||'SENZA CLIENTE')+'</div><div class="desc">'+esc(r.descrizione||'NESSUNA DESCRIZIONE')+'</div><span class="badge">IN LAVORAZIONE</span><div class="meta">'+(r.docTrasporto?'DDT: '+esc(r.docTrasporto)+'<br>':'')+'Aperta: '+esc(fmt(r.dataApertura))+'</div></div><div class="arrow">›</div></div></div></div>').join(''):'<div class="card empty">Nessuna scheda trovata.</div>';document.querySelectorAll('.job').forEach(e=>e.onclick=()=>openJob(e.dataset.id));document.querySelectorAll('img[data-photo]').forEach(async im=>{const u=await photoUrl(im.dataset.photo);if(u){im.src=u;im.classList.remove('empty')}})}$('q').addEventListener('input',render);
-async function openJob(id){selected=rows.find(r=>r.id===id);if(!selected)return;$('dCliente').textContent=selected.cliente||'SENZA CLIENTE';$('dDesc').textContent=selected.descrizione||'NESSUNA DESCRIZIONE';$('dApertura').textContent=fmt(selected.dataApertura);$('dDdt').textContent=selected.docTrasporto||'—';$('dNote').textContent=selected.note||'—';const dp=$('dPhoto'),pu=await photoUrl(id);if(pu){dp.src=pu;dp.style.display='block'}else{dp.removeAttribute('src');dp.style.display='none'};$('original').href=selected.scheda_url||('record.html?id='+encodeURIComponent(id));$('finalNote').value='';$('msg').className='msg';$('listView').classList.add('hidden');$('detailView').classList.remove('hidden');scrollTo(0,0)}$('back').onclick=()=>{$('detailView').classList.add('hidden');$('listView').classList.remove('hidden');selected=null;scrollTo(0,0)};$('finalNote').addEventListener('blur',()=>$('finalNote').value=norm($('finalNote').value));
+async function load(){
+ $('count').textContent='Caricamento lavorazioni…';
+ const {data,error}=await sb.from('records').select('id,cliente,telefono,descrizione,statoPratica,dataApertura,docTrasporto,note,scheda_url').eq('statoPratica','In lavorazione').order('updated_at',{ascending:false}).limit(500);
+ if(error){$('count').textContent='Errore: '+error.message;return}
+ rows=data||[];photoMap={};
+ if(rows.length){
+   const ids=rows.map(r=>r.id);
+   const pr=await sb.from('photos').select('record_id,path').in('record_id',ids);
+   if(!pr.error)(pr.data||[]).forEach(p=>{if(!photoMap[p.record_id])photoMap[p.record_id]=p.path});
+   await Promise.all(rows.map(async r=>{
+     if(photoMap[r.id])return;
+     for(const folder of ['records/'+r.id,r.id]){
+       const ls=await sb.storage.from('photos').list(folder,{limit:10,sortBy:{column:'created_at',order:'desc'}});
+       if(!ls.error){
+         const file=(ls.data||[]).find(x=>x.name&&/\.(jpg|jpeg|png|webp|heic)$/i.test(x.name));
+         if(file){photoMap[r.id]=folder+'/'+file.name;break}
+       }
+     }
+   }));
+ }
+ render();
+}
+function photoUrl(id){
+ const path=photoMap[id];if(!path)return "";
+ return sb.storage.from('photos').getPublicUrl(path).data.publicUrl||"";
+}
+function render(){
+ const q=norm($('q').value),a=rows.filter(r=>!q||norm([r.cliente,r.descrizione,r.docTrasporto,r.id,r.telefono].join(' ')).includes(q));
+ $('count').textContent=a.length+' lavorazioni in corso';
+ $('jobs').innerHTML=a.length?a.map(r=>{
+   const u=photoUrl(r.id);
+   return '<div class="job" role="button" tabindex="0" data-id="'+esc(r.id)+'"><div class="jobtop"><div class="jobmain"><div class="thumbbox">'+(u?'<img class="thumb" src="'+esc(u)+'" alt="Foto ricambio">':'')+'</div><div class="jobtext"><div class="cliente">'+esc(r.cliente||'SENZA CLIENTE')+'</div><div class="desc">'+esc(r.descrizione||'NESSUNA DESCRIZIONE')+'</div><span class="badge">IN LAVORAZIONE</span><div class="meta">'+(r.docTrasporto?'DDT: '+esc(r.docTrasporto)+'<br>':'')+'Aperta: '+esc(fmt(r.dataApertura))+'</div></div></div><div class="arrow">›</div></div></div>'
+ }).join(''):'<div class="card empty">Nessuna scheda trovata.</div>';
+ document.querySelectorAll('.job').forEach(el=>{
+   el.addEventListener('click',()=>openJob(el.dataset.id));
+   el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openJob(el.dataset.id)}})
+ });
+}
+$('q').addEventListener('input',render);
+function openJob(id){selected=rows.find(r=>r.id===id);if(!selected)return;$('dCliente').textContent=selected.cliente||'SENZA CLIENTE';$('dDesc').textContent=selected.descrizione||'NESSUNA DESCRIZIONE';$('dApertura').textContent=fmt(selected.dataApertura);$('dDdt').textContent=selected.docTrasporto||'—';$('dNote').textContent=selected.note||'—';const dp=$('dPhoto'),pu=photoUrl(id);if(pu){dp.src=pu;dp.style.display='block'}else{dp.removeAttribute('src');dp.style.display='none'};$('original').href=selected.scheda_url||('record.html?id='+encodeURIComponent(id));$('finalNote').value='';$('msg').className='msg';$('listView').classList.add('hidden');$('detailView').classList.remove('hidden');scrollTo(0,0)}$('back').onclick=()=>{$('detailView').classList.add('hidden');$('listView').classList.remove('hidden');selected=null;scrollTo(0,0)};$('finalNote').addEventListener('blur',()=>$('finalNote').value=norm($('finalNote').value));
 $('complete').onclick=async()=>{if(!selected)return;const b=$('complete');b.disabled=true;$('msg').className='msg ok';$('msg').textContent='Aggiornamento in corso…';try{const note=norm($('finalNote').value);let merged=selected.note||'';if(note)merged=(merged?merged.trim()+'\n\n':'')+'CHIUSURA '+fmt(today())+': '+note;const patch={statoPratica:'Completata',dataChiusura:today(),updated_at:new Date().toISOString()};if(note)patch.note=merged;const{data,error}=await sb.from('records').update(patch).eq('id',selected.id).eq('statoPratica','In lavorazione').select('id,statoPratica,dataChiusura,note').single();if(error)throw error;if(!data||data.statoPratica!=='Completata'||data.dataChiusura!==today())throw new Error('Verifica aggiornamento non riuscita');$('msg').className='msg ok';$('msg').textContent='✓ LAVORAZIONE COMPLETATA';rows=rows.filter(r=>r.id!==selected.id);setTimeout(()=>{$('detailView').classList.add('hidden');$('listView').classList.remove('hidden');selected=null;render();scrollTo(0,0)},900)}catch(e){$('msg').className='msg err';$('msg').textContent='Errore: '+e.message}finally{b.disabled=false}};authUI();sb.auth.onAuthStateChange((_e,s)=>{if(s)authUI()});
 </script></body></html>
