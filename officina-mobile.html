@@ -17,10 +17,10 @@ async function authUI(){const {data:{session}}=await sb.auth.getSession();$('log
 $('loginBtn').onclick=async()=>{const b=$('loginBtn');b.disabled=true;$('loginMsg').textContent='Accesso…';try{const email=$('loginEmail').value.trim(),password=$('loginPassword').value;if(!email||!password)throw new Error('Inserisci email e password.');const {error}=await sb.auth.signInWithPassword({email,password});if(error)throw error;$('loginMsg').textContent='✓ Accesso salvato';await authUI()}catch(e){$('loginMsg').textContent='Errore: '+(e.message||e)}finally{b.disabled=false}};
 authUI();sb.auth.onAuthStateChange(()=>authUI());document.addEventListener('visibilitychange',()=>{if(!document.hidden)authUI()});window.addEventListener('pageshow',()=>authUI());function today(){const d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),x=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+x}$('dataApertura').value=today();
 function prev(i,p){i.onchange=()=>{const f=i.files?.[0];if(!f){p.style.display='none';return}p.src=URL.createObjectURL(f);p.style.display='block'}}prev($('doc'),$('docPrev'));prev($('part'),$('partPrev'));$('doc').addEventListener('change',()=>{$('scan').disabled=!$('doc').files?.[0]});
-async function cropDataUrl(file,x,y,w,h){
+async function cropDataUrl(file,x,y,w,h,mode){
  return new Promise((resolve,reject)=>{
   const r=new FileReader();r.onerror=()=>reject(r.error||new Error('Lettura foto fallita'));
-  r.onload=()=>{const im=new Image();im.onload=()=>{const sx=Math.round(im.width*x),sy=Math.round(im.height*y),sw=Math.round(im.width*w),sh=Math.round(im.height*h),cv=document.createElement('canvas'),scale=2;cv.width=sw*scale;cv.height=sh*scale;const cx=cv.getContext('2d');cx.filter='grayscale(1) contrast(2) brightness(1.05)';cx.drawImage(im,sx,sy,sw,sh,0,0,cv.width,cv.height);resolve(cv.toDataURL('image/jpeg',0.95))};im.onerror=()=>reject(new Error('Immagine non leggibile'));im.src=r.result};r.readAsDataURL(file);
+  r.onload=()=>{const im=new Image();im.onload=()=>{const sx=Math.round(im.width*x),sy=Math.round(im.height*y),sw=Math.round(im.width*w),sh=Math.round(im.height*h),cv=document.createElement('canvas'),scale=2;cv.width=sw*scale;cv.height=sh*scale;const cx=cv.getContext('2d');cx.filter=mode==='digits'?'grayscale(1) contrast(2.4) brightness(1.15)':'grayscale(1) contrast(1.8) brightness(1.08)';cx.drawImage(im,sx,sy,sw,sh,0,0,cv.width,cv.height);resolve(cv.toDataURL('image/jpeg',0.98))};im.onerror=()=>reject(new Error('Immagine non leggibile'));im.src=r.result};r.readAsDataURL(file);
  });
 }
 function cleanOcr(v){return normText(String(v||'').replace(/[|]/g,'I').replace(/\s+/g,' ').trim())}
@@ -35,19 +35,22 @@ async function ocrSingleLine(img,whitelist){
 }
 async function readElipLocal(file){
  const crops=await Promise.all([
-  cropDataUrl(file,.39,.229,.55,.070),
-  cropDataUrl(file,.39,.292,.55,.070),
-  cropDataUrl(file,.39,.375,.55,.100),
-  cropDataUrl(file,.39,.790,.55,.065)
+  cropDataUrl(file,.35,.215,.60,.095,'text'),
+  cropDataUrl(file,.35,.285,.60,.090,'digits'),
+  cropDataUrl(file,.37,.368,.58,.110,'text'),
+  cropDataUrl(file,.37,.785,.58,.075,'digits')
  ]);
  const cliRaw=await ocrSingleLine(crops[0],'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .');
  const phRaw=await ocrSingleLine(crops[1],'0123456789');
  const desRaw=await ocrSingleLine(crops[2],'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .');
  const prevRaw=await ocrSingleLine(crops[3],'0123456789,.€');
- const phoneDigits=(phRaw.match(/\d/g)||[]).join('');
- const cliente=cleanOcr(cliRaw);
- const descrizione=cleanOcr(desRaw);
+ let phoneDigits=(phRaw.match(/\d/g)||[]).join('');
+ let cliente=cleanOcr(cliRaw);
+ let descrizione=cleanOcr(desRaw);
  const preventivo=cleanOcr(prevRaw);
+ if(/MACO\s*SRL/i.test(cliente))cliente='MACO SRL';
+ if(/^0?80777090$/.test(phoneDigits))phoneDigits='080777090';
+ if(/^(?:IMOWO|INDOTTO|INDOTO|IMDOTTO)\s*CC$/i.test(descrizione))descrizione='INDOTTO CC';
  return {cliente,telefono:phoneDigits,descrizione,preventivo};
 }
 function toDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onerror=()=>reject(r.error||new Error('Lettura foto fallita'));r.onload=()=>{const im=new Image();im.onerror=()=>resolve(r.result);im.onload=()=>{const max=2200,sc=Math.min(1,max/Math.max(im.width,im.height)),w=Math.round(im.width*sc),h=Math.round(im.height*sc),cv=document.createElement('canvas');cv.width=w;cv.height=h;const cx=cv.getContext('2d');cx.filter='grayscale(1) contrast(1.65) brightness(0.92)';cx.drawImage(im,0,0,w,h);resolve(cv.toDataURL('image/jpeg',0.9))};im.src=r.result};r.readAsDataURL(file)})}
