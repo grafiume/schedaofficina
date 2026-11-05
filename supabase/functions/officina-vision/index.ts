@@ -23,16 +23,19 @@ const match=image.match(/^data:([^;]+);base64,([\s\S]+)$/);
 if(!match)return out({ok:false,error:"IMAGE_FORMAT"},400);
 const requestData={contents:[{parts:[{text:prompt},{inline_data:{mime_type:match[1],data:match[2]}}]}],generationConfig:{responseMimeType:"application/json",temperature:0,maxOutputTokens:1400}};
 let response,result;
-for(let attempt=0;attempt<3;attempt++){
- response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",{method:"POST",signal:controller.signal,headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify(requestData)});
- result=await response.json().catch(()=>({}));
- if(response.ok)break;
- const detail=String(result?.error?.message||"");
- const temporary=[429,500,502,503,504].includes(response.status)||/high demand|overloaded|unavailable/i.test(detail);
- if(!temporary||attempt===2)break;
- await new Promise(resolve=>setTimeout(resolve,500*(attempt+1)));
+const models=["gemini-3.5-flash-lite","gemini-3.5-flash-lite","gemini-3.6-flash"];
+for(let attempt=0;attempt<models.length;attempt++){
+  try{
+    response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+models[attempt]+":generateContent",{method:"POST",signal:controller.signal,headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify(requestData)});
+    result=await response.json().catch(()=>({}));
+  }catch(e){if(attempt===models.length-1)throw e;continue;}
+  if(response.ok)break;
+  const detail=String(result?.error?.message||"");
+  const temporary=[429,500,502,503,504].includes(response.status)||/high demand|overloaded|unavailable/i.test(detail);
+  if(!temporary||attempt===models.length-1)break;
+  await new Promise(resolve=>setTimeout(resolve,500*(attempt+1)));
 }
-if(!response.ok)return out({ok:false,error:"VISION_PROVIDER_ERROR",detail:result?.error?.message||"HTTP "+response.status},502);
+if(!response?.ok)return out({ok:false,error:"VISION_PROVIDER_ERROR",detail:result?.error?.message||"Provider unavailable"},502);
 const responseText=(result?.candidates?.[0]?.content?.parts||[]).map(x=>x?.text||"").join("").trim();
 let raw;try{raw=JSON.parse(responseText)}catch{return out({ok:false,error:"VISION_INVALID_JSON"},502);}
 if(!raw||typeof raw!=="object"||Array.isArray(raw))return out({ok:false,error:"VISION_INVALID_RESULT"},502);
