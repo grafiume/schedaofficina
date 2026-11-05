@@ -56,7 +56,10 @@ async function ocrElipFixedFields(file,progress){
    const ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);ctx.drawImage(im,sx,sy,sw,sh,0,0,cv.width,cv.height);
    if(progress)progress(key,k);
    const outAI=await reader(cv.toDataURL('image/jpeg',.96),{max_new_tokens:40});
-   out[key]=String(outAI?.[0]?.generated_text||'').replace(/\s+/g,' ').trim();
+   let txt=String(outAI?.[0]?.generated_text||'').replace(/\s+/g,' ').trim();
+   if(key==='telefono')txt=txt.replace(/[^0-9]/g,'');
+   if(key==='preventivo'&&!/[0-9€]/.test(txt))txt='';
+   out[key]=txt;
   }
   out.telefono=String(out.telefono||'').replace(/[^\d+]/g,'');
   if(!out.preventivo||/^(preventivo|data|tecnico|[-_.]+)$/i.test(out.preventivo))out.preventivo='';
