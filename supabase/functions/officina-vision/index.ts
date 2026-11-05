@@ -21,8 +21,17 @@ if(image.length>14000000)return out({ok:false,error:"IMAGE_TOO_LARGE"},413);
 const key=Deno.env.get("GEMINI_API_KEY");if(!key)return out({ok:false,error:"VISION_NOT_CONFIGURED"},503);
 const match=image.match(/^data:([^;]+);base64,([\s\S]+)$/);
 if(!match)return out({ok:false,error:"IMAGE_FORMAT"},400);
-const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",{method:"POST",signal:controller.signal,headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify({contents:[{parts:[{text:prompt},{inline_data:{mime_type:match[1],data:match[2]}}]}],generationConfig:{responseMimeType:"application/json",temperature:0,maxOutputTokens:1400}})});
-const result=await response.json().catch(()=>({}));
+const requestData={contents:[{parts:[{text:prompt},{inline_data:{mime_type:match[1],data:match[2]}}]}],generationConfig:{responseMimeType:"application/json",temperature:0,maxOutputTokens:1400}};
+let response,result;
+for(let attempt=0;attempt<3;attempt++){
+ response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",{method:"POST",signal:controller.signal,headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify(requestData)});
+ result=await response.json().catch(()=>({}));
+ if(response.ok)break;
+ const detail=String(result?.error?.message||"");
+ const temporary=[429,500,502,503,504].includes(response.status)||/high demand|overloaded|unavailable/i.test(detail);
+ if(!temporary||attempt===2)break;
+ await new Promise(resolve=>setTimeout(resolve,500*(attempt+1)));
+}
 if(!response.ok)return out({ok:false,error:"VISION_PROVIDER_ERROR",detail:result?.error?.message||"HTTP "+response.status},502);
 const responseText=(result?.candidates?.[0]?.content?.parts||[]).map(x=>x?.text||"").join("").trim();
 let raw;try{raw=JSON.parse(responseText)}catch{return out({ok:false,error:"VISION_INVALID_JSON"},502);}
