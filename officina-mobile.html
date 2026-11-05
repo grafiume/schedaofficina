@@ -39,24 +39,27 @@ async function preprocessElipImage(file){
 async function ocrElipFixedFields(file,progress){
  const url=URL.createObjectURL(file);try{
   const im=await new Promise((ok,no)=>{const x=new Image();x.onload=()=>ok(x);x.onerror=no;x.src=url});
-  const bands=[['cliente',.285,.385],['telefono',.355,.455],['descrizione',.425,.555],['preventivo',.765,.855]];
   const out={cliente:'',telefono:'',descrizione:'',preventivo:''};
+  const rows={cliente:[.292,.350],telefono:[.352,.410],descrizione:[.418,.492],preventivo:[.755,.815]};
   const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
-  const dist=(a,b)=>{a=a.toUpperCase();b=b.toUpperCase();const m=Array.from({length:a.length+1},(_,i)=>[i]);for(let j=1;j<=b.length;j++)m[0][j]=j;for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return m[a.length][b.length]};
-  const pick=(raw,list)=>{const r=clean(raw).toUpperCase().replace(/[^A-Z0-9 ]/g,'');let best='',score=99;for(const x of list){const d=dist(r,x);const s=d/Math.max(r.length,x.length,1);if(s<score){score=s;best=x}}return score<=.58?best:''};
-  for(let k=0;k<bands.length;k++){
-   const [key,y1,y2]=bands[k],sx=Math.round(im.width*.27),sy=Math.round(im.height*y1),sw=Math.round(im.width*.71),sh=Math.round(im.height*(y2-y1));
-   const cv=document.createElement('canvas'),scale=Math.max(1,1200/sw);cv.width=Math.round(sw*scale);cv.height=Math.max(140,Math.round(sh*scale));
-   const ctx=cv.getContext('2d');ctx.drawImage(im,sx,sy,sw,sh,0,0,cv.width,cv.height);
-   const d=ctx.getImageData(0,0,cv.width,cv.height);for(let i=0;i<d.data.length;i+=4){let g=.299*d.data[i]+.587*d.data[i+1]+.114*d.data[i+2];g=g<175?0:g>225?255:g;d.data[i]=d.data[i+1]=d.data[i+2]=g}ctx.putImageData(d,0,0);
-   if(progress)progress(key,k);
-   const opts=key==='telefono'?{tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789',preserve_interword_spaces:'0'}:{tessedit_pageseg_mode:'7',preserve_interword_spaces:'1'};
-   const r=await Tesseract.recognize(cv,'ita',opts);let txt=clean(r?.data?.text);
-   if(key==='telefono'){out.telefono=txt.replace(/\D/g,'');continue}
-   if(key==='preventivo'){out.preventivo=/\d/.test(txt)?txt.replace(/[^0-9,.€]/g,''):'';continue}
-   if(key==='cliente'){out.cliente=pick(txt,['MACO SRL','MACO','STEI SRL','FIUME','MIRKO'])||txt;continue}
-   if(key==='descrizione'){out.descrizione=pick(txt,['INDOTTO CC','INDOTTO','STATORE','MOTORE CC','MOTORE','ELETTROPOMPA'])||txt}
+  const lev=(a,b)=>{a=a.toUpperCase();b=b.toUpperCase();let p=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let q=[i];for(let j=1;j<=b.length;j++)q[j]=Math.min(q[j-1]+1,p[j]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=q}return p[b.length]};
+  const best=(raw,list,max=.52)=>{let r=clean(raw).toUpperCase().replace(/[^A-Z0-9 ]/g,'');let z='',sc=9;for(const x of list){let d=lev(r,x)/Math.max(r.length,x.length,1);if(d<sc){sc=d;z=x}}return sc<=max?z:''};
+  async function readRow(key,numeric=false){
+   const [y1,y2]=rows[key],sx=Math.round(im.width*.36),sy=Math.round(im.height*y1),sw=Math.round(im.width*.61),sh=Math.round(im.height*(y2-y1));
+   const answers=[];
+   for(const threshold of [145,165,185,205]){
+    const cv=document.createElement('canvas'),scale=Math.max(1,1500/sw);cv.width=Math.round(sw*scale);cv.height=Math.max(130,Math.round(sh*scale));
+    const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);x.drawImage(im,sx,sy,sw,sh,0,0,cv.width,cv.height);
+    const d=x.getImageData(0,0,cv.width,cv.height);for(let i=0;i<d.data.length;i+=4){const g=.299*d.data[i]+.587*d.data[i+1]+.114*d.data[i+2],v=g<threshold?0:255;d.data[i]=d.data[i+1]=d.data[i+2]=v}x.putImageData(d,0,0);
+    const opts=numeric?{tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789'}:{tessedit_pageseg_mode:'7'};
+    const r=await Tesseract.recognize(cv,'ita',opts);answers.push(clean(r?.data?.text));
+   }
+   return answers;
   }
+  if(progress)progress('cliente',0);let a=await readRow('cliente');out.cliente=a.map(x=>best(x,['MACO SRL','MACO','STEI SRL','FIUME','MIRKO'],.62)).find(Boolean)||'';
+  if(progress)progress('telefono',1);a=await readRow('telefono',true);const nums=a.map(x=>x.replace(/\D/g,'')).filter(x=>x.length>=8&&x.length<=11);out.telefono=nums.sort((x,y)=>y.length-x.length)[0]||'';
+  if(progress)progress('descrizione',2);a=await readRow('descrizione');out.descrizione=a.map(x=>best(x,['INDOTTO CC','INDOTTO','STATORE','MOTORE CC','MOTORE','ELETTROPOMPA'],.62)).find(Boolean)||'';
+  if(progress)progress('preventivo',3);a=await readRow('preventivo',true);const money=a.map(x=>x.replace(/\D/g,'')).find(x=>x.length>0);out.preventivo=money||'';
   return out;
  }finally{URL.revokeObjectURL(url)}
 }
