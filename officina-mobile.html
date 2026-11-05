@@ -24,45 +24,30 @@ async function cropDataUrl(file,x,y,w,h,mode){
  });
 }
 function cleanOcr(v){return normText(String(v||'').replace(/[|]/g,'I').replace(/\s+/g,' ').trim())}
-let dehtrPromise=null,customerIndexPromise=null;
-const DEHTR_ALPHABET="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZäöüÄÖÜß0123456789 .,;:!?\"'()[]{}<>-–—_/\\@#%&*+=|€§°²³→←↑↓×÷";
-async function getDehtr(){
- if(!dehtrPromise){
-  dehtrPromise=(async()=>{
+let handwritingPipePromise=null;
+async function getHandwritingPipe(){
+ if(!handwritingPipePromise){
+  handwritingPipePromise=(async()=>{
    $('scanProgress').textContent='Caricamento lettore manoscritto…';
-   if(!window.ort){
-    await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.min.js';s.onload=resolve;s.onerror=()=>reject(new Error('Impossibile caricare il lettore locale'));document.head.appendChild(s)});
-   }
-   ort.env.wasm.wasmPaths='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
-   const model='https://huggingface.co/naeyn/de-htr-web-v2/resolve/main/model.onnx';
-   return await ort.InferenceSession.create(model,{executionProviders:['wasm']});
+   const mod=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1');
+   mod.env.allowLocalModels=false;
+   return await mod.pipeline('image-to-text','Xenova/trocr-base-handwritten',{dtype:'q8'});
   })();
  }
- return dehtrPromise;
+ return handwritingPipePromise;
 }
-function decodeCtc(data,dims,width){
- const classes=dims[2],steps=Math.min(Math.ceil(width/4),dims[1]);let out='',prev=-1;
- for(let t=0;t<steps;t++){let bi=0,bv=-Infinity;const off=t*classes;for(let k=0;k<classes;k++){const v=data[off+k];if(v>bv){bv=v;bi=k}}if(bi!==0&&bi!==prev)out+=DEHTR_ALPHABET[bi-1]||'';prev=bi}
- return out.trim();
-}
-async function dehtrLine(dataUrl){
- const im=await new Promise((resolve,reject)=>{const x=new Image();x.onload=()=>resolve(x);x.onerror=reject;x.src=dataUrl});
- const H=64,maxW=1024,stride=4,resized=Math.max(1,Math.round(im.width*(H/im.height))),imgW=Math.min(resized,maxW),W=Math.min(maxW,Math.ceil(imgW/stride)*stride),drawH=resized>maxW?Math.max(1,Math.round(H*(maxW/resized))):H,top=Math.floor((H-drawH)/2);
- const cv=document.createElement('canvas');cv.width=W;cv.height=H;const cx=cv.getContext('2d',{willReadFrequently:true});cx.fillStyle='rgb(255,255,255)';cx.fillRect(0,0,W,H);cx.imageSmoothingEnabled=true;cx.imageSmoothingQuality='medium';cx.drawImage(im,0,top,imgW,drawH);
- const px=cx.getImageData(0,0,W,H).data,vals=new Float32Array(W*H);for(let i=0;i<vals.length;i++){const p=i*4;vals[i]=(0.299*px[p]+0.587*px[p+1]+0.114*px[p+2])/255}
- const sess=await getDehtr(),tensor=new ort.Tensor('float32',vals,[1,1,H,W]),res=await sess.run({image:tensor}),o=res.logits;return cleanOcr(decodeCtc(o.data,o.dims,W));
-}
-function lev(a,b){a=normText(a).replace(/[^A-Z0-9]/g,'');b=normText(b).replace(/[^A-Z0-9]/g,'');const m=a.length,n=b.length,d=Array.from({length:m+1},(_,i)=>[i]);for(let j=1;j<=n;j++)d[0][j]=j;for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n]}
-function sim(a,b){const x=normText(a).replace(/[^A-Z0-9]/g,''),y=normText(b).replace(/[^A-Z0-9]/g,'');if(!x||!y)return 0;return 1-lev(x,y)/Math.max(x.length,y.length)}
-async function loadCustomers(){
- if(!customerIndexPromise)customerIndexPromise=(async()=>{let rows=[],from=0;for(let page=0;page<4;page++){const {data,error}=await sb.from('records').select('cliente,telefono').not('cliente','is',null).range(from,from+999);if(error)break;rows=rows.concat(data||[]);if(!data||data.length<1000)break;from+=1000}const map=new Map();for(const r of rows){const k=normCompany(r.cliente);if(k&&!map.has(k))map.set(k,{cliente:k,telefono:String(r.telefono||'').replace(/\D/g,'')})}return [...map.values()]})();return customerIndexPromise;
-}
-async function verifiedCustomer(raw){
- const s=normCompany(raw);if(!s)return null;const list=await loadCustomers();let best=null,second=0;for(const r of list){const sc=sim(s,r.cliente);if(!best||sc>best.sc){second=best?best.sc:second;best={...r,sc}}else if(sc>second)second=sc}return best&&best.sc>=0.66&&(best.sc-second)>=0.08?best:null;
+async function handwritingLine(img){
+ const pipe=await getHandwritingPipe();
+ const out=await pipe(img);
+ return cleanOcr(out?.[0]?.generated_text||'');
 }
 function verifiedMachine(raw){
  const vocab=['INDOTTO CC','INDOTTO','MOTORE CC','MOTORE','STATORE','ELETTROPOMPA','POMPA','ALTERNATORE','VENTILATORE','RIDUTTORE'];
- let best=null;for(const v of vocab){const sc=sim(raw,v);if(!best||sc>best.sc)best={v,sc}}return best&&best.sc>=0.48?best.v:'';
+ const s=cleanOcr(raw); if(!s)return '';
+ const norm=x=>normText(x).replace(/[^A-Z0-9]/g,'');
+ function lev(a,b){a=norm(a);b=norm(b);const m=a.length,n=b.length,d=Array.from({length:m+1},(_,i)=>[i]);for(let j=1;j<=n;j++)d[0][j]=j;for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n]}
+ let best={v:'',sc:0};for(const v of vocab){const den=Math.max(norm(s).length,norm(v).length)||1,sc=1-lev(s,v)/den;if(sc>best.sc)best={v,sc}}
+ return best.sc>=0.50?best.v:s;
 }
 async function readElipLocal(file){
  const crops=await Promise.all([
@@ -71,9 +56,15 @@ async function readElipLocal(file){
   cropDataUrl(file,.380,.392,.514,.077,'text'),
   cropDataUrl(file,.370,.799,.528,.059,'text')
  ]);
- const cliRaw=await dehtrLine(crops[0]),phRaw=await dehtrLine(crops[1]),desRaw=await dehtrLine(crops[2]),prevRaw=await dehtrLine(crops[3]);
- const match=await verifiedCustomer(cliRaw),digits=(String(phRaw).match(/\d/g)||[]).join('');
- const cliente=match?.cliente||'',telefono=match?.telefono||((digits.length>=7&&digits.length<=12)?digits:''),descrizione=verifiedMachine(desRaw),preventivo=/\d/.test(prevRaw)?cleanOcr(prevRaw):'';
+ const cliRaw=await handwritingLine(crops[0]);
+ const phRaw=await handwritingLine(crops[1]);
+ const desRaw=await handwritingLine(crops[2]);
+ const prevRaw=await handwritingLine(crops[3]);
+ const cliente=cleanOcr(cliRaw).replace(/[^A-Z0-9 .&'\-]/g,' ').replace(/\s+/g,' ').trim();
+ const digits=(String(phRaw).match(/\d/g)||[]).join('');
+ const telefono=(digits.length>=7&&digits.length<=12)?digits:'';
+ const descrizione=verifiedMachine(desRaw);
+ const preventivo=/\d/.test(prevRaw)?cleanOcr(prevRaw):'';
  return {cliente,telefono,descrizione,preventivo,_raw:{cliente:cliRaw,telefono:phRaw,descrizione:desRaw,preventivo:prevRaw}};
 }
 function toDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onerror=()=>reject(r.error||new Error('Lettura foto fallita'));r.onload=()=>{const im=new Image();im.onerror=()=>resolve(r.result);im.onload=()=>{const max=2200,sc=Math.min(1,max/Math.max(im.width,im.height)),w=Math.round(im.width*sc),h=Math.round(im.height*sc),cv=document.createElement('canvas');cv.width=w;cv.height=h;const cx=cv.getContext('2d');cx.filter='grayscale(1) contrast(1.65) brightness(0.92)';cx.drawImage(im,0,0,w,h);resolve(cv.toDataURL('image/jpeg',0.9))};im.src=r.result};r.readAsDataURL(file)})}
