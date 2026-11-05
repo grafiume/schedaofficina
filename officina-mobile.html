@@ -8,7 +8,7 @@
 .datebox input[type="date"]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;-webkit-appearance:none;appearance:none}
 @media(max-width:430px){.row{gap:14px}}.btn{width:100%;border:0;border-radius:15px;padding:16px;font-size:17px;font-weight:800;margin-top:12px}.scan{background:#1769e0;color:#fff}.create{background:#ef7d00;color:#fff}.btn:disabled{opacity:.5}.msg{display:none;border-radius:12px;padding:12px;margin-top:12px;font-weight:700}.ok{background:#e9f8ee;color:#176b36}.err{background:#fff0f0;color:#9d2222}.small{font-size:12px;color:#777;margin-top:7px}.open{display:none;text-align:center;margin-top:12px}.fields{display:none}.progress{font-size:13px;text-align:center;color:#555;margin-top:8px}
 </style></head><body><div class="wrap"><div class="head"><img src="logo-elip.jpg"><h1>Ingresso Officina</h1><p>Scansiona oppure compila → crea</p></div>
-<div id="loginCard" class="card" style="display:none"><div class="step">Accesso Officina</div><div class="small">Accedi una volta su questo iPhone. La sessione resterà salvata.</div><label class="txt">Email</label><input id="loginEmail" type="email" autocomplete="username"><label class="txt">Password</label><input id="loginPassword" type="password" autocomplete="current-password"><button id="loginBtn" class="btn scan">ACCEDI</button><div id="loginMsg" class="progress"></div></div><div id="docCard" class="card"><div class="step">1. Documento cliente — facoltativo</div><label class="pick">📄 Scatta foto o scegli dalla libreria<input id="doc" type="file" accept="image/*"></label><img id="docPrev" class="preview"><button id="scan" class="btn scan" disabled>LEGGI DDT / DOCUMENTO STAMPATO</button><button id="shareHand" class="btn" style="background:#111;color:#fff" disabled>MODULO ELIP MANOSCRITTO → CHATGPT</button><div id="scanProgress" class="progress"></div><div class="small">La foto del documento serve solo per estrarre i dati e non viene allegata alla scheda.</div></div>
+<div id="loginCard" class="card" style="display:none"><div class="step">Accesso Officina</div><div class="small">Accedi una volta su questo iPhone. La sessione resterà salvata.</div><label class="txt">Email</label><input id="loginEmail" type="email" autocomplete="username"><label class="txt">Password</label><input id="loginPassword" type="password" autocomplete="current-password"><button id="loginBtn" class="btn scan">ACCEDI</button><div id="loginMsg" class="progress"></div></div><div id="docCard" class="card"><div class="step">1. Documento cliente — facoltativo</div><label class="pick">📄 Scatta foto o scegli dalla libreria<input id="doc" type="file" accept="image/*"></label><img id="docPrev" class="preview"><button id="scan" class="btn scan" disabled>LEGGI DOCUMENTO</button><div id="scanProgress" class="progress"></div><div class="small">La foto del documento serve solo per estrarre i dati e non viene allegata alla scheda.</div></div>
 <div id="fields" class="card fields" style="display:block"><div class="step">2. Dati scheda — manuale o automatico</div><label class="txt">Cliente</label><input id="cliente"><label class="txt">Telefono</label><input id="telefono" inputmode="tel"><label class="txt">Tipo macchina / ricambio</label><input id="descrizione"><label class="txt">Preventivo</label><input id="preventivo"><div class="row"><div><label class="txt">Data apertura</label><div class="datebox"><div id="dataAperturaView" class="dateview"></div><input id="dataApertura" type="date" aria-label="Data apertura"></div></div><div><label class="txt">Stato</label><select id="stato"><option selected>In lavorazione</option><option>In attesa</option></select></div></div><div class="row"><div><label class="txt">N. DDT / riferimento</label><input id="ddt"></div><div><label class="txt">Data DDT</label><div class="datebox"><div id="dataDdtView" class="dateview"></div><input id="dataDdt" type="date" aria-label="Data DDT"></div></div></div><label class="txt">Note</label><textarea id="note" rows="2"></textarea></div>
 <div id="partCard" class="card fields" style="display:block"><div class="step">3. Foto ricambio — facoltativa</div><label class="pick">⚙️ Scatta foto o scegli dalla libreria<input id="part" type="file" accept="image/*"></label><img id="partPrev" class="preview"><div class="small">Facoltativa. Se la inserisci, solo questa foto verrà allegata alla scheda.</div><button id="create" class="btn create">CREA SCHEDA</button><div id="msg" class="msg"></div><div id="open" class="open"></div></div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script><script src="config.js"></script><script src="document-intelligence.js?v=5"></script><script>
@@ -16,22 +16,24 @@ function toDateInput(v){v=String(v||'').trim();let m=v.match(/^(\d{1,2})[\/.-](\
 async function authUI(){const {data:{session}}=await sb.auth.getSession();$('loginCard').style.display=session?'none':'block';$('docCard').style.display=session?'block':'none';return session}
 $('loginBtn').onclick=async()=>{const b=$('loginBtn');b.disabled=true;$('loginMsg').textContent='Accesso…';try{const email=$('loginEmail').value.trim(),password=$('loginPassword').value;if(!email||!password)throw new Error('Inserisci email e password.');const {error}=await sb.auth.signInWithPassword({email,password});if(error)throw error;$('loginMsg').textContent='✓ Accesso salvato';await authUI()}catch(e){$('loginMsg').textContent='Errore: '+(e.message||e)}finally{b.disabled=false}};
 authUI();sb.auth.onAuthStateChange(()=>authUI());document.addEventListener('visibilitychange',()=>{if(!document.hidden)authUI()});window.addEventListener('pageshow',()=>authUI());function today(){const d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),x=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+x}$('dataApertura').value=today();
-function prev(i,p){i.onchange=()=>{const f=i.files?.[0];if(!f){p.style.display='none';return}p.src=URL.createObjectURL(f);p.style.display='block'}}prev($('doc'),$('docPrev'));prev($('part'),$('partPrev'));$('doc').addEventListener('change',()=>{const has=!!$('doc').files?.[0];$('scan').disabled=!has;$('shareHand').disabled=!has});
+function prev(i,p){i.onchange=()=>{const f=i.files?.[0];if(!f){p.style.display='none';return}p.src=URL.createObjectURL(f);p.style.display='block'}}prev($('doc'),$('docPrev'));prev($('part'),$('partPrev'));$('doc').addEventListener('change',()=>{$('scan').disabled=!$('doc').files?.[0]});
 function toDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onerror=()=>reject(r.error||new Error('Lettura foto fallita'));r.onload=()=>{const im=new Image();im.onerror=()=>resolve(r.result);im.onload=()=>{const max=2200,sc=Math.min(1,max/Math.max(im.width,im.height)),w=Math.round(im.width*sc),h=Math.round(im.height*sc),cv=document.createElement('canvas');cv.width=w;cv.height=h;const cx=cv.getContext('2d');cx.filter='grayscale(1) contrast(1.65) brightness(0.92)';cx.drawImage(im,0,0,w,h);resolve(cv.toDataURL('image/jpeg',0.9))};im.src=r.result};r.readAsDataURL(file)})}
 
 
-$('shareHand').onclick=async()=>{const file=$('doc').files?.[0];if(!file)return;try{
- const msg='MODULO ELIP MANOSCRITTO. Leggi SOLO i valori scritti a mano: CLIENTE, TELEFONO, TIPO MACCHINA e PREVENTIVO se presente. Ignora intestazione, indirizzo e telefono stampati ELIP. Non inventare nulla.';
- if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-   await navigator.share({title:'Ingresso Officina ELIP',text:msg,files:[file]});
-   $('scanProgress').textContent='Foto condivisa. In ChatGPT verranno letti i dati manoscritti.';
- }else{
-   $('scanProgress').textContent='Condivisione file non disponibile: apri ChatGPT e allega questa stessa foto.';
- }
-}catch(e){if(e?.name!=='AbortError')$('scanProgress').textContent='Condivisione non riuscita: '+(e.message||e)}
-};
 function clean(v){return String(v||'').replace(/^[:\-\s]+/,'').trim()}
 function after(lines,re){for(let i=0;i<lines.length;i++){if(re.test(lines[i])){let s=lines[i].replace(re,'');if(clean(s))return clean(s);if(lines[i+1])return clean(lines[i+1])}}return''}
+
+async function preprocessElipImage(file){
+ const url=URL.createObjectURL(file);try{
+  const im=await new Promise((ok,no)=>{const x=new Image();x.onload=()=>ok(x);x.onerror=no;x.src=url});
+  const cv=document.createElement('canvas'),max=2200,sc=Math.min(1,max/im.width);
+  cv.width=Math.round(im.width*sc);cv.height=Math.round(im.height*sc);
+  const ctx=cv.getContext('2d');ctx.drawImage(im,0,0,cv.width,cv.height);
+  const d=ctx.getImageData(0,0,cv.width,cv.height),a=d.data;
+  for(let i=0;i<a.length;i+=4){let g=.299*a[i]+.587*a[i+1]+.114*a[i+2];g=(g-128)*1.9+128;g=g<155?0:g>225?255:g;a[i]=a[i+1]=a[i+2]=g}
+  ctx.putImageData(d,0,0);return cv.toDataURL('image/jpeg',.94);
+ }finally{URL.revokeObjectURL(url)}
+}
 function parseElipHandwritten(t){
  const lines=String(t||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
  let cliente=after(lines,/^(cliente|nome|ragione sociale)\s*[:\-]?/i);
@@ -43,12 +45,12 @@ function parseElipHandwritten(t){
  return {cliente,telefono,descrizione,preventivo};
 }
 $('scan').onclick=async()=>{const f=$('doc').files?.[0];if(!f){$('scanProgress').textContent='Seleziona una foto documento oppure compila i dati manualmente.';return;}const b=$('scan');b.disabled=true;$('scanProgress').textContent='Lettura documento… 0%';try{
- const image=await toDataUrl(f);
- const r=await Tesseract.recognize(image,'ita',{logger:m=>{if(m.status==='recognizing text')$('scanProgress').textContent='Lettura documento… '+Math.round((m.progress||0)*100)+'%'}});
+ const image=await preprocessElipImage(f);
+ const r=await Tesseract.recognize(image,'ita',{tessedit_pageseg_mode:'11',preserve_interword_spaces:'1',logger:m=>{if(m.status==='recognizing text')$('scanProgress').textContent='Lettura documento… '+Math.round((m.progress||0)*100)+'%'}});
  const raw=String(r?.data?.text||'');
  const isElip=/(DATA\s*INGRESSO|TIPO\s*MACCHINA|MOTIVAZIONI|PREVENTIVO|TECNICO)/i.test(raw);
  let x={cliente:'',telefono:'',descrizione:'',preventivo:'',ddt:'',dataDdt:'',note:''};
- if(isElip){$('fields').style.display='block';$('partCard').style.display='block';$('scanProgress').textContent='Modulo ELIP manoscritto rilevato: usa il pulsante MODULO ELIP MANOSCRITTO → CHATGPT.';return;}
+ if(isElip){Object.assign(x,parseElipHandwritten(raw));}
  else if(window.parseWorkshopDocument){Object.assign(x,window.parseWorkshopDocument(raw,{}));}
  $('cliente').value=normCompany(x.cliente);$('telefono').value=x.telefono||'';$('descrizione').value=normText(x.descrizione);$('preventivo').value=normText(x.preventivo);$('ddt').value=normText(x.ddt);$('dataDdt').value=toDateInput(x.dataDdt);$('note').value=normText(x.note);syncDateViews();
  $('fields').style.display='block';$('partCard').style.display='block';
