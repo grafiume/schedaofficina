@@ -1,0 +1,7 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ingresso Officina Live</title></head><body><p style="font-family:-apple-system;padding:24px">Caricamento versione aggiornata…</p><script>
+(async()=>{try{
+ const u='https://raw.githubusercontent.com/grafiume/schedaofficina/main/ingresso3.html?nocache='+Date.now();
+ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status);
+ const h=await r.text(); document.open(); document.write(h); document.close();
+}catch(e){document.body.innerHTML='<p style="font-family:-apple-system;padding:24px">Errore caricamento: '+e.message+'</p>'}})();
+</script></body></html>
