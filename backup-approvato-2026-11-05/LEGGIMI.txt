@@ -1,0 +1,15 @@
+ELIP TAGLIENTE - BACKUP APPROVATO 05/11/2026
+
+Questa cartella conserva la versione espressamente approvata dall'utente di:
+- ingresso3.html
+- ingresso4.html
+
+I due file hanno lo stesso identico contenuto.
+Git blob SHA di riferimento: 8a955d4c5f184a1ddab4714af5d1710eb6741fad
+
+IMPORTANTISSIMO:
+Non modificare la formattazione, i campi, le dimensioni e l'OCR di questa versione di riferimento.
+Non usarla come file di lavoro modificabile: copiare altrove per nuove prove.
+
+Lo ZIP originale contenente esattamente i due HTML è conservato nell'endpoint di backup:
+https://pedmdiljgjgswhfwedno.supabase.co/functions/v1/elip-backup-ingressi-051126
