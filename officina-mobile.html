@@ -67,19 +67,25 @@ function parseElipHandwritten(t){
  let preventivo=after(lines,/^preventivo\s*[:\-]?/i);
  return {cliente,telefono,descrizione,preventivo};
 }
-$('scan').onclick=async()=>{const f=$('doc').files?.[0];if(!f){$('scanProgress').textContent='Seleziona una foto documento oppure compila i dati manualmente.';return;}const b=$('scan');b.disabled=true;$('scanProgress').textContent='Lettura documento… 0%';try{
- const image=await preprocessElipImage(f);
- const r=await Tesseract.recognize(image,'ita',{tessedit_pageseg_mode:'11',preserve_interword_spaces:'1',logger:m=>{if(m.status==='recognizing text')$('scanProgress').textContent='Lettura documento… '+Math.round((m.progress||0)*100)+'%'}});
- const raw=String(r?.data?.text||'');
- const isElip=/(DATA\s*INGRESSO|TIPO\s*MACCHINA|MOTIVAZIONI|PREVENTIVO|TECNICO)/i.test(raw);
+
+$('scan').onclick=async()=>{const f=$('doc').files?.[0];if(!f){$('scanProgress').textContent='Seleziona una foto documento oppure compila i dati manualmente.';return;}const b=$('scan');b.disabled=true;try{
  let x={cliente:'',telefono:'',descrizione:'',preventivo:'',ddt:'',dataDdt:'',note:''};
- if(isElip){$('scanProgress').textContent='Modulo ELIP rilevato: lettura campi manoscritti…';Object.assign(x,await ocrElipFixedFields(f,(key,k)=>{$('scanProgress').textContent='Lettura manoscritto '+(k+1)+'/4…'}));}
- else if(window.parseWorkshopDocument){Object.assign(x,window.parseWorkshopDocument(raw,{}));}
+ if($('docType').value==='elip'){
+   $('scanProgress').textContent='Lettura MODULO ELIP manoscritto…';
+   Object.assign(x,await ocrElipFixedFields(f,(key,k)=>{$('scanProgress').textContent='Lettura manoscritto '+(k+1)+'/4…'}));
+   // Nel modulo ELIP DDT e data DDT devono restare sempre vuoti.
+   x.ddt='';x.dataDdt='';
+ }else{
+   $('scanProgress').textContent='Lettura DDT / documento stampato… 0%';
+   const image=await toDataUrl(f);
+   const r=await Tesseract.recognize(image,'ita',{tessedit_pageseg_mode:'11',preserve_interword_spaces:'1',logger:m=>{if(m.status==='recognizing text')$('scanProgress').textContent='Lettura DDT… '+Math.round((m.progress||0)*100)+'%'}});
+   const raw=String(r?.data?.text||'');
+   if(window.parseWorkshopDocument)Object.assign(x,window.parseWorkshopDocument(raw,{}));
+ }
  $('cliente').value=normCompany(x.cliente);$('telefono').value=x.telefono||'';$('descrizione').value=normText(x.descrizione);$('preventivo').value=normText(x.preventivo);$('ddt').value=normText(x.ddt);$('dataDdt').value=toDateInput(x.dataDdt);$('note').value=normText(x.note);syncDateViews();
  $('fields').style.display='block';$('partCard').style.display='block';
- if($('cliente').value||$('telefono').value||$('descrizione').value||$('ddt').value)$('scanProgress').textContent='✓ Dati estratti. Controlla e correggi solo se necessario.';
- else $('scanProgress').textContent='Lettura difficile: completa i campi manualmente.';
-}catch(e){$('fields').style.display='block';$('partCard').style.display='block';$('scanProgress').textContent='Errore lettura locale: '+(e.message||e)}finally{b.disabled=false}};
+ $('scanProgress').textContent='✓ Dati estratti. Controlla e correggi solo se necessario.';
+}catch(e){$('fields').style.display='block';$('partCard').style.display='block';$('scanProgress').textContent='Errore lettura: '+(e.message||e)}finally{b.disabled=false}};
 ['cliente','descrizione','preventivo','ddt','note'].forEach(function(id){var e=$(id);if(e)e.addEventListener('blur',function(){e.value=id==='cliente'?normCompany(e.value):normText(e.value)})});function formatDateView(v){if(!v)return "";const p=v.split("-");if(p.length!==3)return v;const m=["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];return Number(p[2])+" "+m[Number(p[1])-1]+" "+p[0]}
 function syncDateViews(){const a=document.getElementById("dataApertura"),d=document.getElementById("dataDdt");const av=document.getElementById("dataAperturaView"),dv=document.getElementById("dataDdtView");if(a&&av)av.textContent=formatDateView(a.value);if(d&&dv)dv.textContent=formatDateView(d.value)}
 document.getElementById("dataApertura")?.addEventListener("change",syncDateViews);
