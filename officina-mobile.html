@@ -7,7 +7,11 @@
 .datebox .dateview{box-sizing:border-box;width:100%;height:54px;border:1px solid #ccc;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;padding:0 12px;font-size:16px;color:#111;white-space:nowrap}
 .datebox input[type="date"]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;-webkit-appearance:none;appearance:none}
 @media(max-width:430px){.row{gap:14px}}.btn{width:100%;border:0;border-radius:15px;padding:16px;font-size:17px;font-weight:800;margin-top:12px}.scan{background:#1769e0;color:#fff}.create{background:#ef7d00;color:#fff}.btn:disabled{opacity:.5}.msg{display:none;border-radius:12px;padding:12px;margin-top:12px;font-weight:700}.ok{background:#e9f8ee;color:#176b36}.err{background:#fff0f0;color:#9d2222}.small{font-size:12px;color:#777;margin-top:7px}.open{display:none;text-align:center;margin-top:12px}.fields{display:none}.progress{font-size:13px;text-align:center;color:#555;margin-top:8px}
-</style></head><body><div class="wrap"><div class="head"><img src="logo-elip.jpg"><h1>Ingresso Officina</h1><p>Scansiona oppure compila → crea</p></div>
+</style><script type="module">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3';
+env.allowLocalModels=false;
+window.__loadHandwritingAI=async()=>window.__handwritingAI||(window.__handwritingAI=await pipeline('image-to-text','Xenova/trocr-small-handwritten',{dtype:'q8'}));
+</script></head><body><div class="wrap"><div class="head"><img src="logo-elip.jpg"><h1>Ingresso Officina</h1><p>Scansiona oppure compila → crea</p></div>
 <div id="loginCard" class="card" style="display:none"><div class="step">Accesso Officina</div><div class="small">Accedi una volta su questo iPhone. La sessione resterà salvata.</div><label class="txt">Email</label><input id="loginEmail" type="email" autocomplete="username"><label class="txt">Password</label><input id="loginPassword" type="password" autocomplete="current-password"><button id="loginBtn" class="btn scan">ACCEDI</button><div id="loginMsg" class="progress"></div></div><div id="docCard" class="card"><div class="step">1. Documento cliente — facoltativo</div><label class="txt">Tipo documento</label><select id="docType"><option value="elip">MODULO ELIP MANOSCRITTO</option><option value="ddt">DDT / DOCUMENTO STAMPATO</option></select><label class="pick">📄 Scatta foto o scegli dalla libreria<input id="doc" type="file" accept="image/*"></label><img id="docPrev" class="preview"><button id="scan" class="btn scan" disabled>LEGGI DOCUMENTO</button><div id="scanProgress" class="progress"></div><div class="small">La foto del documento serve solo per estrarre i dati e non viene allegata alla scheda.</div></div>
 <div id="fields" class="card fields" style="display:block"><div class="step">2. Dati scheda — manuale o automatico</div><label class="txt">Cliente</label><input id="cliente"><label class="txt">Telefono</label><input id="telefono" inputmode="tel"><label class="txt">Tipo macchina / ricambio</label><input id="descrizione"><label class="txt">Preventivo</label><input id="preventivo"><div class="row"><div><label class="txt">Data apertura</label><div class="datebox"><div id="dataAperturaView" class="dateview"></div><input id="dataApertura" type="date" aria-label="Data apertura"></div></div><div><label class="txt">Stato</label><select id="stato"><option selected>In lavorazione</option><option>In attesa</option></select></div></div><div class="row"><div><label class="txt">N. DDT / riferimento</label><input id="ddt"></div><div><label class="txt">Data DDT</label><div class="datebox"><div id="dataDdtView" class="dateview"></div><input id="dataDdt" type="date" aria-label="Data DDT"></div></div></div><label class="txt">Note</label><textarea id="note" rows="2"></textarea></div>
 <div id="partCard" class="card fields" style="display:block"><div class="step">3. Foto ricambio — facoltativa</div><label class="pick">⚙️ Scatta foto o scegli dalla libreria<input id="part" type="file" accept="image/*"></label><img id="partPrev" class="preview"><div class="small">Facoltativa. Se la inserisci, solo questa foto verrà allegata alla scheda.</div><button id="create" class="btn create">CREA SCHEDA</button><div id="msg" class="msg"></div><div id="open" class="open"></div></div></div>
@@ -35,25 +39,27 @@ async function preprocessElipImage(file){
  }finally{URL.revokeObjectURL(url)}
 }
 
+
 async function ocrElipFixedFields(file,progress){
  const url=URL.createObjectURL(file);try{
   const im=await new Promise((ok,no)=>{const x=new Image();x.onload=()=>ok(x);x.onerror=no;x.src=url});
-  // Modulo ELIP: riconosciamo separatamente le fasce orizzontali, evitando intestazione e telefono stampato.
+  if(!window.__loadHandwritingAI)throw new Error('Motore manoscritto non caricato');
+  if(progress)progress('modello',-1);
+  const reader=await window.__loadHandwritingAI();
   const bands=[
    ['cliente',0.285,0.385],['telefono',0.355,0.455],['descrizione',0.425,0.555],['preventivo',0.765,0.855]
   ];
   const out={cliente:'',telefono:'',descrizione:'',preventivo:''};
   for(let k=0;k<bands.length;k++){
-   const [key,y1,y2]=bands[k],sx=Math.round(im.width*.28),sy=Math.round(im.height*y1),sw=Math.round(im.width*.70),sh=Math.round(im.height*(y2-y1));
-   const cv=document.createElement('canvas');cv.width=Math.max(900,sw*2);cv.height=Math.max(160,sh*2);
-   const ctx=cv.getContext('2d');ctx.drawImage(im,sx,sy,sw,sh,0,0,cv.width,cv.height);
-   const d=ctx.getImageData(0,0,cv.width,cv.height),a=d.data;
-   for(let i=0;i<a.length;i+=4){let g=.299*a[i]+.587*a[i+1]+.114*a[i+2];g=(g-128)*2.15+128;g=g<170?0:g>225?255:g;a[i]=a[i+1]=a[i+2]=g}ctx.putImageData(d,0,0);
+   const [key,y1,y2]=bands[k],sx=Math.round(im.width*.27),sy=Math.round(im.height*y1),sw=Math.round(im.width*.71),sh=Math.round(im.height*(y2-y1));
+   const cv=document.createElement('canvas');const scale=Math.max(1,900/sw);cv.width=Math.round(sw*scale);cv.height=Math.max(100,Math.round(sh*scale));
+   const ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);ctx.drawImage(im,sx,sy,sw,sh,0,0,cv.width,cv.height);
    if(progress)progress(key,k);
-   const r=await Tesseract.recognize(cv.toDataURL('image/png'),'ita',{tessedit_pageseg_mode:'7',preserve_interword_spaces:'1'});
-   out[key]=String(r?.data?.text||'').replace(/\r?\n/g,' ').replace(/\s+/g,' ').trim();
+   const outAI=await reader(cv.toDataURL('image/jpeg',.96),{max_new_tokens:40});
+   out[key]=String(outAI?.[0]?.generated_text||'').replace(/\s+/g,' ').trim();
   }
-  out.telefono=out.telefono.replace(/[^\d+]/g,'');
+  out.telefono=String(out.telefono||'').replace(/[^\d+]/g,'');
+  if(!out.preventivo||/^(preventivo|data|tecnico|[-_.]+)$/i.test(out.preventivo))out.preventivo='';
   return out;
  }finally{URL.revokeObjectURL(url)}
 }
@@ -72,7 +78,7 @@ $('scan').onclick=async()=>{const f=$('doc').files?.[0];if(!f){$('scanProgress')
  let x={cliente:'',telefono:'',descrizione:'',preventivo:'',ddt:'',dataDdt:'',note:''};
  if($('docType').value==='elip'){
    $('scanProgress').textContent='Lettura MODULO ELIP manoscritto…';
-   Object.assign(x,await ocrElipFixedFields(f,(key,k)=>{$('scanProgress').textContent='Lettura manoscritto '+(k+1)+'/4…'}));
+   Object.assign(x,await ocrElipFixedFields(f,(key,k)=>{$('scanProgress').textContent=k<0?'Caricamento motore manoscritto (solo la prima volta)…':'Lettura manoscritto '+(k+1)+'/4…'}));
    // Nel modulo ELIP DDT e data DDT devono restare sempre vuoti.
    x.ddt='';x.dataDdt='';
  }else{
