@@ -24,10 +24,6 @@ async function cropDataUrl(file,x,y,w,h,mode){
  });
 }
 function cleanOcr(v){return normText(String(v||'').replace(/[|]/g,'I').replace(/\s+/g,' ').trim())}
-function geminiKey(){return localStorage.getItem('elip_gemini_api_key')||''}
-function showGeminiKeyCard(){const el=$('ocrKeyCard');if(el)el.style.display=geminiKey()?'none':'block'}
-$('saveGeminiKey').onclick=()=>{const k=$('geminiKey').value.trim();if(!k){$('geminiKeyMsg').textContent='Inserisci la chiave.';return}localStorage.setItem('elip_gemini_api_key',k);$('geminiKey').value='';$('geminiKeyMsg').textContent='✓ Chiave salvata su questo dispositivo';showGeminiKeyCard()};
-showGeminiKeyCard();
 async function readWithGemini(image){
  const res=await sb.functions.invoke('officina-gemini',{body:{image}});
  if(res.error)throw new Error(res.error.message||'Errore funzione OCR');
@@ -42,7 +38,7 @@ $('scan').onclick=async()=>{const f=$('doc').files?.[0];if(!f){$('scanProgress')
  $('fields').style.display='block';$('partCard').style.display='block';
  const ok=!!($('cliente').value||$('telefono').value||$('descrizione').value||$('ddt').value);
  $('scanProgress').textContent=ok?'✓ Dati letti. Controlla i campi prima di creare la scheda.':'Nessun dato leggibile con sufficiente certezza.';
-}catch(e){$('fields').style.display='block';$('partCard').style.display='block';showGeminiKeyCard();$('scanProgress').textContent='Errore lettura: '+(e.message||e)}finally{b.disabled=false}};
+}catch(e){$('fields').style.display='block';$('partCard').style.display='block';$('scanProgress').textContent='Errore lettura: '+(e.message||e)}finally{b.disabled=false}};
 ['cliente','descrizione','preventivo','ddt','note'].forEach(function(id){var e=$(id);if(e)e.addEventListener('blur',function(){e.value=id==='cliente'?normCompany(e.value):normText(e.value)})});function formatDateView(v){if(!v)return "";const p=v.split("-");if(p.length!==3)return v;const m=["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];return Number(p[2])+" "+m[Number(p[1])-1]+" "+p[0]}
 function syncDateViews(){const a=document.getElementById("dataApertura"),d=document.getElementById("dataDdt");const av=document.getElementById("dataAperturaView"),dv=document.getElementById("dataDdtView");if(a&&av)av.textContent=formatDateView(a.value);if(d&&dv)dv.textContent=formatDateView(d.value)}
 document.getElementById("dataApertura")?.addEventListener("change",syncDateViews);
