@@ -34,6 +34,29 @@ async function preprocessElipImage(file){
   ctx.putImageData(d,0,0);return cv.toDataURL('image/jpeg',.94);
  }finally{URL.revokeObjectURL(url)}
 }
+
+async function ocrElipFixedFields(file,progress){
+ const url=URL.createObjectURL(file);try{
+  const im=await new Promise((ok,no)=>{const x=new Image();x.onload=()=>ok(x);x.onerror=no;x.src=url});
+  // Modulo ELIP: riconosciamo separatamente le fasce orizzontali, evitando intestazione e telefono stampato.
+  const bands=[
+   ['cliente',0.285,0.385],['telefono',0.355,0.455],['descrizione',0.425,0.555],['preventivo',0.765,0.855]
+  ];
+  const out={cliente:'',telefono:'',descrizione:'',preventivo:''};
+  for(let k=0;k<bands.length;k++){
+   const [key,y1,y2]=bands[k],sx=Math.round(im.width*.28),sy=Math.round(im.height*y1),sw=Math.round(im.width*.70),sh=Math.round(im.height*(y2-y1));
+   const cv=document.createElement('canvas');cv.width=Math.max(900,sw*2);cv.height=Math.max(160,sh*2);
+   const ctx=cv.getContext('2d');ctx.drawImage(im,sx,sy,sw,sh,0,0,cv.width,cv.height);
+   const d=ctx.getImageData(0,0,cv.width,cv.height),a=d.data;
+   for(let i=0;i<a.length;i+=4){let g=.299*a[i]+.587*a[i+1]+.114*a[i+2];g=(g-128)*2.15+128;g=g<170?0:g>225?255:g;a[i]=a[i+1]=a[i+2]=g}ctx.putImageData(d,0,0);
+   if(progress)progress(key,k);
+   const r=await Tesseract.recognize(cv.toDataURL('image/png'),'ita',{tessedit_pageseg_mode:'7',preserve_interword_spaces:'1'});
+   out[key]=String(r?.data?.text||'').replace(/\r?\n/g,' ').replace(/\s+/g,' ').trim();
+  }
+  out.telefono=out.telefono.replace(/[^\d+]/g,'');
+  return out;
+ }finally{URL.revokeObjectURL(url)}
+}
 function parseElipHandwritten(t){
  const lines=String(t||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
  let cliente=after(lines,/^(cliente|nome|ragione sociale)\s*[:\-]?/i);
@@ -50,7 +73,7 @@ $('scan').onclick=async()=>{const f=$('doc').files?.[0];if(!f){$('scanProgress')
  const raw=String(r?.data?.text||'');
  const isElip=/(DATA\s*INGRESSO|TIPO\s*MACCHINA|MOTIVAZIONI|PREVENTIVO|TECNICO)/i.test(raw);
  let x={cliente:'',telefono:'',descrizione:'',preventivo:'',ddt:'',dataDdt:'',note:''};
- if(isElip){Object.assign(x,parseElipHandwritten(raw));}
+ if(isElip){$('scanProgress').textContent='Modulo ELIP rilevato: lettura campi manoscritti…';Object.assign(x,await ocrElipFixedFields(f,(key,k)=>{$('scanProgress').textContent='Lettura manoscritto '+(k+1)+'/4…'}));}
  else if(window.parseWorkshopDocument){Object.assign(x,window.parseWorkshopDocument(raw,{}));}
  $('cliente').value=normCompany(x.cliente);$('telefono').value=x.telefono||'';$('descrizione').value=normText(x.descrizione);$('preventivo').value=normText(x.preventivo);$('ddt').value=normText(x.ddt);$('dataDdt').value=toDateInput(x.dataDdt);$('note').value=normText(x.note);syncDateViews();
  $('fields').style.display='block';$('partCard').style.display='block';
