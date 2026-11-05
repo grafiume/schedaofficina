@@ -43,7 +43,7 @@ $('scan').onclick=async()=>{const f=$('doc').files?.[0];if(!f){$('scanProgress')
  const {data:{session}}=await sb.auth.getSession();if(!session){await authUI();throw new Error('Sessione non attiva: accedi qui sopra e riprova.');}
  const image=await toDataUrl(f);
  let isElip=false,ocrText='';
- try{const or=await fetch('https://pedmdiljgjgswhfwedno.supabase.co/functions/v1/officina-ocr3',{method:'POST',headers:{'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY||'','Authorization':'Bearer '+session.access_token},body:JSON.stringify({image})});const oj=await or.json();ocrText=String(oj.text||'');isElip=/ELIP\s*TAGLIENTE|DATA\s*INGRESSO|TIPO\s*MACCHINA/i.test(ocrText)}catch(_){}
+ try{const or=await fetch('https://pedmdiljgjgswhfwedno.supabase.co/functions/v1/officina-ocr3',{method:'POST',headers:{'Content-Type':'application/json','apikey':window.SUPABASE_ANON_KEY||'','Authorization':'Bearer '+session.access_token},body:JSON.stringify({image})});const oj=await or.json();ocrText=String(oj.text||'');isElip=/(ELIP\s*TAGLIENTE|DATA\s*INGRESSO|TIPO\s*MACCHINA|CLIENTE|TELEFONO|MOTIVAZIONI|PREVENTIVO|DATA\s*CONSEGNA|TECNICO)/i.test(ocrText)}catch(_){}
  let x={};
  if(isElip){
    $('scanProgress').textContent='Modulo ELIP riconosciuto — lettura manoscritto locale…';
