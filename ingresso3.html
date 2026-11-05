@@ -15,6 +15,42 @@
 #docCard .form-field input,#docCard .form-field select,#docCard .form-field textarea{display:block !important;width:100% !important;max-width:none !important;box-sizing:border-box !important;margin:0 !important}
 #docCard .form-field input,#docCard .form-field select{height:58px !important}
 #docCard .form-field textarea{min-height:88px !important}
+</style><style id="uniform-field-fix">
+#docCard .form-field{margin:0 0 18px 0 !important;padding:0 !important;width:100% !important}
+#docCard .form-field label.txt{display:block !important;margin:0 0 7px 0 !important;padding:0 !important}
+#docCard .form-field input,
+#docCard .form-field select{
+  display:block !important;
+  width:100% !important;
+  max-width:100% !important;
+  min-width:0 !important;
+  height:58px !important;
+  min-height:58px !important;
+  max-height:58px !important;
+  padding:0 16px !important;
+  margin:0 !important;
+  border:1px solid #ccc !important;
+  border-radius:12px !important;
+  box-sizing:border-box !important;
+  font:inherit !important;
+  line-height:58px !important;
+  background:#fff !important;
+}
+#docCard #dataApertura{
+  -webkit-appearance:none !important;
+  appearance:none !important;
+}
+#docCard #stato{
+  -webkit-appearance:none !important;
+  appearance:none !important;
+  padding-right:44px !important;
+  background-color:#fff !important;
+}
+#docCard .form-field textarea{
+  width:100% !important;
+  box-sizing:border-box !important;
+  margin:0 !important;
+}
 </style></head><body><div class="wrap"><div class="head"><img src="logo-elip.jpg"><h1>Ingresso Officina</h1><p>Scansiona oppure compila → crea</p></div>
 <div id="loginCard" class="card" style="display:none"><div class="step">Accesso Officina</div><div class="small">Accedi una volta su questo iPhone. La sessione resterà salvata.</div><label class="txt">Email</label><input id="loginEmail" type="email" autocomplete="username"><label class="txt">Password</label><input id="loginPassword" type="password" autocomplete="current-password"><button id="loginBtn" class="btn scan">ACCEDI</button><div id="loginMsg" class="progress"></div></div><div id="docCard" class="card"><div class="step">1. Documento cliente — facoltativo</div><label class="pick">📄 Scatta foto o scegli dalla libreria<input id="doc" type="file" accept="image/*"></label><img id="docPrev" class="preview"><button id="scan" class="btn scan" disabled>LEGGI DOCUMENTO</button><div id="scanProgress" class="progress"></div><div class="small">La foto del documento serve solo per estrarre i dati e non viene allegata alla scheda.</div></div>
 <div id="fields" class="card fields" style="display:block"><div class="step">2. Dati scheda — manuale o automatico</div>
