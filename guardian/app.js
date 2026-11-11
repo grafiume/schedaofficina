@@ -89,9 +89,47 @@ async function manualPause(pause){
 $('loginForm').addEventListener('submit',async e=>{
  e.preventDefault();const email=$('emailInput').value.trim();if(!email||!sb)return;
  $('loginBtn').disabled=true;
- try{const r=await sb.auth.signInWithOtp({email,options:{shouldCreateUser:true,emailRedirectTo:location.origin+location.pathname}});if(r.error)throw r.error;feedback('Se il tuo account è autorizzato, riceverai un link via email.');}
+ try{const r=await sb.auth.signInWithOtp({email,options:{shouldCreateUser:false,emailRedirectTo:location.origin+location.pathname}});if(r.error)throw r.error;feedback('Se il tuo account è autorizzato, riceverai un link via email.');}
  catch(e){err(e);}finally{$('loginBtn').disabled=false;}
 });
+
+function parseVerificationLink(raw) {
+  if (raw.length > 10000) throw new Error('Collegamento non valido o troppo lungo.');
+  let url;
+  try { url = new URL(raw.trim()); } catch { throw new Error('Incolla il collegamento completo, che inizia con https://.'); }
+  // Outlook Safe Links conserva la destinazione originale nel parametro "url".
+  for (let i = 0; i < 3 && url.hostname.toLowerCase().endsWith('.safelinks.protection.outlook.com'); i++) {
+    const target=url.searchParams.get('url');
+    if (!target) throw new Error('Collegamento Outlook incompleto.');
+    try { url=new URL(target); } catch { throw new Error('Collegamento Outlook danneggiato.'); }
+  }
+  if (url.origin !== SUPABASE_URL || url.pathname !== '/auth/v1/verify') {
+    throw new Error('Utilizza solo un collegamento di verifica Supabase per questo progetto.');
+  }
+  const token=url.searchParams.get('token_hash') || url.searchParams.get('token') || '';
+  const type=url.searchParams.get('type') || '';
+  if (!/^[0-9a-f]{32,256}$/i.test(token) || !['signup','magiclink','email'].includes(type)) {
+    throw new Error('Link non riconosciuto o incompleto.');
+  }
+  return {token_hash:token,type};
+}
+$('verifyLinkBtn').addEventListener('click',async()=>{
+  if(!sb){feedback('Connessione di accesso non inizializzata.');return;}
+  const input=$('verifyLinkInput');
+  const button=$('verifyLinkBtn');
+  button.disabled=true;
+  try {
+    const details=parseVerificationLink(input.value);
+    const {data,error}=await sb.auth.verifyOtp(details);
+    input.value=''; // Cancella subito il link monouso dalla pagina.
+    if(error)throw error;
+    if(!data.session)throw new Error('Conferma non completata. Richiedi un nuovo link.');
+    feedback('Accesso confermato.');
+    await renderSession(data.session);
+  }catch(e){input.value='';err(e);}
+  finally{button.disabled=false;}
+});
+
 $('safeBtn').onclick=()=>scenario({tool:'read_public_feed'});
 $('badBtn').onclick=()=>scenario({tool:'disable_guardian'});
 $('hostBtn').onclick=()=>scenario({tool:'http_get',target:'https://not-allowed.invalid'});
